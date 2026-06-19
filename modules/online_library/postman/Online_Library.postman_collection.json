@@ -1,0 +1,120 @@
+{
+  "info": {
+    "name": "Online Library API POC",
+    "description": "Postman collection for read-only SELECT APIs over non-empty Online Library tables.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8003"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health - DB",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health/db"
+      }
+    },
+    {
+      "name": "List Exposed Tables",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/tables"
+      }
+    },
+    {
+      "name": "SELECT authors",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/authors?limit=20&offset=0"
+      }
+    },
+    {
+      "name": "SELECT categories",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/categories?limit=20&offset=0"
+      }
+    },
+    {
+      "name": "SELECT library_users",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/library-users?limit=20&offset=0"
+      }
+    },
+    {
+      "name": "SELECT reading_progress",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/reading-progress?limit=20&offset=0"
+      }
+    },
+    {
+      "name": "SELECT resource_authors",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/resource-authors?limit=20&offset=0"
+      }
+    },
+    {
+      "name": "SELECT resource_tags",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/resource-tags?limit=20&offset=0"
+      }
+    },
+    {
+      "name": "SELECT resources",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/resources?limit=20&offset=0"
+      }
+    },
+    {
+      "name": "SELECT subscription_rules",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/subscription-rules?limit=20&offset=0"
+      }
+    },
+    {
+      "name": "SELECT subscription_tiers",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/subscription-tiers?limit=20&offset=0"
+      }
+    },
+    {
+      "name": "SELECT tags",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/tags?limit=20&offset=0"
+      }
+    },
+    {
+      "name": "SELECT user_approval_requests",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/user-approval-requests?limit=20&offset=0"
+      }
+    },
+    {
+      "name": "SELECT user_bookshelf",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/user-bookshelf?limit=20&offset=0"
+      }
+    },
+    {
+      "name": "SELECT user_subscriptions",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/user-subscriptions?limit=20&offset=0"
+      }
+    }
+  ]
+}
