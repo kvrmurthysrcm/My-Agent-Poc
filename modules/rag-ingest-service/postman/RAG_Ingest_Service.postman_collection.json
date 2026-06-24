@@ -1,0 +1,153 @@
+{
+  "info": {
+    "_postman_id": "2a8c38c0-9f01-4e4e-95f5-9e079d1c3b91",
+    "name": "RAG Ingest Service",
+    "description": "Postman collection for the FastAPI RAG ingestion service POC.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "job_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "resource_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sample_file_path",
+      "value": "sample.txt",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Ingest Document",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"request accepted\", function () {",
+              "  pm.expect(pm.response.code).to.eql(202);",
+              "});",
+              "",
+              "const body = pm.response.json();",
+              "if (body.job_id) { pm.collectionVariables.set(\"job_id\", body.job_id); }",
+              "if (body.resource_id) { pm.collectionVariables.set(\"resource_id\", body.resource_id); }"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "{{sample_file_path}}"
+            },
+            {
+              "key": "metadata",
+              "type": "text",
+              "value": "{\n  \"title\": \"Provider Claims Submission Policy\",\n  \"description\": \"Policy document used by provider portal claims team\",\n  \"resource_type\": \"DOCUMENT\",\n  \"category_name\": \"Claims\",\n  \"business_domain\": \"insurance\",\n  \"source_system\": \"manual_upload\",\n  \"author\": \"Operations Team\",\n  \"language\": \"English\",\n  \"tags\": [\"provider-portal\", \"claims\", \"policy\"],\n  \"custom_metadata\": {\n    \"department\": \"Claims\",\n    \"confidentiality\": \"Internal\",\n    \"document_owner\": \"Provider Operations\"\n  },\n  \"chunking\": {\n    \"strategy\": \"INTELLIGENT_RECURSIVE\",\n    \"chunk_size_tokens\": 800,\n    \"chunk_overlap_tokens\": 120\n  }\n}"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/rag/ingest",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "rag",
+            "ingest"
+          ]
+        },
+        "description": "Upload a .txt, .pdf, or .docx file with metadata JSON. Update sample_file_path before running."
+      },
+      "response": []
+    },
+    {
+      "name": "Get Ingestion Job Status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/rag/ingest/jobs/{{job_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "rag",
+            "ingest",
+            "jobs",
+            "{{job_id}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Invalid Metadata Example",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "{{sample_file_path}}"
+            },
+            {
+              "key": "metadata",
+              "type": "text",
+              "value": "{not-json"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/rag/ingest",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "rag",
+            "ingest"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

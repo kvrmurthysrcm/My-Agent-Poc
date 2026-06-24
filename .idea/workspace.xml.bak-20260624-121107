@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="b94e81ec-63ac-4230-9a3a-0c4aba06c1bf" name="Changes" comment="save architecture documents and diagrams">
+      <change afterPath="$PROJECT_DIR$/.idea/My-Agent-Poc.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/pyproject.toml" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="35" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "kvrmurthysrcm"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/kvrmurthysrcm/My-Agent-Poc.git",
+    "accountId": "4a0dc276-b31c-44bc-9bb0-1f5f2240b5d1"
+  }
+}]]></component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 6
+}</component>
+  <component name="ProjectId" id="3FDM7pQMbQBKNO6DLYM6JAaTXbq" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "master",
+    "ignore.virus.scanning.warn.message": "true",
+    "last_opened_file_path": "D:/py-workspace/My-Agent-Poc/modules/online_library_agent"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="D:\py-workspace\My-Agent-Poc\modules\online_library_agent" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="D:\py-workspace\My-Agent-Poc\docs\images" />
+      <recent name="D:\py-workspace\My-Agent-Poc\modules\weather_ai_agent\docs" />
+      <recent name="D:\py-workspace\My-Agent-Poc\modules\weather_agent\docs" />
+    </key>
+  </component>
+  <component name="RunAnythingCache">
+    <option name="myCommands">
+      <command value="pip " />
+    </option>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-2653e85de345-6d6dccd035ac-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-253.31033.139" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="b94e81ec-63ac-4230-9a3a-0c4aba06c1bf" name="Changes" comment="" />
+      <created>1781605021548</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1781605021548</updated>
+    </task>
+    <task id="LOCAL-00001" summary="added new modules: online_library, weather_agent, weather_ai_agent">
+      <option name="closed" value="true" />
+      <created>1781864037443</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1781864037443</updated>
+    </task>
+    <task id="LOCAL-00002" summary="added new modules: online_library_mcp, missing files from my_agent_poc.egg-info folder">
+      <option name="closed" value="true" />
+      <created>1781876548982</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1781876548982</updated>
+    </task>
+    <task id="LOCAL-00003" summary="save .gitignore also">
+      <option name="closed" value="true" />
+      <created>1781876626387</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1781876626387</updated>
+    </task>
+    <task id="LOCAL-00004" summary="save new module online_library_agent">
+      <option name="closed" value="true" />
+      <created>1781890279937</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1781890279937</updated>
+    </task>
+    <task id="LOCAL-00005" summary="save architecture documents and diagrams">
+      <option name="closed" value="true" />
+      <created>1781954917749</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1781954917749</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
+    <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="added new modules: online_library, weather_agent, weather_ai_agent" />
+    <MESSAGE value="added new modules: online_library_mcp, missing files from my_agent_poc.egg-info folder" />
+    <MESSAGE value="save .gitignore also" />
+    <MESSAGE value="save new module online_library_agent" />
+    <MESSAGE value="save architecture documents and diagrams" />
+    <option name="LAST_COMMIT_MESSAGE" value="save architecture documents and diagrams" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <line>8</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+</project>

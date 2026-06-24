@@ -1,0 +1,200 @@
+You are working inside a Python FastAPI project for a RAG ingestion service.
+
+Reference document:
+docs/RAG_Ingest_Service_Action_Plan_v1_1_Updated.docx
+
+Goal:
+Implement the /rag/ingest POC based on the reference document.
+
+Primary requirements:
+
+1. Create a FastAPI service with:
+
+   * POST /rag/ingest
+   * GET /rag/ingest/jobs/{job_id}
+   * GET /health
+
+2. POST /rag/ingest must:
+
+   * Accept multipart/form-data
+   * Accept file as binary upload
+   * Accept metadata as JSON string
+   * Validate file extension, MIME type, and file size
+   * Store document/resource metadata
+   * Create an ingestion job row
+   * Return resource_id, job_id, and status immediately
+   * Do not wait for text extraction, chunking, or embeddings to finish
+
+3. Implement configurable embedding provider selection.
+   Keep embeddings and NLQ/text processing model configuration separate.
+
+   Default local embeddings configuration:
+
+   * EMBEDDING_PROVIDER=ollama
+   * EMBEDDING_MODEL=embeddinggemma
+   * EMBEDDING_DIMENSION=768
+   * OLLAMA_BASE_URL=http://127.0.0.1:11434
+
+   Supported local Ollama embedding alternatives:
+
+   * EMBEDDING_MODEL=nomic-embed-text with EMBEDDING_DIMENSION=768
+   * EMBEDDING_MODEL=mxbai-embed-large with EMBEDDING_DIMENSION=1024
+
+   Default local NLQ/text processing configuration:
+
+   * LLM_PROVIDER=ollama
+   * LLM_MODEL=mistral:latest
+
+   Use embeddinggemma only for embedding/vector creation. Use mistral:latest for NLQ/text processing.
+
+   OpenAI must remain configurable:
+
+   * EMBEDDING_PROVIDER=openai
+   * EMBEDDING_MODEL=text-embedding-3-small
+   * OPENAI_API_KEY from environment variable
+
+   Additional local Ollama option:
+
+   * EMBEDDING_MODEL=gemma4
+
+4. Implement Python abstraction similar to Java interface style:
+
+   * Create an EmbeddingProvider abstract base class or Protocol
+   * Implement OpenAIEmbeddingProvider
+   * Implement OllamaEmbeddingProvider
+   * Implement EmbeddingProviderFactory
+   * The ingestion worker must depend only on the EmbeddingProvider abstraction, not directly on OpenAI or Ollama classes
+
+5. Implement configurable async backend selection.
+   Config value:
+
+   * ASYNC_BACKEND=fastapi_background_tasks
+   * ASYNC_BACKEND=db_worker
+   * ASYNC_BACKEND=rq
+   * ASYNC_BACKEND=kafka
+
+   Create a JobDispatcher abstraction.
+   Implement:
+
+   * FastApiBackgroundTaskDispatcher
+   * DbWorkerDispatcher
+   * RqJobDispatcher
+   * KafkaJobDispatcher
+
+   For this POC, fully implement FastAPI BackgroundTasks and DB-backed worker.
+   For RQ and Kafka, create clean adapter classes with TODO implementation hooks, config, and method signatures.
+
+6. Implement intelligent chunking:
+
+   * Default strategy: INTELLIGENT_RECURSIVE
+   * Default chunk size: 800 tokens
+   * Default overlap: 120 tokens
+   * Preserve chunk_index, page_start, page_end, section_title, heading_path, token_count, char_count, chunk_hash_sha256
+
+7. Implement file parsing initially for:
+
+   * .txt
+   * .pdf
+   * .docx
+
+8. Implement DB layer using:
+
+   * SQLAlchemy 2.x
+   * Alembic migrations
+   * PostgreSQL
+   * pgvector-ready schema
+
+9. Create tables or models based on the document:
+
+   * resources extension fields
+   * rag_ingestion_jobs
+   * rag_document_extractions
+   * rag_document_chunks
+   * rag_chunk_embeddings
+   * rag_processing_errors
+
+10. Store original uploaded file temporarily.
+    After successful chunking and embedding:
+
+* Keep metadata
+* Keep SHA-256 hash
+* Keep chunks
+* Keep embeddings
+* Allow file bytes/path cleanup later through a retention policy
+
+11. Add .env.example with:
+
+* DATABASE_URL defaulting to postgresql://library_user:library_pass@localhost:5432/online_library, matching online_library
+* STORAGE_ROOT
+* MAX_UPLOAD_MB
+* SUPPORTED_EXTENSIONS
+* DEFAULT_CHUNK_SIZE_TOKENS
+* DEFAULT_CHUNK_OVERLAP_TOKENS
+* EMBEDDING_PROVIDER defaulting to ollama
+* EMBEDDING_MODEL defaulting to embeddinggemma
+* EMBEDDING_DIMENSION defaulting to 768
+* LLM_PROVIDER defaulting to ollama
+* LLM_MODEL defaulting to mistral:latest
+* OPENAI_API_KEY
+* OLLAMA_BASE_URL
+* ASYNC_BACKEND
+* RQ_REDIS_URL
+* KAFKA_BOOTSTRAP_SERVERS
+* KAFKA_INGESTION_TOPIC
+
+12. Add tests using pytest:
+
+* health endpoint
+* successful upload returns resource_id and job_id
+* invalid file extension fails
+* invalid metadata fails
+* job status endpoint works
+* embedding provider factory selects OpenAI
+* embedding provider factory selects Ollama
+* async dispatcher factory selects configured backend
+
+13. Add a Postman collection:
+
+* Create /postman/RAG_Ingest_Service.postman_collection.json
+* Include GET /health
+* Include POST /rag/ingest multipart/form-data with file and metadata examples
+* Include GET /rag/ingest/jobs/{job_id}
+* Include at least one invalid metadata example
+* Use collection variables for base_url, job_id, resource_id, and sample_file_path
+
+14. Keep code clean and layered:
+
+* app/api
+* app/core
+* app/db
+* app/schemas
+* app/repositories
+* app/services
+* app/workers
+* app/utils
+* tests
+
+15. Do not hardcode secrets.
+    OPENAI_API_KEY must be read from environment variables only.
+
+16. Generate the implementation incrementally:
+    Step 1: project structure and settings
+    Step 2: DB models and migrations
+    Step 3: API routes and schemas
+    Step 4: file storage and validation
+    Step 5: text extraction
+    Step 6: chunking
+    Step 7: embedding abstraction and providers
+    Step 8: async dispatcher abstraction and implementations
+    Step 9: worker processing flow
+    Step 10: tests and README
+
+Expected output:
+
+* Working FastAPI project
+* Alembic migration files
+* .env.example
+* README.md with run instructions
+* Postman collection under /postman
+* pytest test suite
+* Clean TODOs only for optional RQ and Kafka internals if not fully implemented

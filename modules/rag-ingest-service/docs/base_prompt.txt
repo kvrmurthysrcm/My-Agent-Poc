@@ -1,0 +1,9 @@
+Generate the rag-ingest-service python module using the D:\py-workspace\My-Agent-Poc\modules\rag-ingest-service\docs\RAG_Ingestion_service_codex_prompt.txt file details.
+use the RAG_Ingest_Service_Action_Plan_v1_1_Updated.docx in the same folder for reference details on the requirement.
+use the D:\py-workspace\My-Agent-Poc\modules\rag-ingest-service\sql\schema.sql for base schema details.
+update the folder with updated full schema in complaince with the RAG implementation.
+
+there is no existing data to migrate.
+save this base prompt also in the /docs folder of the module.
+
+Ask me for any questions if further details are required.
