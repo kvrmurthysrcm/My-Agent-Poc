@@ -15,6 +15,7 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
     storage_root: Path = Field(Path("./storage"), alias="STORAGE_ROOT")
+    delete_original_file_after_ingestion: bool = Field(True, alias="DELETE_ORIGINAL_FILE_AFTER_INGESTION")
     max_upload_mb: int = Field(25, alias="MAX_UPLOAD_MB")
     supported_extensions: list[str] = Field([".txt", ".pdf", ".docx", ".epub"], alias="SUPPORTED_EXTENSIONS")
 

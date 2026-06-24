@@ -17,6 +17,12 @@ The endpoint stores the uploaded file and metadata, creates a `resources` row an
 
 When available, the service reads document metadata from the uploaded file and fills missing request fields. EPUB metadata is read from the OPF package metadata, PDF metadata from the PDF document info, and DOCX metadata from core properties. Request metadata takes precedence over file metadata. If no title is supplied by either source, the filename is used.
 
+After a successful ingestion, the original uploaded file is deleted by default. The service keeps resource metadata, SHA-256 hashes, extracted text, chunks, and embeddings. Failed jobs keep the original file for troubleshooting. To retain originals after successful ingestion, set:
+
+```text
+DELETE_ORIGINAL_FILE_AFTER_INGESTION=false
+```
+
 ## Run Locally
 
 ```powershell
@@ -33,6 +39,7 @@ For a no-PostgreSQL smoke test, set:
 ```text
 DATABASE_URL=sqlite:///./rag_ingest.db
 ASYNC_BACKEND=fastapi_background_tasks
+DELETE_ORIGINAL_FILE_AFTER_INGESTION=true
 ```
 
 By default, this module uses the same local PostgreSQL settings as `online_library`:

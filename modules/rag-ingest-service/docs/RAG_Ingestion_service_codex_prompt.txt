@@ -125,12 +125,16 @@ Primary requirements:
 * Keep SHA-256 hash
 * Keep chunks
 * Keep embeddings
-* Allow file bytes/path cleanup later through a retention policy
+* Add DELETE_ORIGINAL_FILE_AFTER_INGESTION config and default it to true
+* Delete the original uploaded file after successful ingestion when DELETE_ORIGINAL_FILE_AFTER_INGESTION=true
+* Keep the original uploaded file for failed jobs so failures can be debugged
+* Allow disabling cleanup by setting DELETE_ORIGINAL_FILE_AFTER_INGESTION=false
 
 11. Add .env.example with:
 
 * DATABASE_URL defaulting to postgresql://library_user:library_pass@localhost:5432/online_library, matching online_library
 * STORAGE_ROOT
+* DELETE_ORIGINAL_FILE_AFTER_INGESTION defaulting to true
 * MAX_UPLOAD_MB
 * SUPPORTED_EXTENSIONS
 * DEFAULT_CHUNK_SIZE_TOKENS

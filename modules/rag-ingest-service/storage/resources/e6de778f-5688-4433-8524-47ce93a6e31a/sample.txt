@@ -1,2 +1,0 @@
-Heading:
-This is a policy document for provider claims submission.

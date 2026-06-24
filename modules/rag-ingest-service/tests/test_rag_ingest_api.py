@@ -44,6 +44,15 @@ def test_successful_upload_returns_resource_and_job():
     assert body["job_id"]
     assert body["status"] == "QUEUED"
 
+    db = SessionLocal()
+    try:
+        resource = db.scalar(select(Resource).where(Resource.resource_id == body["resource_id"]))
+        assert resource.ingestion_status == "READY"
+        assert resource.storage_path is None
+        assert resource.file_url is None
+    finally:
+        db.close()
+
 
 def test_invalid_file_extension_fails():
     metadata = {"title": "Bad Upload"}
@@ -123,3 +132,27 @@ def test_upload_uses_epub_metadata_when_title_omitted(tmp_path):
         assert resource.language == "en"
     finally:
         db.close()
+
+
+def test_can_keep_original_file_when_cleanup_disabled(monkeypatch):
+    monkeypatch.setenv("DELETE_ORIGINAL_FILE_AFTER_INGESTION", "false")
+    get_settings.cache_clear()
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/rag/ingest",
+            files={"file": ("keep.txt", b"Keep this original file after ingestion.", "text/plain")},
+            data={"metadata": json.dumps({"title": "Keep Original"})},
+        )
+
+    assert response.status_code == 202
+    resource_id = response.json()["resource_id"]
+    db = SessionLocal()
+    try:
+        resource = db.scalar(select(Resource).where(Resource.resource_id == resource_id))
+        assert resource.ingestion_status == "READY"
+        assert resource.storage_path is not None
+    finally:
+        db.close()
+        monkeypatch.delenv("DELETE_ORIGINAL_FILE_AFTER_INGESTION", raising=False)
+        get_settings.cache_clear()

@@ -102,6 +102,11 @@ def process_job(job_id: str) -> None:
                 ]
             )
             job.embedded_chunks = len(vectors)
+            if settings.delete_original_file_after_ingestion:
+                try:
+                    _delete_original_file(resource)
+                except Exception as exc:
+                    errors.record(job.job_id, resource.resource_id, "cleanup", exc)
             resources.update_status(resource.resource_id, "READY")
             jobs.mark_completed(job)
             db.commit()
@@ -131,3 +136,22 @@ def _fail(db, jobs, errors, resources, job, resource, stage: str, exc: Exception
     jobs.mark_failed(job, str(exc))
     resources.update_status(resource.resource_id, "FAILED")
     db.commit()
+
+
+def _delete_original_file(resource: Resource) -> None:
+    if not resource.storage_path:
+        return
+
+    original_path = Path(resource.storage_path)
+    if original_path.exists() and original_path.is_file():
+        original_path.unlink()
+
+    parent = original_path.parent
+    try:
+        if parent.exists() and not any(parent.iterdir()):
+            parent.rmdir()
+    except OSError:
+        pass
+
+    resource.storage_path = None
+    resource.file_url = None
