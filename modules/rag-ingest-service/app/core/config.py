@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
     storage_root: Path = Field(Path("./storage"), alias="STORAGE_ROOT")
     max_upload_mb: int = Field(25, alias="MAX_UPLOAD_MB")
-    supported_extensions: list[str] = Field([".txt", ".pdf", ".docx"], alias="SUPPORTED_EXTENSIONS")
+    supported_extensions: list[str] = Field([".txt", ".pdf", ".docx", ".epub"], alias="SUPPORTED_EXTENSIONS")
 
     default_chunk_size_tokens: int = Field(800, alias="DEFAULT_CHUNK_SIZE_TOKENS")
     default_chunk_overlap_tokens: int = Field(120, alias="DEFAULT_CHUNK_OVERLAP_TOKENS")

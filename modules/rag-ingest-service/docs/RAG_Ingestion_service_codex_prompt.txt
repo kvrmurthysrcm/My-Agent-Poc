@@ -21,6 +21,10 @@ Primary requirements:
    * Accept metadata as JSON string
    * Validate file extension, MIME type, and file size
    * Store document/resource metadata
+   * Extract document metadata from the uploaded file when available
+   * Let request metadata override file metadata
+   * Fill missing title, author, language, publisher, description, and published date from file metadata where possible
+   * Fall back to the filename as title when no title exists in request metadata or file metadata
    * Create an ingestion job row
    * Return resource_id, job_id, and status immediately
    * Do not wait for text extraction, chunking, or embeddings to finish
@@ -96,6 +100,7 @@ Primary requirements:
    * .txt
    * .pdf
    * .docx
+   * .epub
 
 8. Implement DB layer using:
 

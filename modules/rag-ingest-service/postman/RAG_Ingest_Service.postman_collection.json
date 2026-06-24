@@ -92,7 +92,7 @@
             "ingest"
           ]
         },
-        "description": "Upload a .txt, .pdf, or .docx file with metadata JSON. Update sample_file_path before running."
+        "description": "Upload a .txt, .pdf, .docx, or .epub file with metadata JSON. Update sample_file_path before running. For EPUB/PDF/DOCX files with embedded metadata, title/author/language may be omitted and will be filled from the file when available."
       },
       "response": []
     },

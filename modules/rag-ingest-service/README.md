@@ -10,10 +10,12 @@ FastAPI POC for asynchronous RAG document ingestion.
 
 `POST /rag/ingest` accepts `multipart/form-data`:
 
-- `file`: `.txt`, `.pdf`, or `.docx`
+- `file`: `.txt`, `.pdf`, `.docx`, or `.epub`
 - `metadata`: JSON string matching `IngestMetadata`
 
 The endpoint stores the uploaded file and metadata, creates a `resources` row and a `rag_ingestion_jobs` row, returns `resource_id` and `job_id`, then dispatches processing using `ASYNC_BACKEND`.
+
+When available, the service reads document metadata from the uploaded file and fills missing request fields. EPUB metadata is read from the OPF package metadata, PDF metadata from the PDF document info, and DOCX metadata from core properties. Request metadata takes precedence over file metadata. If no title is supplied by either source, the filename is used.
 
 ## Run Locally
 
@@ -94,6 +96,13 @@ When `OPENAI_API_KEY` is not set, the OpenAI provider returns deterministic plac
 ```powershell
 $metadata = '{"title":"Provider Claims Submission Policy","resource_type":"DOCUMENT","category_name":"Claims","source_system":"manual_upload","tags":["claims","policy"]}'
 curl.exe -X POST http://localhost:8000/rag/ingest -F "file=@sample.txt;type=text/plain" -F "metadata=$metadata"
+```
+
+For EPUB/PDF/DOCX files with embedded metadata, `title` and `author` can be omitted:
+
+```powershell
+$metadata = '{"source_system":"manual_upload","tags":["ebook"]}'
+curl.exe -X POST http://localhost:8000/rag/ingest -F "file=@book.epub;type=application/epub+zip" -F "metadata=$metadata"
 ```
 
 ## Tests

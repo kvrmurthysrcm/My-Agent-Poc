@@ -52,7 +52,7 @@ class ResourceRepository:
     ) -> Resource:
         category = self._get_or_create_category(metadata.category_name)
         resource = Resource(
-            title=metadata.title,
+            title=metadata.title or file_name,
             description=metadata.description,
             resource_type=metadata.resource_type,
             category_id=category.category_id if category else None,

@@ -35,4 +35,5 @@ SUPPORTED_MIME_TYPES = {
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/octet-stream",
     },
+    ".epub": {"application/epub+zip", "application/octet-stream"},
 }

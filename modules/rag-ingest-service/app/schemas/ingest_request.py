@@ -11,14 +11,14 @@ class ChunkingOptions(BaseModel):
 
 
 class IngestMetadata(BaseModel):
-    title: str = Field(min_length=1, max_length=500)
+    title: str | None = Field(default=None, min_length=1, max_length=500)
     description: str | None = None
     resource_type: str = "DOCUMENT"
     category_name: str | None = None
     business_domain: str | None = None
     source_system: str = "manual_upload"
     author: str | None = None
-    language: str = "English"
+    language: str | None = None
     publisher: str | None = None
     published_date: datetime | None = None
     tags: list[str] = Field(default_factory=list)

@@ -5,6 +5,7 @@ from app.core.config import Settings
 from app.repositories.rag_job_repository import RagJobRepository
 from app.repositories.resource_repository import ResourceRepository
 from app.schemas.ingest_request import IngestMetadata
+from app.services.file_metadata_service import FileMetadataService
 from app.services.file_storage_service import FileStorageService
 
 
@@ -19,6 +20,12 @@ class IngestService:
     async def create_resource_and_job(self, file: UploadFile, metadata: IngestMetadata, extension: str) -> tuple[str, str]:
         temp_resource_id = "pending"
         storage_path, size, file_hash = await self.storage.save_upload(file, temp_resource_id)
+        file_metadata_service = FileMetadataService()
+        metadata = file_metadata_service.merge_with_request_metadata(
+            request_metadata=metadata,
+            file_metadata=file_metadata_service.extract(storage_path, extension),
+            fallback_title=storage_path.stem,
+        )
 
         chunk_size = metadata.chunking.chunk_size_tokens or self.settings.default_chunk_size_tokens
         chunk_overlap = metadata.chunking.chunk_overlap_tokens or self.settings.default_chunk_overlap_tokens
