@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RAG Ingestion Service</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --surface: #ffffff;
+      --ink: #17202a;
+      --muted: #596675;
+      --line: #d8dee6;
+      --accent: #0f766e;
+      --accent-dark: #115e59;
+      --danger: #b42318;
+      --ready: #166534;
+      --warn: #92400e;
+      --shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    .topbar {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .status-pill {
+      min-width: 96px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #f8fafc;
+      color: var(--muted);
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+      gap: 20px;
+    }
+
+    section {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .section-head {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    form {
+      padding: 18px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: 13px;
+      color: #344054;
+      font-weight: 650;
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 9px 10px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      letter-spacing: 0;
+    }
+
+    input[type="file"] {
+      padding: 8px;
+    }
+
+    textarea {
+      min-height: 92px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      padding-top: 2px;
+    }
+
+    button {
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 9px 13px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+
+    button.primary:hover {
+      background: var(--accent-dark);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.62;
+    }
+
+    .panel-body {
+      padding: 18px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 135px minmax(0, 1fr);
+      gap: 8px 12px;
+      align-items: baseline;
+      font-size: 14px;
+    }
+
+    .kv dt {
+      color: var(--muted);
+      font-weight: 650;
+    }
+
+    .kv dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+    }
+
+    .message {
+      min-height: 46px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 11px 12px;
+      background: #f8fafc;
+      color: var(--muted);
+      overflow-wrap: anywhere;
+    }
+
+    .message.error {
+      border-color: #f0b8b3;
+      background: #fff4f2;
+      color: var(--danger);
+    }
+
+    .message.ready {
+      border-color: #bbd9c2;
+      background: #f0f9f2;
+      color: var(--ready);
+    }
+
+    .message.warn {
+      border-color: #f1cf9a;
+      background: #fff8eb;
+      color: var(--warn);
+    }
+
+    .json-preview {
+      min-height: 220px;
+    }
+
+    .profile-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .profile-table th,
+    .profile-table td {
+      border-bottom: 1px solid var(--line);
+      padding: 7px 6px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .profile-table th {
+      color: var(--muted);
+      font-weight: 700;
+      background: #f8fafc;
+    }
+
+    .profile-table td {
+      overflow-wrap: anywhere;
+    }
+
+    .profile-table td:nth-child(2) {
+      text-align: right;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .topbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      main {
+        padding: 14px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .kv {
+        grid-template-columns: 1fr;
+      }
+
+      .actions {
+        flex-direction: column-reverse;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <h1>RAG Ingestion Service</h1>
+      <div id="healthStatus" class="status-pill">Checking</div>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <div class="section-head">
+        <h2>Upload</h2>
+      </div>
+      <form id="ingestForm">
+        <div class="field">
+          <label for="file">File</label>
+          <input id="file" name="file" type="file" accept=".txt,.pdf,.docx,.epub" required>
+        </div>
+
+        <div class="grid">
+          <div class="field">
+            <label for="title">Title</label>
+            <input id="title" name="title" type="text" maxlength="500" placeholder="Optional when file metadata exists">
+          </div>
+          <div class="field">
+            <label for="author">Author</label>
+            <input id="author" name="author" type="text" placeholder="Optional">
+          </div>
+          <div class="field">
+            <label for="category">Category</label>
+            <input id="category" name="category" type="text" placeholder="Immigration Guides">
+          </div>
+          <div class="field">
+            <label for="language">Language</label>
+            <input id="language" name="language" type="text" placeholder="Optional">
+          </div>
+          <div class="field">
+            <label for="sourceSystem">Source System</label>
+            <input id="sourceSystem" name="sourceSystem" type="text" value="manual_upload_ui">
+          </div>
+          <div class="field">
+            <label for="businessDomain">Business Domain</label>
+            <input id="businessDomain" name="businessDomain" type="text" placeholder="insurance, immigration">
+          </div>
+          <div class="field full">
+            <label for="description">Description</label>
+            <input id="description" name="description" type="text" placeholder="Optional">
+          </div>
+          <div class="field full">
+            <label for="tags">Tags</label>
+            <input id="tags" name="tags" type="text" placeholder="comma,separated,tags">
+          </div>
+          <div class="field">
+            <label for="chunkSize">Chunk Size</label>
+            <input id="chunkSize" name="chunkSize" type="number" min="100" value="800">
+          </div>
+          <div class="field">
+            <label for="chunkOverlap">Chunk Overlap</label>
+            <input id="chunkOverlap" name="chunkOverlap" type="number" min="0" value="120">
+          </div>
+          <div class="field full">
+            <label for="customMetadata">Custom Metadata JSON</label>
+            <textarea id="customMetadata" name="customMetadata">{}</textarea>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" id="previewButton">Preview JSON</button>
+          <button type="submit" id="submitButton" class="primary">Submit</button>
+        </div>
+      </form>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Status</h2>
+        <button type="button" id="pollButton" disabled>Refresh</button>
+      </div>
+      <div class="panel-body">
+        <div id="message" class="message">Waiting for upload.</div>
+        <dl class="kv">
+          <dt>Resource ID</dt>
+          <dd id="resourceId">-</dd>
+          <dt>Job ID</dt>
+          <dd id="jobId">-</dd>
+          <dt>Status</dt>
+          <dd id="jobStatus">-</dd>
+          <dt>Chunks</dt>
+          <dd id="chunks">-</dd>
+          <dt>Embeddings</dt>
+          <dd id="embeddings">-</dd>
+        </dl>
+        <div class="field">
+          <label for="metadataPreview">Metadata JSON</label>
+          <textarea id="metadataPreview" class="json-preview" readonly></textarea>
+        </div>
+        <div class="field">
+          <label>Profiling</label>
+          <table class="profile-table">
+            <thead>
+              <tr>
+                <th>Step</th>
+                <th>ms</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody id="profilingRows">
+              <tr><td colspan="3">No profiling data yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById("ingestForm");
+    const submitButton = document.getElementById("submitButton");
+    const previewButton = document.getElementById("previewButton");
+    const pollButton = document.getElementById("pollButton");
+    const metadataPreview = document.getElementById("metadataPreview");
+    const message = document.getElementById("message");
+    const healthStatus = document.getElementById("healthStatus");
+    const resourceId = document.getElementById("resourceId");
+    const jobId = document.getElementById("jobId");
+    const jobStatus = document.getElementById("jobStatus");
+    const chunks = document.getElementById("chunks");
+    const embeddings = document.getElementById("embeddings");
+    const profilingRows = document.getElementById("profilingRows");
+
+    let activeJobId = "";
+    let pollTimer = null;
+
+    function optionalValue(id) {
+      const value = document.getElementById(id).value.trim();
+      return value.length ? value : undefined;
+    }
+
+    function readCustomMetadata() {
+      const raw = document.getElementById("customMetadata").value.trim();
+      if (!raw) {
+        return {};
+      }
+      return JSON.parse(raw);
+    }
+
+    function buildMetadata() {
+      const tags = optionalValue("tags");
+      const metadata = {
+        title: optionalValue("title"),
+        description: optionalValue("description"),
+        resource_type: "DOCUMENT",
+        category_name: optionalValue("category"),
+        business_domain: optionalValue("businessDomain"),
+        source_system: optionalValue("sourceSystem") || "manual_upload_ui",
+        author: optionalValue("author"),
+        language: optionalValue("language"),
+        tags: tags ? tags.split(",").map((tag) => tag.trim()).filter(Boolean) : [],
+        custom_metadata: readCustomMetadata(),
+        chunking: {
+          strategy: "INTELLIGENT_RECURSIVE",
+          chunk_size_tokens: Number(document.getElementById("chunkSize").value || 800),
+          chunk_overlap_tokens: Number(document.getElementById("chunkOverlap").value || 120)
+        }
+      };
+
+      Object.keys(metadata).forEach((key) => {
+        if (metadata[key] === undefined) {
+          delete metadata[key];
+        }
+      });
+
+      return metadata;
+    }
+
+    function setMessage(text, mode) {
+      message.textContent = text;
+      message.className = "message";
+      if (mode) {
+        message.classList.add(mode);
+      }
+    }
+
+    function renderMetadata() {
+      const metadata = buildMetadata();
+      metadataPreview.value = JSON.stringify(metadata, null, 2);
+      return metadata;
+    }
+
+    async function checkHealth() {
+      try {
+        const response = await fetch("/health");
+        healthStatus.textContent = response.ok ? "Online" : "Issue";
+        healthStatus.style.color = response.ok ? "var(--ready)" : "var(--danger)";
+      } catch (error) {
+        healthStatus.textContent = "Offline";
+        healthStatus.style.color = "var(--danger)";
+      }
+    }
+
+    async function pollJob() {
+      if (!activeJobId) {
+        return;
+      }
+      const response = await fetch(`/rag/ingest/jobs/${activeJobId}`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || "Unable to fetch job status.");
+      }
+
+      jobStatus.textContent = data.status || "-";
+      chunks.textContent = `${data.processed_chunks || 0}/${data.total_chunks || 0}`;
+      embeddings.textContent = String(data.embedded_chunks || 0);
+      renderProfiling(data.profiling || []);
+
+      if (data.status === "COMPLETED") {
+        setMessage("Ingestion completed.", "ready");
+        clearInterval(pollTimer);
+        pollTimer = null;
+      } else if (data.status === "FAILED") {
+        setMessage(data.error_message || "Ingestion failed.", "error");
+        clearInterval(pollTimer);
+        pollTimer = null;
+      } else {
+        setMessage(data.message || "Ingestion is processing.", "warn");
+      }
+    }
+
+    function renderProfiling(rows) {
+      if (!rows.length) {
+        profilingRows.innerHTML = '<tr><td colspan="3">No profiling data yet.</td></tr>';
+        return;
+      }
+      profilingRows.innerHTML = rows.map((row) => {
+        const details = row.details ? Object.entries(row.details)
+          .map(([key, value]) => `${key}=${value}`)
+          .join(" ") : "";
+        return `<tr><td>${escapeHtml(row.step)}</td><td>${Number(row.elapsed_ms).toFixed(2)}</td><td>${escapeHtml(details)}</td></tr>`;
+      }).join("");
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    previewButton.addEventListener("click", () => {
+      try {
+        renderMetadata();
+        setMessage("Metadata JSON is valid.", "ready");
+      } catch (error) {
+        setMessage(error.message, "error");
+      }
+    });
+
+    pollButton.addEventListener("click", () => {
+      pollJob().catch((error) => setMessage(error.message, "error"));
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      submitButton.disabled = true;
+      try {
+        const file = document.getElementById("file").files[0];
+        if (!file) {
+          throw new Error("Select a file.");
+        }
+        const metadata = renderMetadata();
+        const body = new FormData();
+        body.append("file", file);
+        body.append("metadata", JSON.stringify(metadata));
+
+        setMessage("Submitting upload.", "warn");
+        const response = await fetch("/rag/ingest", { method: "POST", body });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "Upload failed.");
+        }
+
+        activeJobId = data.job_id;
+        resourceId.textContent = data.resource_id;
+        jobId.textContent = data.job_id;
+        jobStatus.textContent = data.status;
+        chunks.textContent = "-";
+        embeddings.textContent = "-";
+        pollButton.disabled = false;
+        setMessage(data.message || "Document accepted.", "ready");
+
+        clearInterval(pollTimer);
+        pollTimer = setInterval(() => {
+          pollJob().catch((error) => {
+            clearInterval(pollTimer);
+            pollTimer = null;
+            setMessage(error.message, "error");
+          });
+        }, 2500);
+        await pollJob();
+      } catch (error) {
+        setMessage(error.message, "error");
+      } finally {
+        submitButton.disabled = false;
+      }
+    });
+
+    form.addEventListener("input", () => {
+      try {
+        renderMetadata();
+      } catch (error) {
+        metadataPreview.value = error.message;
+      }
+    });
+
+    checkHealth();
+    renderMetadata();
+  </script>
+</body>
+</html>
