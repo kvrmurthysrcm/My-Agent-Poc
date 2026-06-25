@@ -1,8 +1,9 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from app.core.constants import AsyncBackend, EmbeddingProviderName
 
@@ -16,12 +17,17 @@ class Settings(BaseSettings):
     )
     storage_root: Path = Field(Path("./storage"), alias="STORAGE_ROOT")
     delete_original_file_after_ingestion: bool = Field(True, alias="DELETE_ORIGINAL_FILE_AFTER_INGESTION")
+    profiling: bool = Field(True, alias="PROFILING")
     max_upload_mb: int = Field(25, alias="MAX_UPLOAD_MB")
-    supported_extensions: list[str] = Field([".txt", ".pdf", ".docx", ".epub"], alias="SUPPORTED_EXTENSIONS")
+    supported_extensions: Annotated[list[str], NoDecode] = Field(
+        [".txt", ".pdf", ".docx", ".epub"],
+        alias="SUPPORTED_EXTENSIONS",
+    )
 
     default_chunk_size_tokens: int = Field(800, alias="DEFAULT_CHUNK_SIZE_TOKENS")
     default_chunk_overlap_tokens: int = Field(120, alias="DEFAULT_CHUNK_OVERLAP_TOKENS")
     minimum_chunk_tokens: int = Field(80, alias="MINIMUM_CHUNK_TOKENS")
+    pdf_parser: str = Field("pymupdf", alias="PDF_PARSER")
 
     embedding_provider: EmbeddingProviderName = Field(EmbeddingProviderName.OLLAMA, alias="EMBEDDING_PROVIDER")
     embedding_model: str = Field("embeddinggemma", alias="EMBEDDING_MODEL")
@@ -52,6 +58,14 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [item.strip().lower() for item in value.split(",") if item.strip()]
         return [item.lower() for item in value]
+
+    @field_validator("pdf_parser")
+    @classmethod
+    def normalize_pdf_parser(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"pymupdf", "pypdf"}:
+            raise ValueError("PDF_PARSER must be either 'pymupdf' or 'pypdf'")
+        return normalized
 
     @property
     def max_upload_bytes(self) -> int:

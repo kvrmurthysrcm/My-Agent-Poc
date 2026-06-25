@@ -1,4 +1,6 @@
 from pathlib import Path
+import logging
+from time import perf_counter
 
 from app.core.config import get_settings
 from app.db.models import Resource
@@ -13,12 +15,17 @@ from app.services.embedding_providers.factory import EmbeddingProviderFactory
 from app.services.embedding_service import EmbeddingService
 from app.services.text_extraction_service import TextExtractionService
 from app.utils.hashing import sha256_text
+from app.utils.profiling import clear_profile_events, profile_step
 from app.utils.token_counter import count_tokens
+
+logger = logging.getLogger("rag_ingestion_worker")
 
 
 def process_job(job_id: str) -> None:
     settings = get_settings()
     db = SessionLocal()
+    job_started = None
+    job_started_at = perf_counter()
     try:
         jobs = RagJobRepository(db)
         job = jobs.get(job_id)
@@ -27,92 +34,166 @@ def process_job(job_id: str) -> None:
         resource = db.get(Resource, job.resource_id)
         if resource is None:
             return
+        clear_profile_events(job.job_id)
 
         errors = RagErrorRepository(db)
         resources = ResourceRepository(db)
         chunks_repo = RagChunkRepository(db)
         embeddings_repo = RagEmbeddingRepository(db)
+        job_started = job.job_id
 
         try:
-            jobs.mark_processing(job)
-            resources.update_status(resource.resource_id, "PROCESSING")
-            db.commit()
-            extraction = TextExtractionService().extract(path=Path(resource.storage_path), extension=resource.file_extension)
+            with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_mark_processing"):
+                jobs.mark_processing(job)
+                jobs.update_progress(job, "Starting text extraction")
+                resources.update_status(resource.resource_id, "PROCESSING")
+                db.commit()
+            logger.info("RAG job %s resource %s: extracting text from %s", job.job_id, resource.resource_id, resource.file_name)
+            with profile_step(
+                settings.profiling,
+                logger,
+                job.job_id,
+                resource.resource_id,
+                "file_parse",
+                parser_extension=resource.file_extension,
+                file_name=resource.file_name,
+                file_size_bytes=resource.file_size_bytes,
+            ):
+                extraction = TextExtractionService().extract(path=Path(resource.storage_path), extension=resource.file_extension)
         except Exception as exc:
             _fail(db, jobs, errors, resources, job, resource, "extraction", exc)
             return
 
         try:
-            text_hash = sha256_text(extraction.text)
-            chunks_repo.create_extraction(
-                resource_id=resource.resource_id,
-                job_id=job.job_id,
-                parser_name=extraction.parser_name,
-                extracted_text=extraction.text,
-                extracted_text_hash_sha256=text_hash,
-                page_count=extraction.page_count,
-                char_count=len(extraction.text),
-                token_count=count_tokens(extraction.text),
-                extraction_metadata=extraction.metadata,
-            )
-            resource.parser_name = extraction.parser_name
-            resource.extracted_text_hash_sha256 = text_hash
+            with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_store_extraction"):
+                jobs.update_progress(job, "Text extracted; storing extraction summary")
+                db.commit()
+                text_hash = sha256_text(extraction.text)
+                extraction_token_count = count_tokens(extraction.text)
+                chunks_repo.create_extraction(
+                    resource_id=resource.resource_id,
+                    job_id=job.job_id,
+                    parser_name=extraction.parser_name,
+                    extracted_text=extraction.text,
+                    extracted_text_hash_sha256=text_hash,
+                    page_count=extraction.page_count,
+                    char_count=len(extraction.text),
+                    token_count=extraction_token_count,
+                    extraction_metadata=extraction.metadata,
+                )
+                resource.parser_name = extraction.parser_name
+                resource.extracted_text_hash_sha256 = text_hash
 
-            chunked = ChunkingService().chunk(
-                extraction.text,
+            with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_update_chunking_status"):
+                jobs.update_progress(job, "Chunking extracted text")
+                db.commit()
+            logger.info(
+                "RAG job %s resource %s: extracted chars=%s tokens=%s parser=%s",
+                job.job_id,
+                resource.resource_id,
+                len(extraction.text),
+                extraction_token_count,
+                extraction.parser_name,
+            )
+            with profile_step(
+                settings.profiling,
+                logger,
+                job.job_id,
+                resource.resource_id,
+                "chunking",
                 chunk_size_tokens=job.chunk_size_tokens,
                 chunk_overlap_tokens=job.chunk_overlap_tokens,
-            )
-            chunk_rows = chunks_repo.create_chunks(
-                [
-                    {
-                        "resource_id": resource.resource_id,
-                        "job_id": job.job_id,
-                        "chunk_index": chunk.chunk_index,
-                        "chunk_text": chunk.chunk_text,
-                        "chunk_hash_sha256": chunk.chunk_hash_sha256,
-                        "token_count": chunk.token_count,
-                        "char_count": chunk.char_count,
-                        "page_start": chunk.page_start,
-                        "page_end": chunk.page_end,
-                        "section_title": chunk.section_title,
-                        "heading_path": chunk.heading_path,
-                        "chunk_type": chunk.chunk_type,
-                        "chunk_metadata": chunk.metadata,
-                    }
-                    for chunk in chunked
-                ]
-            )
-            job.total_chunks = len(chunk_rows)
-            job.processed_chunks = len(chunk_rows)
+                text_chars=len(extraction.text),
+                text_tokens=extraction_token_count,
+            ):
+                chunked = ChunkingService().chunk(
+                    extraction.text,
+                    chunk_size_tokens=job.chunk_size_tokens,
+                    chunk_overlap_tokens=job.chunk_overlap_tokens,
+                )
+            with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_store_chunks", chunk_count=len(chunked)):
+                job.total_chunks = len(chunked)
+                db.commit()
+                chunk_rows = chunks_repo.create_chunks(
+                    [
+                        {
+                            "resource_id": resource.resource_id,
+                            "job_id": job.job_id,
+                            "chunk_index": chunk.chunk_index,
+                            "chunk_text": chunk.chunk_text,
+                            "chunk_hash_sha256": chunk.chunk_hash_sha256,
+                            "token_count": chunk.token_count,
+                            "char_count": chunk.char_count,
+                            "page_start": chunk.page_start,
+                            "page_end": chunk.page_end,
+                            "section_title": chunk.section_title,
+                            "heading_path": chunk.heading_path,
+                            "chunk_type": chunk.chunk_type,
+                            "chunk_metadata": chunk.metadata,
+                        }
+                        for chunk in chunked
+                    ]
+                )
+                job.total_chunks = len(chunk_rows)
+                job.processed_chunks = len(chunk_rows)
+                jobs.update_progress(job, f"Created {len(chunk_rows)} chunks; generating embeddings")
+                db.commit()
+            logger.info("RAG job %s resource %s: created chunks=%s", job.job_id, resource.resource_id, len(chunk_rows))
 
-            provider = EmbeddingProviderFactory.build(settings)
-            vectors = EmbeddingService(provider, settings).embed_chunks([chunk.chunk_text for chunk in chunk_rows])
-            embeddings_repo.create_embeddings(
-                [
-                    {
-                        "chunk_id": chunk.chunk_id,
-                        "embedding_provider": provider.provider_name,
-                        "embedding_model": provider.model,
-                        "embedding_version": settings.embedding_version,
-                        "embedding_dimension": settings.embedding_dimension,
-                        "vector": vector,
-                    }
-                    for chunk, vector in zip(chunk_rows, vectors, strict=False)
-                ]
+            with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "embedding_provider_factory"):
+                provider = EmbeddingProviderFactory.build(settings)
+            with profile_step(
+                settings.profiling,
+                logger,
+                job.job_id,
+                resource.resource_id,
+                "embedding_generation",
+                embedding_provider=provider.provider_name,
+                embedding_model=provider.model,
+                chunk_count=len(chunk_rows),
+            ):
+                vectors = EmbeddingService(provider, settings).embed_chunks([chunk.chunk_text for chunk in chunk_rows])
+            with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_store_embeddings", embedding_count=len(vectors)):
+                jobs.update_progress(job, f"Generated {len(vectors)} embeddings; saving embeddings")
+                db.commit()
+                embeddings_repo.create_embeddings(
+                    [
+                        {
+                            "chunk_id": chunk.chunk_id,
+                            "embedding_provider": provider.provider_name,
+                            "embedding_model": provider.model,
+                            "embedding_version": settings.embedding_version,
+                            "embedding_dimension": settings.embedding_dimension,
+                            "vector": vector,
+                        }
+                        for chunk, vector in zip(chunk_rows, vectors, strict=False)
+                    ]
+                )
+                job.embedded_chunks = len(vectors)
+                jobs.update_progress(job, "Finalizing ingestion")
+            logger.info(
+                "RAG job %s resource %s: generated embeddings=%s provider=%s model=%s",
+                job.job_id,
+                resource.resource_id,
+                len(vectors),
+                provider.provider_name,
+                provider.model,
             )
-            job.embedded_chunks = len(vectors)
             if settings.delete_original_file_after_ingestion:
-                try:
-                    _delete_original_file(resource)
-                except Exception as exc:
-                    errors.record(job.job_id, resource.resource_id, "cleanup", exc)
-            resources.update_status(resource.resource_id, "READY")
-            jobs.mark_completed(job)
-            db.commit()
+                with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "file_cleanup"):
+                    try:
+                        _delete_original_file(resource)
+                    except Exception as exc:
+                        errors.record(job.job_id, resource.resource_id, "cleanup", exc)
+            with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_finalize_job"):
+                resources.update_status(resource.resource_id, "READY")
+                jobs.mark_completed(job)
+                db.commit()
         except Exception as exc:
             _fail(db, jobs, errors, resources, job, resource, "processing", exc)
     finally:
+        if settings.profiling and job_started:
+            logger.info("PROFILE job_id=%s step=job_total elapsed_ms=%.2f", job_started, (perf_counter() - job_started_at) * 1000)
         db.close()
 
 

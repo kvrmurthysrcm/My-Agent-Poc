@@ -5,6 +5,9 @@ from app.services.async_backends.factory import JobDispatcherFactory
 from app.services.embedding_providers.factory import EmbeddingProviderFactory
 from app.services.embedding_providers.ollama_provider import OllamaEmbeddingProvider
 from app.services.embedding_providers.openai_provider import OpenAIEmbeddingProvider
+from app.services.pdf_parsers.factory import PdfParserFactory
+from app.services.pdf_parsers.pymupdf_parser import PyMuPdfParser
+from app.services.pdf_parsers.pypdf_parser import PyPdfParser
 
 
 def test_embedding_provider_factory_selects_openai():
@@ -20,3 +23,13 @@ def test_embedding_provider_factory_selects_ollama():
 def test_dispatcher_factory_selects_db_worker():
     settings = Settings(ASYNC_BACKEND=AsyncBackend.DB_WORKER)
     assert isinstance(JobDispatcherFactory.build(settings), DbWorkerDispatcher)
+
+
+def test_pdf_parser_factory_selects_pymupdf():
+    settings = Settings(PDF_PARSER="pymupdf")
+    assert isinstance(PdfParserFactory.build(settings), PyMuPdfParser)
+
+
+def test_pdf_parser_factory_selects_pypdf():
+    settings = Settings(PDF_PARSER="pypdf")
+    assert isinstance(PdfParserFactory.build(settings), PyPdfParser)

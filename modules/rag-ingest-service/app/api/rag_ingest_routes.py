@@ -11,6 +11,7 @@ from app.services.async_backends.factory import JobDispatcherFactory
 from app.services.ingest_service import IngestService
 from app.services.metadata_service import MetadataService
 from app.utils.file_validation import validate_upload_file
+from app.utils.profiling import get_profile_events
 
 router = APIRouter(prefix="/rag", tags=["rag-ingest"])
 
@@ -52,5 +53,7 @@ def get_ingestion_job(job_id: str, db: Session = Depends(get_db)) -> JobStatusRe
         failed_chunks=job.failed_chunks,
         started_at=job.started_at,
         completed_at=job.completed_at,
+        message=job.error_message if job.status != "FAILED" else None,
         error_message=job.error_message,
+        profiling=get_profile_events(job.job_id),
     )

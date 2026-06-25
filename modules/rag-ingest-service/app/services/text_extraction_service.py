@@ -1,19 +1,17 @@
-from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
 from zipfile import ZipFile
 import xml.etree.ElementTree as ET
 
-
-@dataclass(frozen=True)
-class ExtractionResult:
-    text: str
-    parser_name: str
-    page_count: int | None
-    metadata: dict
+from app.core.config import Settings, get_settings
+from app.services.pdf_parsers.factory import PdfParserFactory
+from app.services.text_extraction_types import ExtractionResult
 
 
 class TextExtractionService:
+    def __init__(self, settings: Settings | None = None):
+        self.settings = settings or get_settings()
+
     def extract(self, path: Path, extension: str) -> ExtractionResult:
         if extension == ".txt":
             return self._extract_txt(path)
@@ -30,20 +28,13 @@ class TextExtractionService:
         return ExtractionResult(text=text, parser_name="plain_text", page_count=None, metadata={})
 
     def _extract_pdf(self, path: Path) -> ExtractionResult:
+        parser = PdfParserFactory.build(self.settings)
         try:
-            from pypdf import PdfReader
-        except ImportError as exc:
-            raise RuntimeError("pypdf is required for PDF extraction") from exc
-
-        reader = PdfReader(str(path))
-        pages = [page.extract_text() or "" for page in reader.pages]
-        text = "\n\n".join(f"[Page {index + 1}]\n{page_text}" for index, page_text in enumerate(pages))
-        return ExtractionResult(
-            text=text,
-            parser_name="pypdf",
-            page_count=len(reader.pages),
-            metadata={"pdf_metadata": dict(reader.metadata or {})},
-        )
+            return parser.extract(path)
+        except RuntimeError:
+            if self.settings.pdf_parser == "pymupdf":
+                return PdfParserFactory.build(self.settings.model_copy(update={"pdf_parser": "pypdf"})).extract(path)
+            raise
 
     def _extract_docx(self, path: Path) -> ExtractionResult:
         try:

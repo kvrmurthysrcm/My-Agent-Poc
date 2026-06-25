@@ -4,9 +4,36 @@ FastAPI POC for asynchronous RAG document ingestion.
 
 ## Endpoints
 
+- `GET /` or `GET /ui`
 - `GET /health`
 - `POST /rag/ingest`
 - `GET /rag/ingest/jobs/{job_id}`
+
+## Browser UI
+
+Start the service and open:
+
+```text
+http://localhost:8000/ui
+```
+
+The same UI is also available at:
+
+```text
+http://localhost:8000/
+```
+
+The UI file is stored at `app/ui/index.html`. It supports `.txt`, `.pdf`, `.docx`, and `.epub` uploads. It builds the metadata JSON from form fields, submits the binary file to `POST /rag/ingest`, and polls `GET /rag/ingest/jobs/{job_id}` until ingestion completes or fails.
+
+UI fields:
+
+- binary file picker
+- title, author, category, language, source system, business domain, and description
+- comma-separated tags
+- custom metadata JSON
+- chunk size and chunk overlap
+- metadata JSON preview
+- resource/job status display
 
 `POST /rag/ingest` accepts `multipart/form-data`:
 
@@ -117,4 +144,51 @@ curl.exe -X POST http://localhost:8000/rag/ingest -F "file=@book.epub;type=appli
 ```powershell
 cd modules\rag-ingest-service
 pytest
+```
+
+## Background Progress
+
+The UI polls:
+
+```text
+GET /rag/ingest/jobs/{job_id}
+```
+
+During processing, the response includes `message` with the current stage, such as text extraction, chunking, embedding generation, or finalization.
+
+When running with uvicorn redirected to files, progress and request logs are written to:
+
+```text
+D:\tmp\rag_ingest_service.err.log
+D:\tmp\rag_ingest_service.out.log
+```
+
+Watch logs in PowerShell:
+
+```powershell
+Get-Content -Wait -Tail 100 D:\tmp\rag_ingest_service.err.log
+Get-Content -Wait -Tail 100 D:\tmp\rag_ingest_service.out.log
+```
+
+Check a job directly in PostgreSQL:
+
+```sql
+select job_id, status, total_chunks, processed_chunks, embedded_chunks, error_message, started_at, completed_at
+from rag_ingestion_jobs
+where job_id = '<job_id>';
+```
+
+Check persisted stage outputs:
+
+```sql
+select count(*) from rag_document_extractions where job_id = '<job_id>';
+select count(*) from rag_document_chunks where job_id = '<job_id>';
+select count(*)
+from rag_chunk_embeddings e
+join rag_document_chunks c on c.chunk_id = e.chunk_id
+where c.job_id = '<job_id>';
+select stage, error_type, error_message, created_at
+from rag_processing_errors
+where job_id = '<job_id>'
+order by created_at desc;
 ```

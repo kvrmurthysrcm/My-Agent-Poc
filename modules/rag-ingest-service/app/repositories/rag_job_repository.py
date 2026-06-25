@@ -41,8 +41,13 @@ class RagJobRepository:
         job.started_at = datetime.now(UTC).replace(tzinfo=None)
         self.db.flush()
 
+    def update_progress(self, job: RagIngestionJob, message: str) -> None:
+        job.error_message = message[:4000]
+        self.db.flush()
+
     def mark_completed(self, job: RagIngestionJob) -> None:
         job.status = "COMPLETED"
+        job.error_message = None
         job.completed_at = datetime.now(UTC).replace(tzinfo=None)
         self.db.flush()
 

@@ -6,4 +6,26 @@ update the folder with updated full schema in complaince with the RAG implementa
 there is no existing data to migrate.
 save this base prompt also in the /docs folder of the module.
 
+Add a browser UI for the ingestion service:
+- Serve it from GET /ui and GET /.
+- Accept a binary file upload for .txt, .pdf, .docx, and .epub.
+- Capture metadata fields and build the metadata JSON sent to POST /rag/ingest.
+- Submit multipart/form-data to POST /rag/ingest.
+- Show resource_id, job_id, status, chunk counts, embedding counts, and failure messages.
+- Poll GET /rag/ingest/jobs/{job_id} after upload.
+- Document the UI in README.md and the Codex prompt file.
+
+Add profiling support:
+- Add PROFILING config and default it to true.
+- When PROFILING=true, log elapsed milliseconds for file parsing, DB writes, chunking, embedding generation, cleanup, finalization, and total job duration.
+- Include job_id, resource_id, stage name, elapsed_ms, chunk counts, embedding counts, file size, provider, and model where relevant.
+- Use a stable PROFILE log prefix.
+- Add a dedicated profiling README in the module.
+
+Add configurable PDF parser support:
+- Add PDF_PARSER config and default it to pymupdf.
+- Keep pypdf available as fallback by setting PDF_PARSER=pypdf.
+- Use an interface/factory style with PdfParser, PyMuPdfParser, PyPdfParser, and PdfParserFactory.
+- Keep the existing pypdf extraction behavior intact.
+
 Ask me for any questions if further details are required.

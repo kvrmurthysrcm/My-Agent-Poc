@@ -23,6 +23,14 @@ def test_health_endpoint():
     assert response.json()["status"] == "ok"
 
 
+def test_upload_ui_endpoint():
+    with TestClient(app) as client:
+        response = client.get("/ui")
+    assert response.status_code == 200
+    assert "RAG Ingestion Service" in response.text
+    assert "multipart" not in response.text.lower()
+
+
 def test_successful_upload_returns_resource_and_job():
     get_settings.cache_clear()
     metadata = {

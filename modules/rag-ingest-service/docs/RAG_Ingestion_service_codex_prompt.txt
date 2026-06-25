@@ -10,6 +10,7 @@ Primary requirements:
 
 1. Create a FastAPI service with:
 
+   * GET / or GET /ui browser upload interface
    * POST /rag/ingest
    * GET /rag/ingest/jobs/{job_id}
    * GET /health
@@ -102,6 +103,14 @@ Primary requirements:
    * .docx
    * .epub
 
+   PDF parser selection must be configurable:
+
+   * PDF_PARSER=pymupdf by default
+   * PDF_PARSER=pypdf as fallback
+   * Keep the existing pypdf parser code intact
+   * Add a PdfParser abstraction, PyMuPdfParser, PyPdfParser, and PdfParserFactory
+   * TextExtractionService must depend on the PdfParser abstraction/factory, not hard-code a PDF parser
+
 8. Implement DB layer using:
 
    * SQLAlchemy 2.x
@@ -135,10 +144,12 @@ Primary requirements:
 * DATABASE_URL defaulting to postgresql://library_user:library_pass@localhost:5432/online_library, matching online_library
 * STORAGE_ROOT
 * DELETE_ORIGINAL_FILE_AFTER_INGESTION defaulting to true
+* PROFILING defaulting to true
 * MAX_UPLOAD_MB
 * SUPPORTED_EXTENSIONS
 * DEFAULT_CHUNK_SIZE_TOKENS
 * DEFAULT_CHUNK_OVERLAP_TOKENS
+* PDF_PARSER defaulting to pymupdf
 * EMBEDDING_PROVIDER defaulting to ollama
 * EMBEDDING_MODEL defaulting to embeddinggemma
 * EMBEDDING_DIMENSION defaulting to 768
@@ -171,7 +182,34 @@ Primary requirements:
 * Include at least one invalid metadata example
 * Use collection variables for base_url, job_id, resource_id, and sample_file_path
 
-14. Keep code clean and layered:
+14. Add a browser UI:
+
+* Serve it from GET /ui and GET /
+* Store the UI source under app/ui/index.html
+* Accept a binary file using a browser file input
+* Support .txt, .pdf, .docx, and .epub uploads
+* Capture common metadata fields such as title, author, category, language, source_system, tags, custom metadata, chunk size, and overlap
+* Build and preview the metadata JSON sent to POST /rag/ingest
+* Submit multipart/form-data to POST /rag/ingest
+* Show resource_id, job_id, status, chunk counts, embedding counts, and failure messages
+* Show the current background processing stage from the job status response
+* Show profiling rows at the bottom of the Status panel when profiling data is available
+* Poll GET /rag/ingest/jobs/{job_id} after upload
+* Document the UI route and usage in README.md
+* Document how to inspect background logs and database progress
+
+15. Add profiling logs:
+
+* Add PROFILING config and default it to true
+* When PROFILING=true, log elapsed milliseconds for each major ingestion stage
+* Profile file parsing, extraction metadata DB writes, chunking, chunk DB writes, embedding provider creation, embedding generation, embedding DB writes, file cleanup, final DB update, and total job duration
+* Include job_id, resource_id, stage name, elapsed_ms, file size, parser extension, chunk count, embedding count, embedding provider, and embedding model where relevant
+* Use a stable PROFILE log prefix so logs can be filtered
+* Include profiling entries in the job status response
+* Render profiling entries in the UI Status panel so developers can identify bottlenecks after ingestion
+* Document profiling behavior in a dedicated profiling README file in the module
+
+16. Keep code clean and layered:
 
 * app/api
 * app/core
@@ -183,10 +221,10 @@ Primary requirements:
 * app/utils
 * tests
 
-15. Do not hardcode secrets.
+17. Do not hardcode secrets.
     OPENAI_API_KEY must be read from environment variables only.
 
-16. Generate the implementation incrementally:
+18. Generate the implementation incrementally:
     Step 1: project structure and settings
     Step 2: DB models and migrations
     Step 3: API routes and schemas
@@ -204,6 +242,8 @@ Expected output:
 * Alembic migration files
 * .env.example
 * README.md with run instructions
+* Dedicated profiling README
+* Browser upload UI under app/ui
 * Postman collection under /postman
 * pytest test suite
 * Clean TODOs only for optional RQ and Kafka internals if not fully implemented
