@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from app.core.config import get_settings
-from app.db.models import Resource
+from app.db.models import RagChunkEmbedding, RagDocumentChunk, RagIngestionJob, Resource
 from app.db import models  # noqa: F401
 from app.db.session import Base, SessionLocal, engine
 from app.main import app
@@ -55,9 +55,13 @@ def test_successful_upload_returns_resource_and_job():
     db = SessionLocal()
     try:
         resource = db.scalar(select(Resource).where(Resource.resource_id == body["resource_id"]))
+        job = db.scalar(select(RagIngestionJob).where(RagIngestionJob.job_id == body["job_id"]))
         assert resource.ingestion_status == "READY"
         assert resource.storage_path is None
         assert resource.file_url is None
+        assert job.chunking_strategy == "SEMANTIC_RECURSIVE"
+        assert job.chunk_size_tokens == 1200
+        assert job.chunk_overlap_tokens == 80
     finally:
         db.close()
 
@@ -164,3 +168,43 @@ def test_can_keep_original_file_when_cleanup_disabled(monkeypatch):
         db.close()
         monkeypatch.delenv("DELETE_ORIGINAL_FILE_AFTER_INGESTION", raising=False)
         get_settings.cache_clear()
+
+
+def test_dev_delete_resource_removes_rag_rows():
+    metadata = {"title": "Delete Me"}
+    with TestClient(app) as client:
+        created = client.post(
+            "/rag/ingest",
+            files={"file": ("delete-me.txt", b"Delete this document after ingestion.", "text/plain")},
+            data={"metadata": json.dumps(metadata)},
+        )
+        resource_id = created.json()["resource_id"]
+        response = client.delete(f"/rag/dev/resources/{resource_id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["deleted"] is True
+    assert body["deleted_counts"]["resources"] == 1
+    assert body["deleted_counts"]["rag_document_chunks"] >= 1
+    assert body["deleted_counts"]["rag_chunk_embeddings"] >= 1
+
+    db = SessionLocal()
+    try:
+        assert db.get(Resource, resource_id) is None
+        assert db.scalar(select(RagDocumentChunk).where(RagDocumentChunk.resource_id == resource_id)) is None
+        assert db.scalar(select(RagChunkEmbedding)) is None
+    finally:
+        db.close()
+
+
+def test_dev_delete_resource_hidden_outside_local_profile(monkeypatch):
+    monkeypatch.setenv("APP_PROFILE", "prod")
+    get_settings.cache_clear()
+
+    with TestClient(app) as client:
+        response = client.delete("/rag/dev/resources/00000000-0000-0000-0000-000000000000")
+
+    assert response.status_code == 404
+
+    monkeypatch.delenv("APP_PROFILE", raising=False)
+    get_settings.cache_clear()

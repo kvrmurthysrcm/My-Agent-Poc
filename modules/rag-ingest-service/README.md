@@ -83,14 +83,43 @@ alembic upgrade head
 
 The full base schema is in `sql/schema.sql`.
 
+## Chunking
+
+Default chunking is semantic-first with a token fallback:
+
+```text
+DEFAULT_CHUNKING_STRATEGY=SEMANTIC_RECURSIVE
+DEFAULT_CHUNK_SIZE_TOKENS=1200
+DEFAULT_CHUNK_OVERLAP_TOKENS=80
+```
+
+Supported strategies:
+
+| Strategy | Behavior |
+| --- | --- |
+| `SEMANTIC_RECURSIVE` | Groups text by detected headings and paragraphs, then falls back to token windows for oversized paragraphs |
+| `INTELLIGENT_RECURSIVE` | Preserves the original section-aware fixed token window behavior |
+
+Request metadata can override the default per upload:
+
+```json
+"chunking": {
+  "strategy": "SEMANTIC_RECURSIVE",
+  "chunk_size_tokens": 1200,
+  "chunk_overlap_tokens": 80
+}
+```
+
 ## Embeddings
 
 Default local model configuration keeps embeddings and NLQ text processing separate:
 
 ```text
 EMBEDDING_PROVIDER=ollama
-EMBEDDING_MODEL=embeddinggemma
+EMBEDDING_MODEL=nomic-embed-text
 EMBEDDING_DIMENSION=768
+EMBEDDING_BATCH_SIZE=64
+EMBEDDING_CONCURRENCY=1
 
 LLM_PROVIDER=ollama
 LLM_MODEL=mistral:latest
@@ -98,14 +127,18 @@ LLM_MODEL=mistral:latest
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 ```
 
-Use `embeddinggemma` for vector creation. Use `mistral:latest` for NLQ/text processing.
+Use `nomic-embed-text` for vector creation. Use `mistral:latest` for NLQ/text processing.
+
+`EMBEDDING_CONCURRENCY` defaults to `1`. Increase to `2` only when testing whether local Ollama can process embedding batches in parallel without slowing down.
+
+`DUPLICATE_DOCUMENT_POLICY=version` allows repeated uploads of the same file. Set `DUPLICATE_DOCUMENT_POLICY=reject` to reject an exact duplicate by SHA-256 file hash.
 
 Supported local Ollama embedding options:
 
 | Model | Dimension | Notes |
 | --- | ---: | --- |
-| `embeddinggemma` | 768 | Current default |
-| `nomic-embed-text` | 768 | Available local embedding model |
+| `nomic-embed-text` | 768 | Current local embedding model |
+| `embeddinggemma` | 768 | Available local embedding model |
 | `mxbai-embed-large` | 1024 | Available local embedding model with larger vectors |
 
 OpenAI remains supported by switching configuration:
@@ -138,6 +171,23 @@ For EPUB/PDF/DOCX files with embedded metadata, `title` and `author` can be omit
 $metadata = '{"source_system":"manual_upload","tags":["ebook"]}'
 curl.exe -X POST http://localhost:8000/rag/ingest -F "file=@book.epub;type=application/epub+zip" -F "metadata=$metadata"
 ```
+
+## Local Dev Delete
+
+The local-only cleanup endpoint is enabled by:
+
+```text
+APP_PROFILE=local
+ENABLE_DEV_DELETE_ENDPOINT=true
+```
+
+Delete an ingested resource and its chunks, embeddings, jobs, profiling rows, errors, and stored file:
+
+```powershell
+curl.exe -X DELETE http://localhost:8000/rag/dev/resources/<resource_id>
+```
+
+Details are in `docs/DEV_DELETE_ENDPOINT.md`.
 
 ## Tests
 

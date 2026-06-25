@@ -270,9 +270,26 @@
     }
 
     .profile-table td:nth-child(2) {
+      white-space: nowrap;
+      font-weight: 700;
+    }
+
+    .profile-table td:nth-child(3) {
       text-align: right;
       font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
       white-space: nowrap;
+    }
+
+    .profile-status-done {
+      color: var(--ready);
+    }
+
+    .profile-status-in-progress {
+      color: var(--warn);
+    }
+
+    .profile-status-failed {
+      color: var(--danger);
     }
 
     @media (max-width: 900px) {
@@ -359,12 +376,19 @@
             <input id="tags" name="tags" type="text" placeholder="comma,separated,tags">
           </div>
           <div class="field">
+            <label for="chunkStrategy">Chunk Strategy</label>
+            <select id="chunkStrategy" name="chunkStrategy">
+              <option value="SEMANTIC_RECURSIVE" selected>SEMANTIC_RECURSIVE</option>
+              <option value="INTELLIGENT_RECURSIVE">INTELLIGENT_RECURSIVE</option>
+            </select>
+          </div>
+          <div class="field">
             <label for="chunkSize">Chunk Size</label>
-            <input id="chunkSize" name="chunkSize" type="number" min="100" value="800">
+            <input id="chunkSize" name="chunkSize" type="number" min="100" value="1200">
           </div>
           <div class="field">
             <label for="chunkOverlap">Chunk Overlap</label>
-            <input id="chunkOverlap" name="chunkOverlap" type="number" min="0" value="120">
+            <input id="chunkOverlap" name="chunkOverlap" type="number" min="0" value="80">
           </div>
           <div class="field full">
             <label for="customMetadata">Custom Metadata JSON</label>
@@ -393,6 +417,8 @@
           <dd id="jobId">-</dd>
           <dt>Status</dt>
           <dd id="jobStatus">-</dd>
+          <dt>Parser</dt>
+          <dd id="parserName">-</dd>
           <dt>Chunks</dt>
           <dd id="chunks">-</dd>
           <dt>Embeddings</dt>
@@ -408,12 +434,13 @@
             <thead>
               <tr>
                 <th>Step</th>
+                <th>Status</th>
                 <th>ms</th>
                 <th>Details</th>
               </tr>
             </thead>
             <tbody id="profilingRows">
-              <tr><td colspan="3">No profiling data yet.</td></tr>
+              <tr><td colspan="4">No profiling data yet.</td></tr>
             </tbody>
           </table>
         </div>
@@ -432,6 +459,7 @@
     const resourceId = document.getElementById("resourceId");
     const jobId = document.getElementById("jobId");
     const jobStatus = document.getElementById("jobStatus");
+    const parserName = document.getElementById("parserName");
     const chunks = document.getElementById("chunks");
     const embeddings = document.getElementById("embeddings");
     const profilingRows = document.getElementById("profilingRows");
@@ -466,9 +494,9 @@
         tags: tags ? tags.split(",").map((tag) => tag.trim()).filter(Boolean) : [],
         custom_metadata: readCustomMetadata(),
         chunking: {
-          strategy: "INTELLIGENT_RECURSIVE",
-          chunk_size_tokens: Number(document.getElementById("chunkSize").value || 800),
-          chunk_overlap_tokens: Number(document.getElementById("chunkOverlap").value || 120)
+          strategy: document.getElementById("chunkStrategy").value,
+          chunk_size_tokens: Number(document.getElementById("chunkSize").value || 1200),
+          chunk_overlap_tokens: Number(document.getElementById("chunkOverlap").value || 80)
         }
       };
 
@@ -517,8 +545,9 @@
       }
 
       jobStatus.textContent = data.status || "-";
+      parserName.textContent = data.parser_name || "-";
       chunks.textContent = `${data.processed_chunks || 0}/${data.total_chunks || 0}`;
-      embeddings.textContent = String(data.embedded_chunks || 0);
+      embeddings.textContent = `${data.embedded_chunks || 0}/${data.total_chunks || 0}`;
       renderProfiling(data.profiling || []);
 
       if (data.status === "COMPLETED") {
@@ -536,14 +565,16 @@
 
     function renderProfiling(rows) {
       if (!rows.length) {
-        profilingRows.innerHTML = '<tr><td colspan="3">No profiling data yet.</td></tr>';
+        profilingRows.innerHTML = '<tr><td colspan="4">No profiling data yet.</td></tr>';
         return;
       }
       profilingRows.innerHTML = rows.map((row) => {
+        const status = row.status || "DONE";
+        const statusClass = `profile-status-${status.toLowerCase().replaceAll("_", "-")}`;
         const details = row.details ? Object.entries(row.details)
           .map(([key, value]) => `${key}=${value}`)
           .join(" ") : "";
-        return `<tr><td>${escapeHtml(row.step)}</td><td>${Number(row.elapsed_ms).toFixed(2)}</td><td>${escapeHtml(details)}</td></tr>`;
+        return `<tr><td>${escapeHtml(row.step)}</td><td class="${statusClass}">${escapeHtml(status)}</td><td>${Number(row.elapsed_ms).toFixed(2)}</td><td>${escapeHtml(details)}</td></tr>`;
       }).join("");
     }
 
@@ -593,6 +624,7 @@
         resourceId.textContent = data.resource_id;
         jobId.textContent = data.job_id;
         jobStatus.textContent = data.status;
+        parserName.textContent = "-";
         chunks.textContent = "-";
         embeddings.textContent = "-";
         pollButton.disabled = false;

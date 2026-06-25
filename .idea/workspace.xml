@@ -4,24 +4,37 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="rag-ingest-service: added the following config:&#10;DELETE_ORIGINAL_FILE_AFTER_INGESTION=true">
+    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="Add missing .env files">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/.env" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/PROFILING_README.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/PROFILING_README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/alembic/versions/20260624_0001_rag_ingestion_schema.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/alembic/versions/20260624_0001_rag_ingestion_schema.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/api/rag_ingest_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/api/rag_ingest_routes.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/core/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/core/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/db/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/db/models.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/rag_job_repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/rag_job_repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/resource_repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/resource_repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/schemas/ingest_request.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/schemas/ingest_request.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/schemas/job_response.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/schemas/job_response.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/text_extraction_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/text_extraction_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunking_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunking_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/embedding_providers/ollama_provider.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/embedding_providers/ollama_provider.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/embedding_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/embedding_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/ingest_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/ingest_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/pdf_parsers/pymupdf_parser.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/pdf_parsers/pymupdf_parser.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/ui/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/ui/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/utils/profiling.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/utils/profiling.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/workers/rag_ingestion_worker.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/workers/rag_ingestion_worker.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/docs/RAG_Ingestion_service_codex_prompt.txt" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/docs/RAG_Ingestion_service_codex_prompt.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/docs/base_prompt.txt" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/docs/base_prompt.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/pyproject.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/postman/RAG_Ingest_Service.postman_collection.json" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/postman/RAG_Ingest_Service.postman_collection.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/rag_ingest_test.db" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/rag_ingest_test.db" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/sql/schema.sql" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/sql/schema.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_chunking_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_chunking_service.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_factories.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_factories.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_rag_ingest_api.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_rag_ingest_api.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/uv.lock" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/uv.lock" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -115,13 +128,40 @@
       <option name="project" value="LOCAL" />
       <updated>1782326295334</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="rag-ingest-service: added the following :&#10;add browser /ui to upload a file, meta data.&#10;add profiling support&#10;add configurable parser">
+      <option name="closed" value="true" />
+      <created>1782367082787</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1782367082787</updated>
+    </task>
+    <task id="LOCAL-00005" summary="rag-ingest-service: added the following :&#10;add browser /ui to upload a file, meta data.&#10;add profiling support&#10;add configurable parser&#10;&#10;Add missing files">
+      <option name="closed" value="true" />
+      <created>1782367148991</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1782367148991</updated>
+    </task>
+    <task id="LOCAL-00006" summary="Add missing .env files">
+      <option name="closed" value="true" />
+      <created>1782367223668</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1782367223668</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="added new module for RAG implementation: rag-ingest-service" />
     <MESSAGE value="rag-ingest-service: use the meta data from the epub, pdf file to use incase title or some other meta data is not supplied." />
     <MESSAGE value="rag-ingest-service: added the following config:&#10;DELETE_ORIGINAL_FILE_AFTER_INGESTION=true" />
-    <option name="LAST_COMMIT_MESSAGE" value="rag-ingest-service: added the following config:&#10;DELETE_ORIGINAL_FILE_AFTER_INGESTION=true" />
+    <MESSAGE value="rag-ingest-service: added the following :&#10;add browser /ui to upload a file, meta data.&#10;add profiling support&#10;add configurable parser" />
+    <MESSAGE value="rag-ingest-service: added the following :&#10;add browser /ui to upload a file, meta data.&#10;add profiling support&#10;add configurable parser&#10;&#10;Add missing files" />
+    <MESSAGE value="Add missing .env files" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add missing .env files" />
   </component>
 </project>

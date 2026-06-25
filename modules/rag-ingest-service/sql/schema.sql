@@ -248,15 +248,16 @@ CREATE TABLE public.rag_ingestion_jobs (
     resource_id uuid NOT NULL,
     status varchar(30) NOT NULL DEFAULT 'QUEUED',
     async_backend varchar(50) NOT NULL,
-    chunking_strategy varchar(80) NOT NULL DEFAULT 'INTELLIGENT_RECURSIVE',
-    chunk_size_tokens integer NOT NULL DEFAULT 800,
-    chunk_overlap_tokens integer NOT NULL DEFAULT 120,
+    chunking_strategy varchar(80) NOT NULL DEFAULT 'SEMANTIC_RECURSIVE',
+    chunk_size_tokens integer NOT NULL DEFAULT 1200,
+    chunk_overlap_tokens integer NOT NULL DEFAULT 80,
     total_chunks integer NOT NULL DEFAULT 0,
     processed_chunks integer NOT NULL DEFAULT 0,
     embedded_chunks integer NOT NULL DEFAULT 0,
     failed_chunks integer NOT NULL DEFAULT 0,
     retry_count integer NOT NULL DEFAULT 0,
     max_retries integer NOT NULL DEFAULT 3,
+    progress_message text,
     error_message text,
     started_at timestamp without time zone,
     completed_at timestamp without time zone,
@@ -335,6 +336,21 @@ CREATE TABLE public.rag_processing_errors (
     CONSTRAINT rag_processing_errors_chunk_id_fkey FOREIGN KEY (chunk_id) REFERENCES public.rag_document_chunks(chunk_id)
 );
 
+CREATE TABLE public.rag_profiling_events (
+    profile_event_id uuid NOT NULL DEFAULT gen_random_uuid(),
+    job_id uuid NOT NULL,
+    resource_id uuid NOT NULL,
+    step varchar(120) NOT NULL,
+    status varchar(30) NOT NULL,
+    elapsed_ms double precision NOT NULL DEFAULT 0,
+    event_index integer NOT NULL,
+    details_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+    created_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT rag_profiling_events_pkey PRIMARY KEY (profile_event_id),
+    CONSTRAINT rag_profiling_events_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.rag_ingestion_jobs(job_id),
+    CONSTRAINT rag_profiling_events_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES public.resources(resource_id)
+);
+
 CREATE INDEX ix_resources_rag_enabled ON public.resources (rag_enabled);
 CREATE INDEX ix_resources_ingestion_status ON public.resources (ingestion_status);
 CREATE INDEX ix_resources_original_file_hash ON public.resources (original_file_hash_sha256);
@@ -346,6 +362,8 @@ CREATE INDEX ix_rag_chunks_job_id ON public.rag_document_chunks (job_id);
 CREATE INDEX ix_rag_chunks_text_trgm ON public.rag_document_chunks USING gin (chunk_text gin_trgm_ops);
 CREATE INDEX ix_rag_embeddings_chunk_id ON public.rag_chunk_embeddings (chunk_id);
 CREATE INDEX ix_rag_errors_job_id ON public.rag_processing_errors (job_id);
+CREATE INDEX ix_rag_profile_events_job_id ON public.rag_profiling_events (job_id, event_index);
+CREATE INDEX ix_rag_profile_events_resource_id ON public.rag_profiling_events (resource_id);
 
 -- For production vector search, choose an index after confirming dimensions and distance metric:
 -- CREATE INDEX ix_rag_embeddings_vector_hnsw ON public.rag_chunk_embeddings USING hnsw (vector vector_cosine_ops);

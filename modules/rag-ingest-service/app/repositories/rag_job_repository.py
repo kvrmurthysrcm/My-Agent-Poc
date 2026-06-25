@@ -42,17 +42,19 @@ class RagJobRepository:
         self.db.flush()
 
     def update_progress(self, job: RagIngestionJob, message: str) -> None:
-        job.error_message = message[:4000]
+        job.progress_message = message[:4000]
         self.db.flush()
 
     def mark_completed(self, job: RagIngestionJob) -> None:
         job.status = "COMPLETED"
+        job.progress_message = "Ingestion completed"
         job.error_message = None
         job.completed_at = datetime.now(UTC).replace(tzinfo=None)
         self.db.flush()
 
     def mark_failed(self, job: RagIngestionJob, message: str) -> None:
         job.status = "FAILED"
+        job.progress_message = "Ingestion failed"
         job.error_message = message[:4000]
         job.completed_at = datetime.now(UTC).replace(tzinfo=None)
         self.db.flush()

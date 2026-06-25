@@ -36,13 +36,14 @@ Primary requirements:
    Default local embeddings configuration:
 
    * EMBEDDING_PROVIDER=ollama
-   * EMBEDDING_MODEL=embeddinggemma
+   * EMBEDDING_MODEL=nomic-embed-text
    * EMBEDDING_DIMENSION=768
+   * EMBEDDING_BATCH_SIZE=64
    * OLLAMA_BASE_URL=http://127.0.0.1:11434
 
    Supported local Ollama embedding alternatives:
 
-   * EMBEDDING_MODEL=nomic-embed-text with EMBEDDING_DIMENSION=768
+   * EMBEDDING_MODEL=embeddinggemma with EMBEDDING_DIMENSION=768
    * EMBEDDING_MODEL=mxbai-embed-large with EMBEDDING_DIMENSION=1024
 
    Default local NLQ/text processing configuration:
@@ -50,7 +51,7 @@ Primary requirements:
    * LLM_PROVIDER=ollama
    * LLM_MODEL=mistral:latest
 
-   Use embeddinggemma only for embedding/vector creation. Use mistral:latest for NLQ/text processing.
+   Use nomic-embed-text only for embedding/vector creation. Use mistral:latest for NLQ/text processing.
 
    OpenAI must remain configurable:
 
@@ -89,11 +90,14 @@ Primary requirements:
    For this POC, fully implement FastAPI BackgroundTasks and DB-backed worker.
    For RQ and Kafka, create clean adapter classes with TODO implementation hooks, config, and method signatures.
 
-6. Implement intelligent chunking:
+6. Implement configurable chunking:
 
-   * Default strategy: INTELLIGENT_RECURSIVE
-   * Default chunk size: 800 tokens
-   * Default overlap: 120 tokens
+   * Default strategy: SEMANTIC_RECURSIVE
+   * Default chunk size: 1200 tokens
+   * Default overlap: 80 tokens
+   * Keep INTELLIGENT_RECURSIVE available as the original section-aware fixed token window behavior
+   * Implement chunking strategies behind an interface/factory so config or request metadata chooses the implementation
+   * SEMANTIC_RECURSIVE should group text by detected headings and paragraph boundaries, then fall back to token windows for oversized paragraphs
    * Preserve chunk_index, page_start, page_end, section_title, heading_path, token_count, char_count, chunk_hash_sha256
 
 7. Implement file parsing initially for:
@@ -142,17 +146,23 @@ Primary requirements:
 11. Add .env.example with:
 
 * DATABASE_URL defaulting to postgresql://library_user:library_pass@localhost:5432/online_library, matching online_library
+* APP_PROFILE defaulting to local
+* ENABLE_DEV_DELETE_ENDPOINT defaulting to true for local development only
 * STORAGE_ROOT
 * DELETE_ORIGINAL_FILE_AFTER_INGESTION defaulting to true
+* DUPLICATE_DOCUMENT_POLICY defaulting to version, with reject supported for exact duplicate file hashes
 * PROFILING defaulting to true
 * MAX_UPLOAD_MB
 * SUPPORTED_EXTENSIONS
+* DEFAULT_CHUNKING_STRATEGY defaulting to SEMANTIC_RECURSIVE
 * DEFAULT_CHUNK_SIZE_TOKENS
 * DEFAULT_CHUNK_OVERLAP_TOKENS
 * PDF_PARSER defaulting to pymupdf
 * EMBEDDING_PROVIDER defaulting to ollama
-* EMBEDDING_MODEL defaulting to embeddinggemma
+* EMBEDDING_MODEL defaulting to nomic-embed-text
 * EMBEDDING_DIMENSION defaulting to 768
+* EMBEDDING_BATCH_SIZE defaulting to 64
+* EMBEDDING_CONCURRENCY defaulting to 1
 * LLM_PROVIDER defaulting to ollama
 * LLM_MODEL defaulting to mistral:latest
 * OPENAI_API_KEY
@@ -162,7 +172,17 @@ Primary requirements:
 * KAFKA_BOOTSTRAP_SERVERS
 * KAFKA_INGESTION_TOPIC
 
-12. Add tests using pytest:
+12. Profiling and observability:
+
+* Persist final profiling rows in rag_profiling_events.
+* Keep live in-memory profiling for running jobs.
+* Separate progress_message from error_message.
+* Include chunk diagnostics such as min, max, average tokens and chunk type counts.
+* Include per-batch embedding timings.
+* Add a local-dev-only DELETE /rag/dev/resources/{resource_id} endpoint guarded by APP_PROFILE=local and ENABLE_DEV_DELETE_ENDPOINT=true.
+* The dev delete endpoint must delete a resource, RAG jobs, extracted text, chunks, embeddings, profiling rows, errors, resource links, and the stored source file if present.
+
+13. Add tests using pytest:
 
 * health endpoint
 * successful upload returns resource_id and job_id
@@ -173,7 +193,7 @@ Primary requirements:
 * embedding provider factory selects Ollama
 * async dispatcher factory selects configured backend
 
-13. Add a Postman collection:
+14. Add a Postman collection:
 
 * Create /postman/RAG_Ingest_Service.postman_collection.json
 * Include GET /health
@@ -204,6 +224,7 @@ Primary requirements:
 * When PROFILING=true, log elapsed milliseconds for each major ingestion stage
 * Profile file parsing, extraction metadata DB writes, chunking, chunk DB writes, embedding provider creation, embedding generation, embedding DB writes, file cleanup, final DB update, and total job duration
 * Include job_id, resource_id, stage name, elapsed_ms, file size, parser extension, chunk count, embedding count, embedding provider, and embedding model where relevant
+* Include embedding_batch_size in embedding generation profiling details
 * Use a stable PROFILE log prefix so logs can be filtered
 * Include profiling entries in the job status response
 * Render profiling entries in the UI Status panel so developers can identify bottlenecks after ingestion

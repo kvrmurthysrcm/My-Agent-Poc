@@ -15,8 +15,11 @@ class Settings(BaseSettings):
         "postgresql://library_user:library_pass@localhost:5432/online_library",
         alias="DATABASE_URL",
     )
+    app_profile: str = Field("local", alias="APP_PROFILE")
+    enable_dev_delete_endpoint: bool = Field(True, alias="ENABLE_DEV_DELETE_ENDPOINT")
     storage_root: Path = Field(Path("./storage"), alias="STORAGE_ROOT")
     delete_original_file_after_ingestion: bool = Field(True, alias="DELETE_ORIGINAL_FILE_AFTER_INGESTION")
+    duplicate_document_policy: str = Field("version", alias="DUPLICATE_DOCUMENT_POLICY")
     profiling: bool = Field(True, alias="PROFILING")
     max_upload_mb: int = Field(25, alias="MAX_UPLOAD_MB")
     supported_extensions: Annotated[list[str], NoDecode] = Field(
@@ -24,15 +27,18 @@ class Settings(BaseSettings):
         alias="SUPPORTED_EXTENSIONS",
     )
 
-    default_chunk_size_tokens: int = Field(800, alias="DEFAULT_CHUNK_SIZE_TOKENS")
-    default_chunk_overlap_tokens: int = Field(120, alias="DEFAULT_CHUNK_OVERLAP_TOKENS")
+    default_chunk_size_tokens: int = Field(1200, alias="DEFAULT_CHUNK_SIZE_TOKENS")
+    default_chunk_overlap_tokens: int = Field(80, alias="DEFAULT_CHUNK_OVERLAP_TOKENS")
+    default_chunking_strategy: str = Field("SEMANTIC_RECURSIVE", alias="DEFAULT_CHUNKING_STRATEGY")
     minimum_chunk_tokens: int = Field(80, alias="MINIMUM_CHUNK_TOKENS")
     pdf_parser: str = Field("pymupdf", alias="PDF_PARSER")
 
     embedding_provider: EmbeddingProviderName = Field(EmbeddingProviderName.OLLAMA, alias="EMBEDDING_PROVIDER")
-    embedding_model: str = Field("embeddinggemma", alias="EMBEDDING_MODEL")
+    embedding_model: str = Field("nomic-embed-text", alias="EMBEDDING_MODEL")
     embedding_dimension: int = Field(768, alias="EMBEDDING_DIMENSION")
     embedding_version: str = Field("v1", alias="EMBEDDING_VERSION")
+    embedding_batch_size: int = Field(64, alias="EMBEDDING_BATCH_SIZE")
+    embedding_concurrency: int = Field(1, alias="EMBEDDING_CONCURRENCY")
     ollama_embedding_model_options: dict[str, int] = Field(
         default_factory=lambda: {
             "embeddinggemma": 768,
@@ -66,6 +72,40 @@ class Settings(BaseSettings):
         if normalized not in {"pymupdf", "pypdf"}:
             raise ValueError("PDF_PARSER must be either 'pymupdf' or 'pypdf'")
         return normalized
+
+    @field_validator("default_chunking_strategy")
+    @classmethod
+    def normalize_default_chunking_strategy(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if normalized not in {"INTELLIGENT_RECURSIVE", "SEMANTIC_RECURSIVE"}:
+            raise ValueError("DEFAULT_CHUNKING_STRATEGY must be INTELLIGENT_RECURSIVE or SEMANTIC_RECURSIVE")
+        return normalized
+
+    @field_validator("duplicate_document_policy")
+    @classmethod
+    def normalize_duplicate_document_policy(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"version", "reject"}:
+            raise ValueError("DUPLICATE_DOCUMENT_POLICY must be version or reject")
+        return normalized
+
+    @field_validator("embedding_batch_size")
+    @classmethod
+    def validate_embedding_batch_size(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("EMBEDDING_BATCH_SIZE must be at least 1")
+        if value > 256:
+            raise ValueError("EMBEDDING_BATCH_SIZE must be 256 or lower")
+        return value
+
+    @field_validator("embedding_concurrency")
+    @classmethod
+    def validate_embedding_concurrency(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("EMBEDDING_CONCURRENCY must be at least 1")
+        if value > 8:
+            raise ValueError("EMBEDDING_CONCURRENCY must be 8 or lower")
+        return value
 
     @property
     def max_upload_bytes(self) -> int:

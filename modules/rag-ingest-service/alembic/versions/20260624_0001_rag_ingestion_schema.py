@@ -19,6 +19,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute("DROP TABLE IF EXISTS public.rag_profiling_events CASCADE")
     op.execute("DROP TABLE IF EXISTS public.rag_processing_errors CASCADE")
     op.execute("DROP TABLE IF EXISTS public.rag_chunk_embeddings CASCADE")
     op.execute("DROP TABLE IF EXISTS public.rag_document_chunks CASCADE")

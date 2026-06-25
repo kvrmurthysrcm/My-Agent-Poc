@@ -9,13 +9,14 @@ from app.repositories.rag_chunk_repository import RagChunkRepository
 from app.repositories.rag_embedding_repository import RagEmbeddingRepository
 from app.repositories.rag_error_repository import RagErrorRepository
 from app.repositories.rag_job_repository import RagJobRepository
+from app.repositories.rag_profiling_repository import RagProfilingRepository
 from app.repositories.resource_repository import ResourceRepository
 from app.services.chunking_service import ChunkingService
 from app.services.embedding_providers.factory import EmbeddingProviderFactory
 from app.services.embedding_service import EmbeddingService
 from app.services.text_extraction_service import TextExtractionService
 from app.utils.hashing import sha256_text
-from app.utils.profiling import clear_profile_events, profile_step
+from app.utils.profiling import clear_profile_events, get_profile_events, profile_step, record_profile_event
 from app.utils.token_counter import count_tokens
 
 logger = logging.getLogger("rag_ingestion_worker")
@@ -25,6 +26,7 @@ def process_job(job_id: str) -> None:
     settings = get_settings()
     db = SessionLocal()
     job_started = None
+    job_resource_id = None
     job_started_at = perf_counter()
     try:
         jobs = RagJobRepository(db)
@@ -34,6 +36,7 @@ def process_job(job_id: str) -> None:
         resource = db.get(Resource, job.resource_id)
         if resource is None:
             return
+        job_resource_id = resource.resource_id
         clear_profile_events(job.job_id)
 
         errors = RagErrorRepository(db)
@@ -56,10 +59,18 @@ def process_job(job_id: str) -> None:
                 resource.resource_id,
                 "file_parse",
                 parser_extension=resource.file_extension,
+                configured_pdf_parser=settings.pdf_parser if resource.file_extension == ".pdf" else None,
                 file_name=resource.file_name,
                 file_size_bytes=resource.file_size_bytes,
             ):
                 extraction = TextExtractionService().extract(path=Path(resource.storage_path), extension=resource.file_extension)
+            if settings.profiling:
+                logger.info(
+                    "PROFILE job_id=%s resource_id=%s step=file_parser_selected parser_name=%s",
+                    job.job_id,
+                    resource.resource_id,
+                    extraction.parser_name,
+                )
         except Exception as exc:
             _fail(db, jobs, errors, resources, job, resource, "extraction", exc)
             return
@@ -103,6 +114,7 @@ def process_job(job_id: str) -> None:
                 "chunking",
                 chunk_size_tokens=job.chunk_size_tokens,
                 chunk_overlap_tokens=job.chunk_overlap_tokens,
+                chunking_strategy=job.chunking_strategy,
                 text_chars=len(extraction.text),
                 text_tokens=extraction_token_count,
             ):
@@ -110,7 +122,9 @@ def process_job(job_id: str) -> None:
                     extraction.text,
                     chunk_size_tokens=job.chunk_size_tokens,
                     chunk_overlap_tokens=job.chunk_overlap_tokens,
+                    strategy=job.chunking_strategy,
                 )
+            _record_chunk_diagnostics(settings, job, resource, chunked)
             with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_store_chunks", chunk_count=len(chunked)):
                 job.total_chunks = len(chunked)
                 db.commit()
@@ -150,9 +164,27 @@ def process_job(job_id: str) -> None:
                 "embedding_generation",
                 embedding_provider=provider.provider_name,
                 embedding_model=provider.model,
+                embedding_batch_size=settings.embedding_batch_size,
+                embedding_concurrency=settings.embedding_concurrency,
                 chunk_count=len(chunk_rows),
             ):
-                vectors = EmbeddingService(provider, settings).embed_chunks([chunk.chunk_text for chunk in chunk_rows])
+                vectors = EmbeddingService(provider, settings).embed_chunks(
+                    [chunk.chunk_text for chunk in chunk_rows],
+                    on_batch_profile=lambda event: record_profile_event(
+                        settings.profiling,
+                        logger,
+                        job.job_id,
+                        resource.resource_id,
+                        f"embedding_batch_{event['batch_index']}",
+                        event["status"],
+                        event["elapsed_ms"],
+                        batch_index=event["batch_index"],
+                        batch_count=event["batch_count"],
+                        batch_size=event["batch_size"],
+                        embedding_provider=provider.provider_name,
+                        embedding_model=provider.model,
+                    ),
+                )
             with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_store_embeddings", embedding_count=len(vectors)):
                 jobs.update_progress(job, f"Generated {len(vectors)} embeddings; saving embeddings")
                 db.commit()
@@ -193,7 +225,22 @@ def process_job(job_id: str) -> None:
             _fail(db, jobs, errors, resources, job, resource, "processing", exc)
     finally:
         if settings.profiling and job_started:
-            logger.info("PROFILE job_id=%s step=job_total elapsed_ms=%.2f", job_started, (perf_counter() - job_started_at) * 1000)
+            record_profile_event(
+                settings.profiling,
+                logger,
+                job_started,
+                job_resource_id or "",
+                "job_total",
+                "DONE",
+                (perf_counter() - job_started_at) * 1000,
+            )
+            if job_resource_id:
+                try:
+                    RagProfilingRepository(db).replace_events(job_started, job_resource_id, get_profile_events(job_started))
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                    logger.exception("Unable to persist profiling events for job %s", job_started)
         db.close()
 
 
@@ -236,3 +283,38 @@ def _delete_original_file(resource: Resource) -> None:
 
     resource.storage_path = None
     resource.file_url = None
+
+
+def _record_chunk_diagnostics(settings, job, resource, chunks) -> None:
+    if not chunks:
+        record_profile_event(
+            settings.profiling,
+            logger,
+            job.job_id,
+            resource.resource_id,
+            "chunk_diagnostics",
+            "DONE",
+            0,
+            chunk_count=0,
+        )
+        return
+
+    token_counts = [chunk.token_count for chunk in chunks]
+    type_counts: dict[str, int] = {}
+    for chunk in chunks:
+        type_counts[chunk.chunk_type] = type_counts.get(chunk.chunk_type, 0) + 1
+
+    record_profile_event(
+        settings.profiling,
+        logger,
+        job.job_id,
+        resource.resource_id,
+        "chunk_diagnostics",
+        "DONE",
+        0,
+        chunk_count=len(chunks),
+        min_chunk_tokens=min(token_counts),
+        max_chunk_tokens=max(token_counts),
+        avg_chunk_tokens=round(sum(token_counts) / len(token_counts), 2),
+        **{f"{chunk_type}_chunks": count for chunk_type, count in type_counts.items()},
+    )

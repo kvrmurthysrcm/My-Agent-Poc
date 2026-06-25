@@ -19,6 +19,9 @@ Add profiling support:
 - Add PROFILING config and default it to true.
 - When PROFILING=true, log elapsed milliseconds for file parsing, DB writes, chunking, embedding generation, cleanup, finalization, and total job duration.
 - Include job_id, resource_id, stage name, elapsed_ms, chunk counts, embedding counts, file size, provider, and model where relevant.
+- Add EMBEDDING_BATCH_SIZE config, default it to 32, and include it in profiling details.
+- Add configurable chunking strategies with SEMANTIC_RECURSIVE as the default and INTELLIGENT_RECURSIVE preserved as the original section-aware fixed token window implementation.
+- Add ingest observability improvements: persisted profiling rows, progress_message separate from error_message, chunk diagnostics, per-batch embedding timings, configurable embedding concurrency, duplicate document policy, and improved PyMuPDF block extraction.
 - Use a stable PROFILE log prefix.
 - Add a dedicated profiling README in the module.
 

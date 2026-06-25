@@ -17,7 +17,7 @@ class PyMuPdfParser:
         with fitz.open(path) as document:
             metadata = dict(document.metadata or {})
             for index, page in enumerate(document, start=1):
-                pages.append(f"[Page {index}]\n{page.get_text('text') or ''}")
+                pages.append(f"[Page {index}]\n{self._extract_page_text(page)}")
             page_count = document.page_count
 
         return ExtractionResult(
@@ -26,3 +26,16 @@ class PyMuPdfParser:
             page_count=page_count,
             metadata={"pdf_metadata": metadata},
         )
+
+    def _extract_page_text(self, page) -> str:
+        blocks = page.get_text("blocks") or []
+        text_blocks = []
+        for block in sorted(blocks, key=lambda item: (round(item[1], 1), round(item[0], 1))):
+            if len(block) < 5:
+                continue
+            text = str(block[4]).strip()
+            if text:
+                text_blocks.append(text)
+        if text_blocks:
+            return "\n\n".join(text_blocks)
+        return page.get_text("text") or ""

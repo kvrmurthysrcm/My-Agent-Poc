@@ -86,6 +86,14 @@ class ResourceRepository:
         self.db.flush()
         return resource
 
+    def find_existing_by_file_hash(self, file_hash: str) -> Resource | None:
+        return self.db.scalar(
+            select(Resource)
+            .where(Resource.original_file_hash_sha256 == file_hash)
+            .where(Resource.ingestion_status.in_(["QUEUED", "PROCESSING", "READY"]))
+            .order_by(Resource.created_at.desc())
+        )
+
     def update_status(self, resource_id: str, status: str, **fields) -> None:
         resource = self.db.get(Resource, resource_id)
         if resource:

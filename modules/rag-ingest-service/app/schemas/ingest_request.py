@@ -1,13 +1,23 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ChunkingOptions(BaseModel):
-    strategy: str = "INTELLIGENT_RECURSIVE"
+    strategy: str | None = None
     chunk_size_tokens: int | None = Field(default=None, ge=100)
     chunk_overlap_tokens: int | None = Field(default=None, ge=0)
+
+    @field_validator("strategy")
+    @classmethod
+    def normalize_strategy(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        if normalized not in {"INTELLIGENT_RECURSIVE", "SEMANTIC_RECURSIVE"}:
+            raise ValueError("chunking.strategy must be INTELLIGENT_RECURSIVE or SEMANTIC_RECURSIVE")
+        return normalized
 
 
 class IngestMetadata(BaseModel):

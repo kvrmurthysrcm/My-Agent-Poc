@@ -78,7 +78,7 @@
             {
               "key": "metadata",
               "type": "text",
-              "value": "{\n  \"title\": \"Provider Claims Submission Policy\",\n  \"description\": \"Policy document used by provider portal claims team\",\n  \"resource_type\": \"DOCUMENT\",\n  \"category_name\": \"Claims\",\n  \"business_domain\": \"insurance\",\n  \"source_system\": \"manual_upload\",\n  \"author\": \"Operations Team\",\n  \"language\": \"English\",\n  \"tags\": [\"provider-portal\", \"claims\", \"policy\"],\n  \"custom_metadata\": {\n    \"department\": \"Claims\",\n    \"confidentiality\": \"Internal\",\n    \"document_owner\": \"Provider Operations\"\n  },\n  \"chunking\": {\n    \"strategy\": \"INTELLIGENT_RECURSIVE\",\n    \"chunk_size_tokens\": 800,\n    \"chunk_overlap_tokens\": 120\n  }\n}"
+              "value": "{\n  \"title\": \"Provider Claims Submission Policy\",\n  \"description\": \"Policy document used by provider portal claims team\",\n  \"resource_type\": \"DOCUMENT\",\n  \"category_name\": \"Claims\",\n  \"business_domain\": \"insurance\",\n  \"source_system\": \"manual_upload\",\n  \"author\": \"Operations Team\",\n  \"language\": \"English\",\n  \"tags\": [\"provider-portal\", \"claims\", \"policy\"],\n  \"custom_metadata\": {\n    \"department\": \"Claims\",\n    \"confidentiality\": \"Internal\",\n    \"document_owner\": \"Provider Operations\"\n  },\n  \"chunking\": {\n    \"strategy\": \"SEMANTIC_RECURSIVE\",\n    \"chunk_size_tokens\": 1200,\n    \"chunk_overlap_tokens\": 80\n  }\n}"
             }
           ]
         },
@@ -113,6 +113,27 @@
             "{{job_id}}"
           ]
         }
+      },
+      "response": []
+    },
+    {
+      "name": "Dev Delete Resource",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/rag/dev/resources/{{resource_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "rag",
+            "dev",
+            "resources",
+            "{{resource_id}}"
+          ]
+        },
+        "description": "Local development only. Enabled only when APP_PROFILE=local and ENABLE_DEV_DELETE_ENDPOINT=true. Deletes the resource, ingestion jobs, extracted text, chunks, embeddings, profiling rows, errors, resource links, and stored file if present."
       },
       "response": []
     },

@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from uuid import uuid4
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON, TypeDecorator
@@ -122,15 +122,16 @@ class RagIngestionJob(Base):
     resource_id: Mapped[str] = mapped_column(GUID, ForeignKey("resources.resource_id"), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="QUEUED", index=True)
     async_backend: Mapped[str] = mapped_column(String(50), nullable=False)
-    chunking_strategy: Mapped[str] = mapped_column(String(80), nullable=False, default="INTELLIGENT_RECURSIVE")
-    chunk_size_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=800)
-    chunk_overlap_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=120)
+    chunking_strategy: Mapped[str] = mapped_column(String(80), nullable=False, default="SEMANTIC_RECURSIVE")
+    chunk_size_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=1200)
+    chunk_overlap_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=80)
     total_chunks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     processed_chunks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     embedded_chunks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     failed_chunks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_retries: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    progress_message: Mapped[str | None] = mapped_column(Text)
     error_message: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime)
@@ -202,4 +203,18 @@ class RagProcessingError(Base):
     error_type: Mapped[str] = mapped_column(String(150), nullable=False)
     error_message: Mapped[str] = mapped_column(Text, nullable=False)
     error_details: Mapped[dict] = mapped_column(JsonCompat, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+
+class RagProfilingEvent(Base):
+    __tablename__ = "rag_profiling_events"
+
+    profile_event_id: Mapped[str] = mapped_column(GUID, primary_key=True, default=uuid_str)
+    job_id: Mapped[str] = mapped_column(GUID, ForeignKey("rag_ingestion_jobs.job_id"), nullable=False, index=True)
+    resource_id: Mapped[str] = mapped_column(GUID, ForeignKey("resources.resource_id"), nullable=False, index=True)
+    step: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    elapsed_ms: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    event_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_details: Mapped[dict] = mapped_column("details_json", JsonCompat, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
