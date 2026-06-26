@@ -1,0 +1,82 @@
+{
+  "info": {
+    "name": "RAG Answer Service",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8002"
+    }
+  ],
+  "item": [
+    {
+      "name": "UI - Answer",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/ui/answer",
+          "host": ["{{base_url}}"],
+          "path": ["ui", "answer"]
+        },
+        "description": "Serves the browser UI for retrieval-grounded LLM answers."
+      },
+      "response": []
+    },
+    {
+      "name": "Generate Answer",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"query\": \"what was the impression perceived by Paul Brenton when he met Ramana Maharshi?\",\n  \"search_mode\": \"hybrid\",\n  \"top_k\": 10,\n  \"context_top_k\": 10,\n  \"filters\": {\n    \"resource_id\": null,\n    \"category\": null,\n    \"tags\": [],\n    \"metadata\": {}\n  },\n  \"include_sources\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/rag/answer",
+          "host": ["{{base_url}}"],
+          "path": ["rag", "answer"]
+        },
+        "description": "Retrieves chunks from rag-search-service and asks the configured LLM to answer from that context."
+      },
+      "response": []
+    },
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Ready",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/ready",
+          "host": ["{{base_url}}"],
+          "path": ["ready"]
+        }
+      },
+      "response": []
+    }
+  ]
+}
