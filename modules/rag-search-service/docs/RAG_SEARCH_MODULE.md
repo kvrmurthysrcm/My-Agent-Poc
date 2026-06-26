@@ -9,7 +9,7 @@ The search module adds retrieval over documents that have completed ingestion an
 
 ## Search Modes
 
-- `hybrid`: default. Runs vector search and keyword search, normalizes both result sets, and combines scores using `SEARCH_VECTOR_WEIGHT` and `SEARCH_KEYWORD_WEIGHT`.
+- `hybrid`: default. Runs oversampled vector and keyword search, fuses candidates with Reciprocal Rank Fusion by default, and applies a local reranker before returning `top_k`.
 - `vector`: embeds the query with the configured ingestion embedding provider/model, then searches `rag_chunk_embeddings`.
 - `keyword`: uses PostgreSQL full-text search over `rag_document_chunks.search_vector`. This mode does not call the embedding provider.
 
@@ -90,9 +90,23 @@ SEARCH_MAX_TOP_K=50
 SEARCH_MIN_SCORE=0.0
 SEARCH_VECTOR_WEIGHT=0.70
 SEARCH_KEYWORD_WEIGHT=0.30
+HYBRID_OVERSAMPLING_FACTOR=5
+HYBRID_FUSION_STRATEGY=rrf
+RRF_K=60
+RERANK_ENABLED=true
+RERANK_TOP_N=30
+RERANK_STRATEGY=local
 SEARCH_ENABLE_METADATA_FILTERS=true
 SEARCH_INCLUDE_CHUNK_TEXT_DEFAULT=true
 ```
+
+For `hybrid` mode, the service retrieves `top_k * HYBRID_OVERSAMPLING_FACTOR` vector candidates and the same number of keyword candidates before fusion. With `top_k=10` and the default factor `5`, it retrieves 50 vector candidates and 50 keyword candidates, then reranks down to 10.
+
+`HYBRID_FUSION_STRATEGY=rrf` uses Reciprocal Rank Fusion, which is more stable than comparing raw vector and keyword score scales directly. `HYBRID_FUSION_STRATEGY=weighted` keeps the older min-max weighted merge available for comparison.
+
+The local reranker favors exact phrase matches and direct content evidence. Title/resource matches are treated as a boost, not a dominant sort key, except for short title-lookup queries.
+
+More implementation details and test coverage are documented in `OVERSAMPLED_HYBRID_RRF_RERANKING.md`.
 
 The default embedding model remains:
 

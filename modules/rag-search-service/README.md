@@ -33,7 +33,7 @@ Search modes:
 
 | Mode | Behavior |
 | --- | --- |
-| `hybrid` | Combines pgvector semantic search and PostgreSQL full-text keyword search |
+| `hybrid` | Oversamples vector and keyword candidates, fuses them with RRF, then reranks locally |
 | `vector` | Embeds the query, then searches `rag_chunk_embeddings` |
 | `keyword` | Uses `rag_document_chunks.search_vector` and does not call the embedding provider |
 
@@ -46,6 +46,19 @@ curl.exe -X POST http://localhost:8001/rag/search `
 ```
 
 Details are in `docs/RAG_SEARCH_MODULE.md`.
+
+Hybrid retrieval/ranking details are in `docs/OVERSAMPLED_HYBRID_RRF_RERANKING.md`.
+
+Useful tuning settings:
+
+```text
+HYBRID_OVERSAMPLING_FACTOR=5
+HYBRID_FUSION_STRATEGY=rrf
+RRF_K=60
+RERANK_ENABLED=true
+RERANK_TOP_N=30
+RERANK_STRATEGY=local
+```
 
 ## Tests
 

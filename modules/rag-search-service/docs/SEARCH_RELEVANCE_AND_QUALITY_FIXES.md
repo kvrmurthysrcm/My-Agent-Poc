@@ -19,6 +19,9 @@ Search responses also exposed stored page markers and already-ingested low-value
 - Long queries require minimum meaningful-term coverage before a keyword result qualifies.
 - Conversational prefixes such as `tell me about` and subject prefixes such as `the novel:` are stripped before retrieval.
 - The old hard hybrid score clamp for `keyword_score >= 5` was removed.
+- Hybrid mode now oversamples vector and keyword candidates before fusion.
+- Reciprocal Rank Fusion is the default hybrid fusion strategy.
+- A local reranker promotes direct evidence and exact phrase matches while keeping title matches as a boost instead of a dominant sort key.
 - Low-value result chunks are filtered at search time to reduce the impact of old indexed data.
 - `[Page N]` markers are stripped from snippets and returned `chunk_text`; page references remain in `page_start` and `page_end`.
 

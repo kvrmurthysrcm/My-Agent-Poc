@@ -12,6 +12,7 @@ from app.search.snippet_builder import SnippetBuilder
 from app.services.embedding_providers.factory import EmbeddingProviderFactory
 from app.services.hybrid_search_service import HybridSearchService
 from app.services.ranking_service import RankingService
+from app.services.reranking_service import RerankingService
 
 
 class SearchService:
@@ -23,6 +24,7 @@ class SearchService:
         self.snippet_builder = SnippetBuilder()
         self.hybrid_service = HybridSearchService()
         self.ranking_service = RankingService()
+        self.reranking_service = RerankingService()
 
     def search(self, request: SearchRequest) -> SearchResponse:
         query = self.query_preprocessor.normalize(request.query)
@@ -49,6 +51,12 @@ class SearchService:
                 or is_searchable_result_text(item.get("chunk_text") or "")
             )
         ]
+        if self.settings.rerank_enabled:
+            candidates = self.reranking_service.rerank(
+                query=query,
+                items=candidates,
+                top_n=max(top_k, self.settings.rerank_top_n),
+            )
         ranked = self.ranking_service.rank(candidates, min_score=min_score, limit=top_k)
         results = [
             self._to_result_item(index + 1, item, query, request.include_metadata, include_chunk_text)
@@ -67,6 +75,9 @@ class SearchService:
     def _retrieve(self, mode: str, query: str, filters, top_k: int) -> list[dict]:
         vector_results: list[dict] = []
         keyword_results: list[dict] = []
+        retrieve_k = top_k
+        if mode == "hybrid":
+            retrieve_k = min(self.settings.search_max_top_k * self.settings.hybrid_oversampling_factor, top_k * self.settings.hybrid_oversampling_factor)
 
         if mode in {"vector", "hybrid"}:
             provider = EmbeddingProviderFactory.build(self.settings)
@@ -74,7 +85,7 @@ class SearchService:
             vector_results = self.repository.vector_search(
                 query_vector=query_vector,
                 filters=filters,
-                top_k=top_k,
+                top_k=retrieve_k,
                 provider=self.settings.embedding_provider.value,
                 model=self.settings.embedding_model,
                 version=self.settings.embedding_version,
@@ -84,7 +95,7 @@ class SearchService:
                 item["score"] = float(item.get("vector_score") or 0.0)
 
         if mode in {"keyword", "hybrid"}:
-            keyword_results = self.repository.keyword_search(query=query, filters=filters, top_k=top_k)
+            keyword_results = self.repository.keyword_search(query=query, filters=filters, top_k=retrieve_k)
             for item in keyword_results:
                 item["resource_match_score"] = max(
                     float(item.get("resource_match_score") or 0.0),
@@ -98,6 +109,8 @@ class SearchService:
                 keyword_results=keyword_results,
                 vector_weight=self.settings.search_vector_weight,
                 keyword_weight=self.settings.search_keyword_weight,
+                fusion_strategy=self.settings.hybrid_fusion_strategy,
+                rrf_k=self.settings.rrf_k,
             )
         return vector_results if mode == "vector" else keyword_results
 

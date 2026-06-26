@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     search_min_score: float = Field(0.0, alias="SEARCH_MIN_SCORE")
     search_vector_weight: float = Field(0.70, alias="SEARCH_VECTOR_WEIGHT")
     search_keyword_weight: float = Field(0.30, alias="SEARCH_KEYWORD_WEIGHT")
+    hybrid_oversampling_factor: int = Field(5, alias="HYBRID_OVERSAMPLING_FACTOR")
+    hybrid_fusion_strategy: str = Field("rrf", alias="HYBRID_FUSION_STRATEGY")
+    rrf_k: int = Field(60, alias="RRF_K")
+    rerank_enabled: bool = Field(True, alias="RERANK_ENABLED")
+    rerank_top_n: int = Field(30, alias="RERANK_TOP_N")
+    rerank_strategy: str = Field("local", alias="RERANK_STRATEGY")
     search_enable_metadata_filters: bool = Field(True, alias="SEARCH_ENABLE_METADATA_FILTERS")
     search_include_chunk_text_default: bool = Field(True, alias="SEARCH_INCLUDE_CHUNK_TEXT_DEFAULT")
     search_admin_enabled: bool = Field(True, alias="SEARCH_ADMIN_ENABLED")
@@ -70,6 +76,49 @@ class Settings(BaseSettings):
         if value < 0 or value > 1:
             raise ValueError("Search weights must be between 0 and 1")
         return value
+
+    @field_validator("hybrid_oversampling_factor")
+    @classmethod
+    def validate_hybrid_oversampling_factor(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("HYBRID_OVERSAMPLING_FACTOR must be at least 1")
+        if value > 20:
+            raise ValueError("HYBRID_OVERSAMPLING_FACTOR must be 20 or lower")
+        return value
+
+    @field_validator("hybrid_fusion_strategy")
+    @classmethod
+    def normalize_hybrid_fusion_strategy(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"rrf", "weighted"}:
+            raise ValueError("HYBRID_FUSION_STRATEGY must be rrf or weighted")
+        return normalized
+
+    @field_validator("rrf_k")
+    @classmethod
+    def validate_rrf_k(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("RRF_K must be at least 1")
+        if value > 1000:
+            raise ValueError("RRF_K must be 1000 or lower")
+        return value
+
+    @field_validator("rerank_top_n")
+    @classmethod
+    def validate_rerank_top_n(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("RERANK_TOP_N must be at least 1")
+        if value > 500:
+            raise ValueError("RERANK_TOP_N must be 500 or lower")
+        return value
+
+    @field_validator("rerank_strategy")
+    @classmethod
+    def normalize_rerank_strategy(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"local"}:
+            raise ValueError("RERANK_STRATEGY must be local")
+        return normalized
 
     @model_validator(mode="after")
     def validate_embedding_configuration(self) -> "Settings":

@@ -6,6 +6,7 @@ from app.db import models  # noqa: F401
 from app.db.session import Base, SessionLocal, engine
 from app.main import app
 from app.schemas.search_request import SearchRequest
+from app.services.hybrid_search_service import HybridSearchService
 from app.services.search_service import SearchService
 
 
@@ -160,6 +161,58 @@ def test_hybrid_mode_merges_vector_and_keyword_results(monkeypatch):
     assert {item.chunk_id for item in response.results} == {"chunk-vector", "chunk-keyword"}
 
 
+def test_hybrid_mode_oversamples_vector_and_keyword_candidates(monkeypatch):
+    provider = FakeProvider()
+    monkeypatch.setattr("app.services.search_service.EmbeddingProviderFactory.build", lambda settings: provider)
+
+    class OversamplingRepository(FakeRepository):
+        def __init__(self):
+            super().__init__()
+            self.vector_top_k = None
+            self.keyword_top_k = None
+
+        def vector_search(self, **kwargs):
+            self.vector_top_k = kwargs["top_k"]
+            return super().vector_search(**kwargs)
+
+        def keyword_search(self, **kwargs):
+            self.keyword_top_k = kwargs["top_k"]
+            return super().keyword_search(**kwargs)
+
+    db = SessionLocal()
+    try:
+        service = SearchService(db, _settings(SEARCH_MAX_TOP_K=10, HYBRID_OVERSAMPLING_FACTOR=5))
+        repository = OversamplingRepository()
+        service.repository = repository
+        service.search(SearchRequest(query="claim submission", search_mode="hybrid", top_k=10))
+    finally:
+        db.close()
+
+    assert repository.vector_top_k == 50
+    assert repository.keyword_top_k == 50
+
+
+def test_hybrid_rrf_rewards_candidates_found_by_both_retrievers():
+    results = HybridSearchService().merge(
+        vector_results=[
+            {"chunk_id": "vector-only", "resource_id": "r1", "chunk_index": 0, "chunk_text": "vector", "vector_score": 0.99},
+            {"chunk_id": "both", "resource_id": "r1", "chunk_index": 1, "chunk_text": "both", "vector_score": 0.80},
+        ],
+        keyword_results=[
+            {"chunk_id": "both", "resource_id": "r1", "chunk_index": 1, "chunk_text": "both", "keyword_score": 10.0},
+            {"chunk_id": "keyword-only", "resource_id": "r1", "chunk_index": 2, "chunk_text": "keyword", "keyword_score": 9.0},
+        ],
+        vector_weight=0.7,
+        keyword_weight=0.3,
+        fusion_strategy="rrf",
+        rrf_k=60,
+    )
+
+    by_id = {item["chunk_id"]: item for item in results}
+    assert by_id["both"]["score"] > by_id["vector-only"]["score"]
+    assert by_id["both"]["score"] > by_id["keyword-only"]["score"]
+
+
 def test_conversational_title_query_promotes_keyword_match(monkeypatch):
     provider = FakeProvider()
     monkeypatch.setattr("app.services.search_service.EmbeddingProviderFactory.build", lambda settings: provider)
@@ -282,6 +335,58 @@ def test_sqlite_title_match_orders_early_chunks_first():
         db.close()
 
     assert [item.chunk_id for item in response.results] == ["first", "later"]
+
+
+def test_question_reranking_prefers_direct_evidence_over_title_front_matter():
+    class QuestionRepository(FakeRepository):
+        def keyword_search(self, **kwargs):
+            self.keyword_called = True
+            return [
+                {
+                    "chunk_id": "front-matter",
+                    "resource_id": "ramana",
+                    "chunk_index": 0,
+                    "chunk_text": "7th Impression 1977. Ramana Maharshi by Paul Brunton.",
+                    "title": "Ramana Maharshi by Paul Brenton",
+                    "heading_path": [],
+                    "keyword_score": 50.0,
+                    "resource_match_score": 2.0,
+                    "resource_metadata": {},
+                    "chunk_metadata": {},
+                },
+                {
+                    "chunk_id": "direct-evidence",
+                    "resource_id": "ramana",
+                    "chunk_index": 8,
+                    "chunk_text": (
+                        "I perceive that a great peace is penetrating the inner reaches of my being. "
+                        "The mysterious peace which has arisen within me is my reaction to the personality "
+                        "of the Maharshi."
+                    ),
+                    "title": "Ramana Maharshi by Paul Brenton",
+                    "heading_path": ["THE HILL OF THE HOLY BEACON"],
+                    "keyword_score": 20.0,
+                    "resource_match_score": 1.0,
+                    "resource_metadata": {},
+                    "chunk_metadata": {},
+                },
+            ]
+
+    db = SessionLocal()
+    try:
+        service = SearchService(db, _settings(SEARCH_DEFAULT_MODE="keyword"))
+        service.repository = QuestionRepository()
+        response = service.search(
+            SearchRequest(
+                query="what was the impression perceived by Paul Brenton when he met Ramana Maharshi?",
+                search_mode="keyword",
+                top_k=2,
+            )
+        )
+    finally:
+        db.close()
+
+    assert response.results[0].chunk_id == "direct-evidence"
 
 
 def test_sqlite_keyword_ignores_stopword_noise_and_promotes_exact_phrase():

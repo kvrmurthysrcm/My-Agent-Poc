@@ -2,7 +2,61 @@ from app.search.score_normalizer import normalize_scores
 
 
 class HybridSearchService:
-    def merge(self, vector_results: list[dict], keyword_results: list[dict], vector_weight: float, keyword_weight: float) -> list[dict]:
+    def merge(
+        self,
+        vector_results: list[dict],
+        keyword_results: list[dict],
+        vector_weight: float,
+        keyword_weight: float,
+        fusion_strategy: str = "rrf",
+        rrf_k: int = 60,
+    ) -> list[dict]:
+        if fusion_strategy == "weighted":
+            return self._merge_weighted(vector_results, keyword_results, vector_weight, keyword_weight)
+        return self._merge_rrf(vector_results, keyword_results, vector_weight, keyword_weight, rrf_k)
+
+    def _merge_rrf(
+        self,
+        vector_results: list[dict],
+        keyword_results: list[dict],
+        vector_weight: float,
+        keyword_weight: float,
+        rrf_k: int,
+    ) -> list[dict]:
+        by_chunk_id: dict[str, dict] = {}
+
+        for rank, item in enumerate(vector_results, start=1):
+            merged = by_chunk_id.setdefault(item["chunk_id"], dict(item))
+            merged["vector_score"] = item.get("vector_score")
+            merged["vector_rank"] = min(rank, int(merged.get("vector_rank") or rank))
+            merged["rrf_score"] = float(merged.get("rrf_score") or 0.0) + vector_weight / (rrf_k + rank)
+
+        for rank, item in enumerate(keyword_results, start=1):
+            merged = by_chunk_id.setdefault(item["chunk_id"], dict(item))
+            merged["keyword_score"] = item.get("keyword_score")
+            merged["keyword_rank"] = min(rank, int(merged.get("keyword_rank") or rank))
+            merged["exact_phrase_match"] = bool(merged.get("exact_phrase_match") or item.get("exact_phrase_match"))
+            merged["resource_match_score"] = max(
+                float(merged.get("resource_match_score") or 0.0),
+                float(item.get("resource_match_score") or 0.0),
+            )
+            if not merged.get("vector_score"):
+                merged.update({key: value for key, value in item.items() if key not in merged or merged[key] is None})
+            merged["rrf_score"] = float(merged.get("rrf_score") or 0.0) + keyword_weight / (rrf_k + rank)
+
+        for item in by_chunk_id.values():
+            item["score"] = float(item.get("rrf_score") or 0.0)
+            if item.get("exact_phrase_match"):
+                item["score"] += 1.0
+        return list(by_chunk_id.values())
+
+    def _merge_weighted(
+        self,
+        vector_results: list[dict],
+        keyword_results: list[dict],
+        vector_weight: float,
+        keyword_weight: float,
+    ) -> list[dict]:
         by_chunk_id: dict[str, dict] = {}
 
         for item in normalize_scores(vector_results, "vector_score", "vector_score_normalized"):

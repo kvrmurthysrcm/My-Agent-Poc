@@ -115,7 +115,7 @@ class RagSearchRepository:
                     ELSE 0
                 END AS resource_match_score,
                 (
-                    ts_rank_cd(c.search_vector, plainto_tsquery('english', :query))
+                    ts_rank_cd(c.search_vector, websearch_to_tsquery('english', :query))
                     + CASE WHEN lower(r.title) = lower(:query) THEN 10.0 ELSE 0.0 END
                     + CASE WHEN lower(r.title) LIKE '%' || lower(:query) || '%' THEN 5.0 ELSE 0.0 END
                     + CASE WHEN lower(coalesce(r.metadata_json->>'author', '')) LIKE '%' || lower(:query) || '%' THEN 3.0 ELSE 0.0 END
@@ -130,7 +130,7 @@ class RagSearchRepository:
             WHERE r.rag_enabled = true
               AND r.ingestion_status = 'READY'
               AND (
-                  c.search_vector @@ plainto_tsquery('english', :query)
+                  c.search_vector @@ websearch_to_tsquery('english', :query)
                   OR lower(r.title) LIKE '%' || lower(:query) || '%'
                   OR lower(coalesce(r.metadata_json->>'author', '')) LIKE '%' || lower(:query) || '%'
                   OR lower(coalesce(cat.category_name, '')) LIKE '%' || lower(:query) || '%'
