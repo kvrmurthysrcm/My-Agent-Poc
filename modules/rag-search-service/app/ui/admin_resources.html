@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RAG Resource Admin</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #f7f8fa; color: #20242a; }
+    main { max-width: 1280px; margin: 0 auto; padding: 24px 18px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+    h1 { font-size: 24px; margin: 0; }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+    input[type="search"] { min-width: 280px; border: 1px solid #c9d0da; border-radius: 6px; padding: 9px 10px; background: #fff; }
+    button { border: 0; border-radius: 6px; padding: 9px 14px; background: #1f6feb; color: #fff; cursor: pointer; }
+    button.danger { background: #b42318; }
+    button.secondary { background: #4b5563; }
+    button:disabled { cursor: not-allowed; opacity: 0.55; }
+    .status { color: #5d6673; font-size: 13px; }
+    .table-wrap { overflow: auto; border: 1px solid #d9dee7; background: #fff; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; min-width: 1120px; }
+    th, td { border-bottom: 1px solid #edf0f4; padding: 10px; text-align: left; vertical-align: top; font-size: 13px; }
+    th { position: sticky; top: 0; background: #f1f4f8; color: #3f4652; z-index: 1; }
+    tr:last-child td { border-bottom: 0; }
+    .title { font-weight: 700; font-size: 14px; }
+    .muted { color: #687180; }
+    .badge { display: inline-block; border: 1px solid #cdd5df; border-radius: 999px; padding: 2px 7px; margin: 1px 2px 1px 0; background: #fafbfc; }
+    .danger-text { color: #b42318; }
+    .empty { padding: 28px; text-align: center; color: #687180; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #111827; color: #f9fafb; border-radius: 8px; padding: 12px; max-height: 260px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>RAG Resource Admin</h1>
+      <a href="/ui/search">Search UI</a>
+    </header>
+    <div class="toolbar">
+      <input id="filter" type="search" placeholder="Filter by title, author, category, tag, status">
+      <button id="refresh" class="secondary" type="button">Refresh</button>
+      <button id="delete-selected" class="danger" type="button" disabled>Delete Selected</button>
+      <label><input id="force" type="checkbox"> Force processing deletes</label>
+      <span id="summary" class="status"></span>
+    </div>
+    <form id="resource-form">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><input id="select-all" type="checkbox"></th>
+              <th>Book</th>
+              <th>Metadata</th>
+              <th>Status</th>
+              <th>Chunks</th>
+              <th>Embeddings</th>
+              <th>Jobs</th>
+              <th>File</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </form>
+    <pre id="result" hidden></pre>
+  </main>
+  <script>
+    const rows = document.getElementById("rows");
+    const result = document.getElementById("result");
+    const summary = document.getElementById("summary");
+    const filter = document.getElementById("filter");
+    const selectAll = document.getElementById("select-all");
+    const deleteSelected = document.getElementById("delete-selected");
+    const force = document.getElementById("force");
+    let resources = [];
+
+    document.getElementById("refresh").addEventListener("click", loadResources);
+    filter.addEventListener("input", renderRows);
+    selectAll.addEventListener("change", () => {
+      document.querySelectorAll("input[name='resource_id']").forEach((box) => { box.checked = selectAll.checked; });
+      updateSelectedState();
+    });
+    deleteSelected.addEventListener("click", deleteResources);
+    rows.addEventListener("change", updateSelectedState);
+
+    async function loadResources() {
+      result.hidden = true;
+      summary.textContent = "Loading...";
+      const response = await fetch("/rag/admin/resources");
+      const body = await response.json();
+      if (!response.ok) {
+        showResult(body);
+        summary.textContent = "Unable to load resources";
+        return;
+      }
+      resources = body.resources || [];
+      renderRows();
+    }
+
+    function renderRows() {
+      const needle = filter.value.trim().toLowerCase();
+      const visible = resources.filter((item) => {
+        const searchable = [
+          item.title, item.author, item.category, item.ingestion_status, item.latest_job_status,
+          item.file_name, ...(item.tags || [])
+        ].filter(Boolean).join(" ").toLowerCase();
+        return !needle || searchable.includes(needle);
+      });
+      summary.textContent = `${visible.length} of ${resources.length} resources`;
+      selectAll.checked = false;
+      if (!visible.length) {
+        rows.innerHTML = `<tr><td colspan="9" class="empty">No resources found.</td></tr>`;
+        updateSelectedState();
+        return;
+      }
+      rows.innerHTML = visible.map((item) => `
+        <tr>
+          <td><input name="resource_id" type="checkbox" value="${escapeHtml(item.resource_id)}"></td>
+          <td>
+            <div class="title">${escapeHtml(item.title)}</div>
+            <div class="muted">${escapeHtml(item.resource_id)}</div>
+          </td>
+          <td>
+            <div>${escapeHtml(item.author || "")}</div>
+            <div class="muted">${escapeHtml(item.category || "")}</div>
+            <div>${(item.tags || []).map((tag) => `<span class="badge">${escapeHtml(tag)}</span>`).join("")}</div>
+          </td>
+          <td>
+            <div>${escapeHtml(item.ingestion_status)}</div>
+            <div class="muted">RAG ${item.rag_enabled ? "enabled" : "disabled"}</div>
+          </td>
+          <td>${item.chunk_count}</td>
+          <td>${item.embedding_count}</td>
+          <td>${item.job_count}<div class="muted">${escapeHtml(item.latest_job_status || "")}</div></td>
+          <td>${escapeHtml(item.file_name || "")}<div class="muted">${formatBytes(item.file_size_bytes)}</div></td>
+          <td>${formatDate(item.created_at)}</td>
+        </tr>
+      `).join("");
+      updateSelectedState();
+    }
+
+    async function deleteResources() {
+      const selected = [...document.querySelectorAll("input[name='resource_id']:checked")].map((box) => box.value);
+      if (!selected.length) return;
+      const confirmed = window.confirm(`Delete ${selected.length} selected resource(s) from the online library?`);
+      if (!confirmed) return;
+      deleteSelected.disabled = true;
+      summary.textContent = "Deleting...";
+      const response = await fetch("/rag/admin/resources/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resource_ids: selected, force: force.checked })
+      });
+      const body = await response.json();
+      showResult(body);
+      await loadResources();
+    }
+
+    function updateSelectedState() {
+      const selected = document.querySelectorAll("input[name='resource_id']:checked").length;
+      deleteSelected.disabled = selected === 0;
+      if (selected) summary.textContent = `${selected} selected`;
+    }
+
+    function showResult(value) {
+      result.hidden = false;
+      result.textContent = JSON.stringify(value, null, 2);
+    }
+
+    function formatDate(value) {
+      return value ? new Date(value).toLocaleString() : "";
+    }
+
+    function formatBytes(value) {
+      if (!value) return "";
+      if (value < 1024) return `${value} B`;
+      if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
+      return `${(value / 1024 / 1024).toFixed(1)} MB`;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;"
+      }[char]));
+    }
+
+    loadResources();
+  </script>
+</body>
+</html>

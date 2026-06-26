@@ -257,6 +257,10 @@ CREATE TABLE public.rag_ingestion_jobs (
     failed_chunks integer NOT NULL DEFAULT 0,
     retry_count integer NOT NULL DEFAULT 0,
     max_retries integer NOT NULL DEFAULT 3,
+    worker_id varchar(120),
+    locked_at timestamp without time zone,
+    heartbeat_at timestamp without time zone,
+    next_retry_at timestamp without time zone,
     progress_message text,
     error_message text,
     started_at timestamp without time zone,
@@ -299,6 +303,7 @@ CREATE TABLE public.rag_document_chunks (
     heading_path jsonb NOT NULL DEFAULT '[]'::jsonb,
     chunk_type varchar(50) NOT NULL DEFAULT 'text',
     metadata_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+    search_vector tsvector GENERATED ALWAYS AS (to_tsvector('english', coalesce(chunk_text, ''))) STORED,
     created_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT rag_document_chunks_pkey PRIMARY KEY (chunk_id),
     CONSTRAINT rag_document_chunks_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES public.resources(resource_id),
@@ -313,7 +318,7 @@ CREATE TABLE public.rag_chunk_embeddings (
     embedding_model varchar(150) NOT NULL,
     embedding_version varchar(50) NOT NULL DEFAULT 'v1',
     embedding_dimension integer NOT NULL,
-    vector vector(1536),
+    vector vector(768) NOT NULL,
     created_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT rag_chunk_embeddings_pkey PRIMARY KEY (embedding_id),
     CONSTRAINT rag_chunk_embeddings_chunk_id_fkey FOREIGN KEY (chunk_id) REFERENCES public.rag_document_chunks(chunk_id),
@@ -357,13 +362,18 @@ CREATE INDEX ix_resources_original_file_hash ON public.resources (original_file_
 CREATE INDEX ix_resources_metadata_json ON public.resources USING gin (metadata_json);
 CREATE INDEX ix_rag_jobs_status_created ON public.rag_ingestion_jobs (status, created_at);
 CREATE INDEX ix_rag_jobs_resource_id ON public.rag_ingestion_jobs (resource_id);
+CREATE INDEX ix_rag_jobs_worker_id ON public.rag_ingestion_jobs (worker_id);
+CREATE INDEX ix_rag_jobs_next_retry_at ON public.rag_ingestion_jobs (next_retry_at);
 CREATE INDEX ix_rag_chunks_resource_id ON public.rag_document_chunks (resource_id);
 CREATE INDEX ix_rag_chunks_job_id ON public.rag_document_chunks (job_id);
 CREATE INDEX ix_rag_chunks_text_trgm ON public.rag_document_chunks USING gin (chunk_text gin_trgm_ops);
+CREATE INDEX ix_rag_document_chunks_search_vector ON public.rag_document_chunks USING gin (search_vector);
+CREATE INDEX ix_rag_document_chunks_resource_page ON public.rag_document_chunks (resource_id, page_start, page_end);
 CREATE INDEX ix_rag_embeddings_chunk_id ON public.rag_chunk_embeddings (chunk_id);
+CREATE INDEX ix_rag_chunk_embeddings_model_lookup ON public.rag_chunk_embeddings (embedding_provider, embedding_model, embedding_version, embedding_dimension);
 CREATE INDEX ix_rag_errors_job_id ON public.rag_processing_errors (job_id);
 CREATE INDEX ix_rag_profile_events_job_id ON public.rag_profiling_events (job_id, event_index);
 CREATE INDEX ix_rag_profile_events_resource_id ON public.rag_profiling_events (resource_id);
 
 -- For production vector search, choose an index after confirming dimensions and distance metric:
--- CREATE INDEX ix_rag_embeddings_vector_hnsw ON public.rag_chunk_embeddings USING hnsw (vector vector_cosine_ops);
+CREATE INDEX ix_rag_chunk_embeddings_vector_hnsw ON public.rag_chunk_embeddings USING hnsw (vector vector_cosine_ops);

@@ -4,7 +4,33 @@ Reference document:
 docs/RAG_Ingest_Service_Action_Plan_v1_1_Updated.docx
 
 Goal:
-Implement the /rag/ingest POC based on the reference document.
+Maintain and incrementally harden the existing /rag/ingest POC based on the reference document.
+
+Current production-hardening baseline already implemented:
+
+* Default embedding path is Ollama nomic-embed-text with EMBEDDING_DIMENSION=768.
+* Embedding model registry validates supported OpenAI/Ollama embedding models at startup and in EmbeddingProviderFactory.
+* Registry implementation lives in app/services/embedding_model_registry.py, with app/core/embedding_models.py kept as a compatibility import wrapper.
+* If EMBEDDING_DIMENSION is not supplied, settings derive it from the embedding model registry.
+* Chat/generation models such as mistral:latest, gemma4, llama*, and qwen chat models are rejected as EMBEDDING_MODEL values.
+* OpenAI fake embeddings are disabled by default using ALLOW_FAKE_EMBEDDINGS=false.
+* OPENAI_API_KEY is required for OpenAI embeddings unless ALLOW_FAKE_EMBEDDINGS=true is explicitly set for tests/local development.
+* Runtime embedding validation checks vector count equals chunk count and every vector length equals EMBEDDING_DIMENSION.
+* PostgreSQL embedding storage uses pgvector-compatible SQLAlchemy mapping, while SQLite remains test-compatible.
+* PostgreSQL schema is aligned to vector(768) for the local nomic-embed-text default.
+* Uploads are first written under unique storage/tmp/{upload_id}/ folders, then moved under storage/resources/{resource_id}/ after resource creation.
+* Ingestion fails instead of marking READY when extracted text is empty, zero chunks are created, zero embeddings are returned, embedding count mismatches, or dimensions mismatch.
+* Processing failures are recorded in rag_processing_errors.
+* Resource status is only set to READY after chunks and embeddings are successfully stored.
+* DB worker job claiming supports PostgreSQL FOR UPDATE SKIP LOCKED and worker_id, locked_at, heartbeat_at, retry_count, max_retries, and next_retry_at fields.
+* DB worker can run continuously with python -m app.workers.rag_ingestion_worker, or run one polling batch with --once.
+* Legacy worker.py delegates to app.workers.rag_ingestion_worker in --once mode for one-batch local runs.
+* Local/dev PostgreSQL API startup runs Alembic upgrade head automatically when AUTO_MIGRATE_ON_STARTUP=true.
+* AUTO_CREATE_TABLES=false is the default; production startup must rely on Alembic migrations, not Base.metadata.create_all.
+* /ready checks DB connectivity and embedding provider configuration without making expensive embedding API calls.
+* Chunking preserves page_start/page_end from parser-emitted markers such as [Page 1] where possible.
+* README.md, .env.example, Alembic migrations, tests, pyproject.toml, requirements.txt, and uv.lock have been updated for this baseline.
+* README.md documents API startup, DB worker startup, --once mode, embedding configuration, and test execution.
 
 Primary requirements:
 
@@ -14,6 +40,7 @@ Primary requirements:
    * POST /rag/ingest
    * GET /rag/ingest/jobs/{job_id}
    * GET /health
+   * GET /ready
 
 2. POST /rag/ingest must:
 
@@ -44,6 +71,7 @@ Primary requirements:
    Supported local Ollama embedding alternatives:
 
    * EMBEDDING_MODEL=embeddinggemma with EMBEDDING_DIMENSION=768
+   * EMBEDDING_MODEL=bge-m3 with EMBEDDING_DIMENSION=1024
    * EMBEDDING_MODEL=mxbai-embed-large with EMBEDDING_DIMENSION=1024
 
    Default local NLQ/text processing configuration:
@@ -52,16 +80,33 @@ Primary requirements:
    * LLM_MODEL=mistral:latest
 
    Use nomic-embed-text only for embedding/vector creation. Use mistral:latest for NLQ/text processing.
+   Keep nomic-embed-text as the local default because it is slightly faster than embeddinggemma in this POC.
 
    OpenAI must remain configurable:
 
    * EMBEDDING_PROVIDER=openai
    * EMBEDDING_MODEL=text-embedding-3-small
+   * EMBEDDING_DIMENSION=1536
    * OPENAI_API_KEY from environment variable
 
-   Additional local Ollama option:
+   Fake OpenAI embeddings:
 
-   * EMBEDDING_MODEL=gemma4
+   * ALLOW_FAKE_EMBEDDINGS=false by default
+   * ALLOW_FAKE_EMBEDDINGS=true may be used only for tests or explicit local development smoke runs
+   * Missing OPENAI_API_KEY must fail fast unless ALLOW_FAKE_EMBEDDINGS=true
+
+   Embedding model registry rules:
+
+   * openai/text-embedding-3-small -> 1536
+   * openai/text-embedding-3-large -> 3072
+   * ollama/embeddinggemma -> 768
+   * ollama/nomic-embed-text -> 768
+   * ollama/bge-m3 -> 1024
+   * ollama/mxbai-embed-large -> 1024
+   * If EMBEDDING_DIMENSION is missing, derive it from this registry
+   * If EMBEDDING_DIMENSION is provided but mismatches this registry, fail startup
+   * Validate this registry both in Settings and EmbeddingProviderFactory
+   * Do not allow chat/generation models such as mistral:latest, gemma4, llama*, or qwen chat models as EMBEDDING_MODEL
 
 4. Implement Python abstraction similar to Java interface style:
 
@@ -120,7 +165,9 @@ Primary requirements:
    * SQLAlchemy 2.x
    * Alembic migrations
    * PostgreSQL
-   * pgvector-ready schema
+   * pgvector schema for PostgreSQL embedding vectors
+   * SQLite-compatible fallback for tests
+   * AUTO_CREATE_TABLES=false by default; use Alembic migrations for production schema management
 
 9. Create tables or models based on the document:
 
@@ -132,6 +179,12 @@ Primary requirements:
    * rag_processing_errors
 
 10. Store original uploaded file temporarily.
+    Use unique upload temp folders before resource creation:
+
+* Save initial uploads under storage/tmp/{upload_id}/filename
+* Move or copy to storage/resources/{resource_id}/filename after DB resource creation
+* Cleanup temp files if DB commit or ingestion setup fails
+
     After successful chunking and embedding:
 
 * Keep metadata
@@ -166,7 +219,10 @@ Primary requirements:
 * LLM_PROVIDER defaulting to ollama
 * LLM_MODEL defaulting to mistral:latest
 * OPENAI_API_KEY
+* ALLOW_FAKE_EMBEDDINGS defaulting to false
 * OLLAMA_BASE_URL
+* AUTO_CREATE_TABLES defaulting to false
+* AUTO_MIGRATE_ON_STARTUP defaulting to true for local/dev automatic Alembic migrations
 * ASYNC_BACKEND
 * RQ_REDIS_URL
 * KAFKA_BOOTSTRAP_SERVERS
@@ -174,6 +230,9 @@ Primary requirements:
 
 12. Profiling and observability:
 
+* Keep GET /health lightweight for basic app liveness.
+* Add GET /ready for DB connectivity and embedding config readiness.
+* Do not call expensive embedding APIs during normal health or readiness checks.
 * Persist final profiling rows in rag_profiling_events.
 * Keep live in-memory profiling for running jobs.
 * Separate progress_message from error_message.
@@ -185,13 +244,31 @@ Primary requirements:
 13. Add tests using pytest:
 
 * health endpoint
+* readiness endpoint
 * successful upload returns resource_id and job_id
 * invalid file extension fails
 * invalid metadata fails
 * job status endpoint works
 * embedding provider factory selects OpenAI
 * embedding provider factory selects Ollama
+* embedding model registry accepts supported embedding models
+* embedding model registry rejects chat/generation models such as mistral:latest
+* embedding model registry rejects gemma4, llama*, and qwen chat models
+* embedding model registry derives dimension when EMBEDDING_DIMENSION is missing
+* embedding model registry rejects dimension mismatches
+* OpenAI fake embeddings disabled behavior
+* embedding vector count mismatch failure
+* worker-level embedding count mismatch marks job/resource FAILED and records rag_processing_errors
+* embedding vector dimension mismatch failure
+* empty extracted text marks the job and resource FAILED
+* zero chunks marks the job and resource FAILED
+* unique temporary upload paths for same filenames
+* page marker preservation into page_start/page_end
 * async dispatcher factory selects configured backend
+* AUTO_CREATE_TABLES defaults to false
+* startup migrations run for local/dev PostgreSQL and do not run for production or SQLite
+* DB worker claim method does not reclaim an already claimed PROCESSING job
+* DB worker --once mode processes a single polling batch
 
 14. Add a Postman collection:
 
@@ -202,7 +279,7 @@ Primary requirements:
 * Include at least one invalid metadata example
 * Use collection variables for base_url, job_id, resource_id, and sample_file_path
 
-14. Add a browser UI:
+15. Add a browser UI:
 
 * Serve it from GET /ui and GET /
 * Store the UI source under app/ui/index.html
@@ -218,7 +295,7 @@ Primary requirements:
 * Document the UI route and usage in README.md
 * Document how to inspect background logs and database progress
 
-15. Add profiling logs:
+16. Add profiling logs:
 
 * Add PROFILING config and default it to true
 * When PROFILING=true, log elapsed milliseconds for each major ingestion stage
@@ -230,7 +307,30 @@ Primary requirements:
 * Render profiling entries in the UI Status panel so developers can identify bottlenecks after ingestion
 * Document profiling behavior in a dedicated profiling README file in the module
 
-16. Keep code clean and layered:
+17. DB-backed worker hardening:
+
+* Claim queued jobs using FOR UPDATE SKIP LOCKED on PostgreSQL.
+* Set worker_id, locked_at, and heartbeat_at when a job is claimed.
+* Support retry_count, max_retries, and next_retry_at.
+* Avoid two workers processing the same job.
+* Add retry and FAILED handling.
+* Include stale PROCESSING job recovery logic or an initial implementation.
+* Make app.workers.rag_ingestion_worker executable with python -m app.workers.rag_ingestion_worker.
+* Default worker mode should poll continuously, sleep for DB_WORKER_POLL_INTERVAL_SECONDS, and log useful progress.
+* Support --once for local development and tests.
+* Keep worker.py as a compatibility wrapper that runs one polling batch.
+
+18. Ingestion failure rules:
+
+* If extracted text is empty, mark job FAILED.
+* If zero chunks are created, mark job FAILED.
+* If zero embeddings are created, mark job FAILED.
+* If embedding count does not match chunk count, mark job FAILED.
+* If any vector length differs from EMBEDDING_DIMENSION, mark job FAILED.
+* Store error details in rag_processing_errors.
+* Do not mark resource READY unless chunks and embeddings are successfully created.
+
+19. Keep code clean and layered:
 
 * app/api
 * app/core
@@ -242,10 +342,10 @@ Primary requirements:
 * app/utils
 * tests
 
-17. Do not hardcode secrets.
+20. Do not hardcode secrets.
     OPENAI_API_KEY must be read from environment variables only.
 
-18. Generate the implementation incrementally:
+21. Generate the implementation incrementally:
     Step 1: project structure and settings
     Step 2: DB models and migrations
     Step 3: API routes and schemas
@@ -267,4 +367,10 @@ Expected output:
 * Browser upload UI under app/ui
 * Postman collection under /postman
 * pytest test suite
+* pgvector dependency declared in pyproject.toml, requirements.txt, and uv.lock
 * Clean TODOs only for optional RQ and Kafka internals if not fully implemented
+
+Verification baseline after the hardening pass:
+
+* Run tests with: uv run pytest -q
+* Latest verified result: 46 passed, 1 warning

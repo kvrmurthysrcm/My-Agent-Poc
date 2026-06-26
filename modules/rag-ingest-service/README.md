@@ -6,6 +6,7 @@ FastAPI POC for asynchronous RAG document ingestion.
 
 - `GET /` or `GET /ui`
 - `GET /health`
+- `GET /ready`
 - `POST /rag/ingest`
 - `GET /rag/ingest/jobs/{job_id}`
 
@@ -83,6 +84,16 @@ alembic upgrade head
 
 The full base schema is in `sql/schema.sql`.
 
+For `APP_PROFILE=local`, `APP_PROFILE=dev`, or `APP_PROFILE=development`, PostgreSQL schema migrations run automatically on API startup when:
+
+```text
+AUTO_MIGRATE_ON_STARTUP=true
+```
+
+This uses Alembic `upgrade head`, not SQLAlchemy `create_all`. SQLite is skipped by startup migrations because tests and local SQLite smoke runs manage their schema separately.
+
+Production startup does not create tables automatically. `AUTO_CREATE_TABLES=false` is the default; set it to `true` only for local throwaway environments that intentionally use SQLAlchemy `create_all`. For production profiles, run Alembic explicitly as part of deployment.
+
 ## Chunking
 
 Default chunking is semantic-first with a token fallback:
@@ -120,16 +131,23 @@ EMBEDDING_MODEL=nomic-embed-text
 EMBEDDING_DIMENSION=768
 EMBEDDING_BATCH_SIZE=64
 EMBEDDING_CONCURRENCY=1
+EMBEDDING_MAX_RETRIES=2
+EMBEDDING_RETRY_BACKOFF_SECONDS=1.0
+EMBEDDING_RETRY_SHRINK_BATCH=true
+EMBEDDING_MIN_BATCH_SIZE=1
 
 LLM_PROVIDER=ollama
 LLM_MODEL=mistral:latest
 
 OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_EMBEDDING_TIMEOUT_SECONDS=60
 ```
 
 Use `nomic-embed-text` for vector creation. Use `mistral:latest` for NLQ/text processing.
 
 `EMBEDDING_CONCURRENCY` defaults to `1`. Increase to `2` only when testing whether local Ollama can process embedding batches in parallel without slowing down.
+
+Embedding generation retries transient provider failures by default. When `EMBEDDING_RETRY_SHRINK_BATCH=true`, a failed batch is retried in smaller pieces. For example, a failed batch of `32` is retried as `16 + 16`, down to `EMBEDDING_MIN_BATCH_SIZE`. Details are in `docs/EMBEDDING_RETRY_AND_BATCH_BACKOFF.md`.
 
 `DUPLICATE_DOCUMENT_POLICY=version` allows repeated uploads of the same file. Set `DUPLICATE_DOCUMENT_POLICY=reject` to reject an exact duplicate by SHA-256 file hash.
 
@@ -139,6 +157,7 @@ Supported local Ollama embedding options:
 | --- | ---: | --- |
 | `nomic-embed-text` | 768 | Current local embedding model |
 | `embeddinggemma` | 768 | Available local embedding model |
+| `bge-m3` | 1024 | Available local embedding model with larger vectors |
 | `mxbai-embed-large` | 1024 | Available local embedding model with larger vectors |
 
 OpenAI remains supported by switching configuration:
@@ -146,17 +165,64 @@ OpenAI remains supported by switching configuration:
 ```text
 EMBEDDING_PROVIDER=openai
 EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_DIMENSION=1536
 OPENAI_API_KEY=<from environment>
 ```
 
-When `OPENAI_API_KEY` is not set, the OpenAI provider returns deterministic placeholder vectors so local tests can run without external calls.
+`EMBEDDING_MODEL` is validated against a registry at startup. Chat/generation models such as `mistral:latest` are valid for `LLM_MODEL`, but are rejected as `EMBEDDING_MODEL`.
+
+Fake OpenAI embeddings are disabled by default. Tests or local-only smoke runs can opt in with:
+
+```text
+ALLOW_FAKE_EMBEDDINGS=true
+```
+
+Without that flag, OpenAI embedding configuration fails fast when `OPENAI_API_KEY` is missing.
 
 ## Async Backends
 
 - `fastapi_background_tasks`: implemented
-- `db_worker`: implemented as DB-queued jobs; run `python worker.py`
+- `db_worker`: implemented as DB-queued jobs; run `python -m app.workers.rag_ingestion_worker`
 - `rq`: adapter class with deployment TODO hook
 - `kafka`: adapter class with deployment TODO hook
+
+Run the DB worker continuously:
+
+```powershell
+cd modules\rag-ingest-service
+python -m app.workers.rag_ingestion_worker
+```
+
+For a single polling batch during local development or tests:
+
+```powershell
+python -m app.workers.rag_ingestion_worker --once
+```
+
+The worker claims queued jobs in batches using `DB_WORKER_BATCH_SIZE`, sleeps between polls using `DB_WORKER_POLL_INTERVAL_SECONDS`, and uses PostgreSQL row locking when running against PostgreSQL.
+
+TODO: Add retry/requeue support for failed ingestion jobs. The schema has retry fields for the DB worker path, but the current processing flow marks embedding failures such as Ollama `ReadTimeout` as `FAILED` without automatic retry. A future pass should add retryable failure handling and/or a manual retry endpoint such as `POST /rag/ingest/jobs/{job_id}/retry`.
+
+Run the recovery worker to requeue stale `PROCESSING` jobs after service or worker restarts:
+
+```powershell
+python -m app.workers.rag_recovery_worker
+```
+
+For a single local recovery poll:
+
+```powershell
+python -m app.workers.rag_recovery_worker --once
+```
+
+The recovery worker uses:
+
+```text
+RECOVERY_STALE_AFTER_SECONDS=900
+RECOVERY_WORKER_POLL_INTERVAL_SECONDS=30
+```
+
+By default it requeues stale jobs and processes queued jobs in the same process. Use `--no-process` to only requeue jobs.
 
 ## Example Upload
 
@@ -193,8 +259,10 @@ Details are in `docs/DEV_DELETE_ENDPOINT.md`.
 
 ```powershell
 cd modules\rag-ingest-service
-pytest
+uv run pytest
 ```
+
+The current suite covers registry validation, fake embedding behavior, dimension/count mismatch failures, empty extraction failure, zero chunk failure, temp upload path uniqueness, and worker/dispatcher behavior.
 
 ## Background Progress
 

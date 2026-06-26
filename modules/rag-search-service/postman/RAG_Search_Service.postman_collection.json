@@ -1,0 +1,56 @@
+{
+  "info": {
+    "name": "RAG Search Service",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8001"
+    }
+  ],
+  "item": [
+    {
+      "name": "UI - Search",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/ui/search",
+          "host": ["{{base_url}}"],
+          "path": ["ui", "search"]
+        },
+        "description": "Serves the browser search UI for retrieval over ingested READY resources."
+      },
+      "response": []
+    },
+    {
+      "name": "Search Documents",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"query\": \"claim submission timeline\",\n  \"search_mode\": \"hybrid\",\n  \"top_k\": 5,\n  \"filters\": {\n    \"resource_id\": null,\n    \"category\": null,\n    \"tags\": [],\n    \"metadata\": {}\n  },\n  \"include_metadata\": true,\n  \"include_chunk_text\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/rag/search",
+          "host": ["{{base_url}}"],
+          "path": ["rag", "search"]
+        },
+        "description": "Retrieval-only search over ingested READY resources. Supports vector, keyword, and hybrid modes."
+      },
+      "response": []
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 from app.services.chunking_strategies.factory import ChunkingStrategyFactory
 from app.services.chunking_types import TextChunk
+from app.services.chunk_quality import filter_quality_chunks
 
 
 class ChunkingService:
@@ -11,4 +12,4 @@ class ChunkingService:
         strategy: str = "SEMANTIC_RECURSIVE",
     ) -> list[TextChunk]:
         chunking_strategy = ChunkingStrategyFactory.build(strategy)
-        return chunking_strategy.chunk(text, chunk_size_tokens, chunk_overlap_tokens)
+        return filter_quality_chunks(chunking_strategy.chunk(text, chunk_size_tokens, chunk_overlap_tokens))

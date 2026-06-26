@@ -1,0 +1,280 @@
+`apache/kafka:latest` is the **actual Kafka broker/server**.
+`provectuslabs/kafka-ui:latest` is only the **web UI** to view/manage Kafka topics, brokers, messages, consumers, etc. Apache’s official Docker docs show Kafka images under `apache/kafka`, while Provectus Kafka UI describes itself as a web UI for managing Kafka clusters. ([Apache Kafka][1])
+
+## 1. Check what is running
+
+In PowerShell:
+
+```powershell
+docker ps
+```
+
+You should see something like:
+
+```text
+CONTAINER ID   IMAGE                              NAMES
+xxxx           apache/kafka:latest               kafka
+yyyy           provectuslabs/kafka-ui:latest     kafka-ui
+```
+
+If containers are stopped:
+
+```powershell
+docker ps -a
+```
+
+Start them:
+
+```powershell
+docker start kafka
+docker start kafka-ui
+```
+
+If you do not know the container names:
+
+```powershell
+docker ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"
+```
+
+---
+
+## 2. Get Kafka container details
+
+```powershell
+docker inspect kafka
+```
+
+Useful shorter commands:
+
+```powershell
+docker port kafka
+docker logs kafka
+docker inspect kafka --format "{{json .NetworkSettings.Networks}}"
+docker inspect kafka --format "{{json .Config.Env}}"
+```
+
+To enter the Kafka container:
+
+```powershell
+docker exec -it kafka bash
+```
+
+Then check Kafka binaries:
+
+```bash
+ls /opt/kafka/bin
+```
+
+---
+
+## 3. Get Kafka UI details
+
+Kafka UI usually runs on port `8080`.
+
+Check:
+
+```powershell
+docker port kafka-ui
+docker logs kafka-ui
+```
+
+Open in browser:
+
+```text
+http://localhost:8080
+```
+
+Kafka UI needs to connect to Kafka using a bootstrap server, commonly:
+
+```text
+kafka:9092
+```
+
+when both containers are in the same Docker network.
+
+A typical Kafka UI config uses:
+
+```yaml
+KAFKA_CLUSTERS_0_NAME: local
+KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+```
+
+Provectus examples use this kind of `KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS` environment variable to point Kafka UI to the Kafka broker. ([GitHub][2])
+
+---
+
+## 4. Test Kafka from inside the Kafka container
+
+Enter container:
+
+```powershell
+docker exec -it kafka bash
+```
+
+Create a topic:
+
+```bash
+/opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 \
+  --create \
+  --topic rag-ingestion-events \
+  --partitions 1 \
+  --replication-factor 1
+```
+
+List topics:
+
+```bash
+/opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 \
+  --list
+```
+
+Describe topic:
+
+```bash
+/opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 \
+  --describe \
+  --topic rag-ingestion-events
+```
+
+Produce test messages:
+
+```bash
+/opt/kafka/bin/kafka-console-producer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic rag-ingestion-events
+```
+
+Then type:
+
+```text
+hello kafka
+rag document uploaded
+job id 123
+```
+
+Press `Ctrl+C` to exit producer.
+
+Consume messages:
+
+```bash
+/opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic rag-ingestion-events \
+  --from-beginning
+```
+
+If you see your messages, Kafka is working.
+
+---
+
+## 5. Test Kafka from your host laptop
+
+This works only if Kafka port `9092` is mapped to your host.
+
+Check:
+
+```powershell
+docker port kafka
+```
+
+Expected:
+
+```text
+9092/tcp -> 0.0.0.0:9092
+```
+
+Then from your Python app or local Kafka client, use:
+
+```text
+localhost:9092
+```
+
+Inside Docker Compose, services should use:
+
+```text
+kafka:9092
+```
+
+So remember:
+
+```text
+From host/laptop: localhost:9092
+From another Docker container: kafka:9092
+```
+
+---
+
+## 6. Minimal `docker-compose.yml`
+
+Use this if you want to recreate cleanly:
+
+```yaml
+services:
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka
+    ports:
+      - "9092:9092"
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+```
+
+Run:
+
+```powershell
+docker compose up -d
+```
+
+Check:
+
+```powershell
+docker compose ps
+docker compose logs kafka
+docker compose logs kafka-ui
+```
+
+For serious use, pin versions instead of `latest`, for example `apache/kafka:4.1.2`, because Apache’s Docker docs show versioned pulls as well as `latest`. ([Apache Kafka][1])
+
+---
+
+## 7. What you need for your RAG service
+
+For your Python RAG ingestion service, Kafka config should look like:
+
+```env
+ASYNC_BACKEND=kafka
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+KAFKA_INGESTION_TOPIC=rag-ingestion-events
+```
+
+If the Python app also runs inside Docker Compose:
+
+```env
+KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+KAFKA_INGESTION_TOPIC=rag-ingestion-events
+```
+
+Simple answer:
+
+```text
+apache/kafka:latest = actual Kafka broker
+provectuslabs/kafka-ui:latest = browser-based Kafka UI
+Kafka UI URL = http://localhost:8080
+Kafka broker from laptop = localhost:9092
+Kafka broker from another Docker container = kafka:9092
+```
+
+[1]: https://kafka.apache.org/41/getting-started/docker/?utm_source=chatgpt.com "Docker - Apache Kafka"
+[2]: https://github.com/provectus/kafka-ui/blob/master/documentation/compose/kafka-ui.yaml?utm_source=chatgpt.com "kafka-ui/documentation/compose/kafka-ui.yaml at master"

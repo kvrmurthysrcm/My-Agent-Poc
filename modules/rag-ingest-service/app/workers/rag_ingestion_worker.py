@@ -1,9 +1,12 @@
 from pathlib import Path
+import argparse
 import logging
-from time import perf_counter
+import socket
+from time import perf_counter, sleep
+from uuid import uuid4
 
 from app.core.config import get_settings
-from app.db.models import Resource
+from app.db.models import RagDocumentChunk, Resource
 from app.db.session import SessionLocal
 from app.repositories.rag_chunk_repository import RagChunkRepository
 from app.repositories.rag_embedding_repository import RagEmbeddingRepository
@@ -13,6 +16,7 @@ from app.repositories.rag_profiling_repository import RagProfilingRepository
 from app.repositories.resource_repository import ResourceRepository
 from app.services.chunking_service import ChunkingService
 from app.services.embedding_providers.factory import EmbeddingProviderFactory
+from app.services.embedding_input_service import EmbeddingInputService
 from app.services.embedding_service import EmbeddingService
 from app.services.text_extraction_service import TextExtractionService
 from app.utils.hashing import sha256_text
@@ -47,30 +51,51 @@ def process_job(job_id: str) -> None:
 
         try:
             with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_mark_processing"):
-                jobs.mark_processing(job)
+                jobs.mark_processing(job, worker_id=job.worker_id)
                 jobs.update_progress(job, "Starting text extraction")
                 resources.update_status(resource.resource_id, "PROCESSING")
                 db.commit()
-            logger.info("RAG job %s resource %s: extracting text from %s", job.job_id, resource.resource_id, resource.file_name)
-            with profile_step(
-                settings.profiling,
-                logger,
-                job.job_id,
-                resource.resource_id,
-                "file_parse",
-                parser_extension=resource.file_extension,
-                configured_pdf_parser=settings.pdf_parser if resource.file_extension == ".pdf" else None,
-                file_name=resource.file_name,
-                file_size_bytes=resource.file_size_bytes,
-            ):
-                extraction = TextExtractionService().extract(path=Path(resource.storage_path), extension=resource.file_extension)
-            if settings.profiling:
-                logger.info(
-                    "PROFILE job_id=%s resource_id=%s step=file_parser_selected parser_name=%s",
+
+            existing_extraction = chunks_repo.get_extraction_for_job(job.job_id)
+            if existing_extraction:
+                logger.info("RAG job %s resource %s: reusing existing extraction", job.job_id, resource.resource_id)
+                extracted_text = existing_extraction.extracted_text
+                extraction_parser_name = existing_extraction.parser_name
+                extraction_page_count = existing_extraction.page_count
+                extraction_metadata = existing_extraction.extraction_metadata
+                text_hash = existing_extraction.extracted_text_hash_sha256
+                extraction_token_count = existing_extraction.token_count
+            else:
+                if not resource.storage_path:
+                    raise ValueError("Resource storage_path is missing and no extraction exists to resume from")
+                logger.info("RAG job %s resource %s: extracting text from %s", job.job_id, resource.resource_id, resource.file_name)
+                with profile_step(
+                    settings.profiling,
+                    logger,
                     job.job_id,
                     resource.resource_id,
-                    extraction.parser_name,
-                )
+                    "file_parse",
+                    parser_extension=resource.file_extension,
+                    configured_pdf_parser=settings.pdf_parser if resource.file_extension == ".pdf" else None,
+                    file_name=resource.file_name,
+                    file_size_bytes=resource.file_size_bytes,
+                ):
+                    extraction = TextExtractionService().extract(path=Path(resource.storage_path), extension=resource.file_extension)
+                if not extraction.text.strip():
+                    raise ValueError("Extracted text is empty")
+                extracted_text = extraction.text
+                extraction_parser_name = extraction.parser_name
+                extraction_page_count = extraction.page_count
+                extraction_metadata = extraction.metadata
+                text_hash = sha256_text(extracted_text)
+                extraction_token_count = count_tokens(extracted_text)
+                if settings.profiling:
+                    logger.info(
+                        "PROFILE job_id=%s resource_id=%s step=file_parser_selected parser_name=%s",
+                        job.job_id,
+                        resource.resource_id,
+                        extraction_parser_name,
+                    )
         except Exception as exc:
             _fail(db, jobs, errors, resources, job, resource, "extraction", exc)
             return
@@ -79,20 +104,19 @@ def process_job(job_id: str) -> None:
             with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_store_extraction"):
                 jobs.update_progress(job, "Text extracted; storing extraction summary")
                 db.commit()
-                text_hash = sha256_text(extraction.text)
-                extraction_token_count = count_tokens(extraction.text)
-                chunks_repo.create_extraction(
-                    resource_id=resource.resource_id,
-                    job_id=job.job_id,
-                    parser_name=extraction.parser_name,
-                    extracted_text=extraction.text,
-                    extracted_text_hash_sha256=text_hash,
-                    page_count=extraction.page_count,
-                    char_count=len(extraction.text),
-                    token_count=extraction_token_count,
-                    extraction_metadata=extraction.metadata,
-                )
-                resource.parser_name = extraction.parser_name
+                if not existing_extraction:
+                    chunks_repo.create_extraction(
+                        resource_id=resource.resource_id,
+                        job_id=job.job_id,
+                        parser_name=extraction_parser_name,
+                        extracted_text=extracted_text,
+                        extracted_text_hash_sha256=text_hash,
+                        page_count=extraction_page_count,
+                        char_count=len(extracted_text),
+                        token_count=extraction_token_count,
+                        extraction_metadata=extraction_metadata,
+                    )
+                resource.parser_name = extraction_parser_name
                 resource.extracted_text_hash_sha256 = text_hash
 
             with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_update_chunking_status"):
@@ -102,52 +126,65 @@ def process_job(job_id: str) -> None:
                 "RAG job %s resource %s: extracted chars=%s tokens=%s parser=%s",
                 job.job_id,
                 resource.resource_id,
-                len(extraction.text),
+                len(extracted_text),
                 extraction_token_count,
-                extraction.parser_name,
+                extraction_parser_name,
             )
-            with profile_step(
-                settings.profiling,
-                logger,
-                job.job_id,
-                resource.resource_id,
-                "chunking",
-                chunk_size_tokens=job.chunk_size_tokens,
-                chunk_overlap_tokens=job.chunk_overlap_tokens,
-                chunking_strategy=job.chunking_strategy,
-                text_chars=len(extraction.text),
-                text_tokens=extraction_token_count,
-            ):
-                chunked = ChunkingService().chunk(
-                    extraction.text,
+            chunk_rows = chunks_repo.list_chunks_for_job(job.job_id)
+            if chunk_rows:
+                logger.info("RAG job %s resource %s: reusing existing chunks=%s", job.job_id, resource.resource_id, len(chunk_rows))
+            else:
+                with profile_step(
+                    settings.profiling,
+                    logger,
+                    job.job_id,
+                    resource.resource_id,
+                    "chunking",
                     chunk_size_tokens=job.chunk_size_tokens,
                     chunk_overlap_tokens=job.chunk_overlap_tokens,
-                    strategy=job.chunking_strategy,
-                )
-            _record_chunk_diagnostics(settings, job, resource, chunked)
-            with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_store_chunks", chunk_count=len(chunked)):
-                job.total_chunks = len(chunked)
-                db.commit()
-                chunk_rows = chunks_repo.create_chunks(
-                    [
-                        {
-                            "resource_id": resource.resource_id,
-                            "job_id": job.job_id,
-                            "chunk_index": chunk.chunk_index,
-                            "chunk_text": chunk.chunk_text,
-                            "chunk_hash_sha256": chunk.chunk_hash_sha256,
-                            "token_count": chunk.token_count,
-                            "char_count": chunk.char_count,
-                            "page_start": chunk.page_start,
-                            "page_end": chunk.page_end,
-                            "section_title": chunk.section_title,
-                            "heading_path": chunk.heading_path,
-                            "chunk_type": chunk.chunk_type,
-                            "chunk_metadata": chunk.metadata,
-                        }
-                        for chunk in chunked
-                    ]
-                )
+                    chunking_strategy=job.chunking_strategy,
+                    text_chars=len(extracted_text),
+                    text_tokens=extraction_token_count,
+                ):
+                    chunked = ChunkingService().chunk(
+                        extracted_text,
+                        chunk_size_tokens=job.chunk_size_tokens,
+                        chunk_overlap_tokens=job.chunk_overlap_tokens,
+                        strategy=job.chunking_strategy,
+                    )
+                if not chunked:
+                    raise ValueError("Chunking produced zero chunks")
+                _record_chunk_diagnostics(settings, job, resource, chunked)
+                with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_store_chunks", chunk_count=len(chunked)):
+                    job.total_chunks = len(chunked)
+                    db.commit()
+                    chunk_rows = chunks_repo.create_chunks(
+                        [
+                            {
+                                "resource_id": resource.resource_id,
+                                "job_id": job.job_id,
+                                "chunk_index": chunk.chunk_index,
+                                "chunk_text": chunk.chunk_text,
+                                "chunk_hash_sha256": chunk.chunk_hash_sha256,
+                                "token_count": chunk.token_count,
+                                "char_count": chunk.char_count,
+                                "page_start": chunk.page_start,
+                                "page_end": chunk.page_end,
+                                "section_title": chunk.section_title,
+                                "heading_path": chunk.heading_path,
+                                "chunk_type": chunk.chunk_type,
+                                "chunk_metadata": chunk.metadata,
+                            }
+                            for chunk in chunked
+                        ]
+                    )
+                    job.total_chunks = len(chunk_rows)
+                    job.processed_chunks = len(chunk_rows)
+                    jobs.update_progress(job, f"Created {len(chunk_rows)} chunks; generating embeddings")
+                    db.commit()
+            if not chunk_rows:
+                raise ValueError("No chunks available for embedding")
+            if job.total_chunks != len(chunk_rows) or job.processed_chunks != len(chunk_rows):
                 job.total_chunks = len(chunk_rows)
                 job.processed_chunks = len(chunk_rows)
                 jobs.update_progress(job, f"Created {len(chunk_rows)} chunks; generating embeddings")
@@ -167,47 +204,23 @@ def process_job(job_id: str) -> None:
                 embedding_batch_size=settings.embedding_batch_size,
                 embedding_concurrency=settings.embedding_concurrency,
                 chunk_count=len(chunk_rows),
+                embedding_input_context_enabled=True,
             ):
-                vectors = EmbeddingService(provider, settings).embed_chunks(
-                    [chunk.chunk_text for chunk in chunk_rows],
-                    on_batch_profile=lambda event: record_profile_event(
-                        settings.profiling,
-                        logger,
-                        job.job_id,
-                        resource.resource_id,
-                        f"embedding_batch_{event['batch_index']}",
-                        event["status"],
-                        event["elapsed_ms"],
-                        batch_index=event["batch_index"],
-                        batch_count=event["batch_count"],
-                        batch_size=event["batch_size"],
-                        embedding_provider=provider.provider_name,
-                        embedding_model=provider.model,
-                    ),
+                embedded_count = _embed_missing_chunks(
+                    db=db,
+                    settings=settings,
+                    jobs=jobs,
+                    embeddings_repo=embeddings_repo,
+                    job=job,
+                    resource=resource,
+                    chunk_rows=chunk_rows,
+                    provider=provider,
                 )
-            with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_store_embeddings", embedding_count=len(vectors)):
-                jobs.update_progress(job, f"Generated {len(vectors)} embeddings; saving embeddings")
-                db.commit()
-                embeddings_repo.create_embeddings(
-                    [
-                        {
-                            "chunk_id": chunk.chunk_id,
-                            "embedding_provider": provider.provider_name,
-                            "embedding_model": provider.model,
-                            "embedding_version": settings.embedding_version,
-                            "embedding_dimension": settings.embedding_dimension,
-                            "vector": vector,
-                        }
-                        for chunk, vector in zip(chunk_rows, vectors, strict=False)
-                    ]
-                )
-                job.embedded_chunks = len(vectors)
-                jobs.update_progress(job, "Finalizing ingestion")
             logger.info(
                 "RAG job %s resource %s: generated embeddings=%s provider=%s model=%s",
                 job.job_id,
                 resource.resource_id,
-                len(vectors),
+                embedded_count,
                 provider.provider_name,
                 provider.model,
             )
@@ -244,19 +257,169 @@ def process_job(job_id: str) -> None:
         db.close()
 
 
+def _embed_missing_chunks(
+    db,
+    settings,
+    jobs: RagJobRepository,
+    embeddings_repo: RagEmbeddingRepository,
+    job,
+    resource: Resource,
+    chunk_rows: list[RagDocumentChunk],
+    provider,
+) -> int:
+    chunk_ids = [chunk.chunk_id for chunk in chunk_rows]
+    existing_chunk_ids = embeddings_repo.existing_chunk_ids(
+        chunk_ids=chunk_ids,
+        provider=provider.provider_name,
+        model=provider.model,
+        version=settings.embedding_version,
+    )
+    job.embedded_chunks = len(existing_chunk_ids)
+    jobs.update_progress(job, f"Embedding resume check: {job.embedded_chunks}/{len(chunk_rows)} chunks already embedded")
+    db.commit()
+
+    if len(existing_chunk_ids) == len(chunk_rows):
+        jobs.update_progress(job, "All chunk embeddings already exist; finalizing ingestion")
+        db.commit()
+        return len(existing_chunk_ids)
+
+    embedding_service = EmbeddingService(provider, settings)
+    pending_chunks = [chunk for chunk in chunk_rows if chunk.chunk_id not in existing_chunk_ids]
+    batch_size = settings.embedding_batch_size
+    batch_count = (len(pending_chunks) + batch_size - 1) // batch_size
+
+    for batch_index, start in enumerate(range(0, len(pending_chunks), batch_size), start=1):
+        batch_chunks = pending_chunks[start : start + batch_size]
+        current_existing = embeddings_repo.existing_chunk_ids(
+            chunk_ids=[chunk.chunk_id for chunk in batch_chunks],
+            provider=provider.provider_name,
+            model=provider.model,
+            version=settings.embedding_version,
+        )
+        batch_chunks = [chunk for chunk in batch_chunks if chunk.chunk_id not in current_existing]
+        if not batch_chunks:
+            continue
+
+        jobs.update_progress(
+            job,
+            f"Embedding batch {batch_index}/{batch_count}; embedded {job.embedded_chunks}/{len(chunk_rows)} chunks",
+        )
+        jobs.heartbeat(job)
+        db.commit()
+
+        embedding_texts = [EmbeddingInputService().build(resource, chunk) for chunk in batch_chunks]
+        vectors = embedding_service.embed_chunks(
+            embedding_texts,
+            batch_size=len(batch_chunks),
+            on_batch_profile=lambda event: record_profile_event(
+                settings.profiling,
+                logger,
+                job.job_id,
+                f"{resource.resource_id}",
+                f"embedding_batch_{batch_index}_attempt_{event.get('attempt', 1)}",
+                event["status"],
+                event["elapsed_ms"],
+                batch_index=batch_index,
+                batch_count=batch_count,
+                batch_size=event["batch_size"],
+                attempt=event.get("attempt", 1),
+                error_message=event.get("error_message"),
+                embedding_provider=provider.provider_name,
+                embedding_model=provider.model,
+            ),
+        )
+        if not vectors:
+            raise ValueError("Embedding provider returned zero embeddings")
+        if len(vectors) != len(batch_chunks):
+            raise ValueError(f"Embedding count mismatch: chunks={len(batch_chunks)}, vectors={len(vectors)}")
+
+        with profile_step(
+            settings.profiling,
+            logger,
+            job.job_id,
+            resource.resource_id,
+            "db_store_embedding_batch",
+            batch_index=batch_index,
+            batch_count=batch_count,
+            embedding_count=len(vectors),
+        ):
+            embeddings_repo.create_embeddings(
+                [
+                    {
+                        "chunk_id": chunk.chunk_id,
+                        "embedding_provider": provider.provider_name,
+                        "embedding_model": provider.model,
+                        "embedding_version": settings.embedding_version,
+                        "embedding_dimension": settings.embedding_dimension,
+                        "vector": vector,
+                    }
+                    for chunk, vector in zip(batch_chunks, vectors, strict=False)
+                ]
+            )
+            job.embedded_chunks += len(vectors)
+            jobs.update_progress(job, f"Embedded {job.embedded_chunks}/{len(chunk_rows)} chunks")
+            jobs.heartbeat(job)
+            db.commit()
+
+    final_existing_count = len(
+        embeddings_repo.existing_chunk_ids(
+            chunk_ids=chunk_ids,
+            provider=provider.provider_name,
+            model=provider.model,
+            version=settings.embedding_version,
+        )
+    )
+    job.embedded_chunks = final_existing_count
+    if final_existing_count != len(chunk_rows):
+        raise ValueError(f"Embedding count mismatch after resume: chunks={len(chunk_rows)}, embedded={final_existing_count}")
+    jobs.update_progress(job, "Finalizing ingestion")
+    db.commit()
+    return final_existing_count
+
+
 def process_queued_jobs(limit: int | None = None) -> int:
     settings = get_settings()
+    worker_id = f"{socket.gethostname()}-{uuid4()}"
     db = SessionLocal()
     try:
         jobs = RagJobRepository(db)
-        queued = jobs.get_queued_jobs(limit or settings.db_worker_batch_size)
+        jobs.recover_stale_processing_jobs(stale_after_seconds=settings.recovery_stale_after_seconds)
+        queued = jobs.claim_queued_jobs(limit or settings.db_worker_batch_size, worker_id=worker_id)
         ids = [job.job_id for job in queued]
+        db.commit()
     finally:
         db.close()
 
     for job_id in ids:
         process_job(job_id)
     return len(ids)
+
+
+def run_worker(once: bool = False) -> None:
+    settings = get_settings()
+    logger.info(
+        "Starting RAG DB worker once=%s poll_interval_seconds=%s batch_size=%s",
+        once,
+        settings.db_worker_poll_interval_seconds,
+        settings.db_worker_batch_size,
+    )
+    while True:
+        processed = process_queued_jobs()
+        logger.info("RAG DB worker processed %s queued job(s)", processed)
+        if once:
+            return
+        sleep(settings.db_worker_poll_interval_seconds)
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Run the RAG ingestion DB worker")
+    parser.add_argument("--once", action="store_true", help="Process one polling batch and exit")
+    args = parser.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    try:
+        run_worker(once=args.once)
+    except KeyboardInterrupt:
+        logger.info("RAG DB worker stopped")
 
 
 def _fail(db, jobs, errors, resources, job, resource, stage: str, exc: Exception) -> None:
@@ -318,3 +481,7 @@ def _record_chunk_diagnostics(settings, job, resource, chunks) -> None:
         avg_chunk_tokens=round(sum(token_counts) / len(token_counts), 2),
         **{f"{chunk_type}_chunks": count for chunk_type, count in type_counts.items()},
     )
+
+
+if __name__ == "__main__":
+    main()

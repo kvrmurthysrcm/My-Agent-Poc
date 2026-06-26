@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from app.core.constants import AsyncBackend, EmbeddingProviderName
@@ -35,10 +35,14 @@ class Settings(BaseSettings):
 
     embedding_provider: EmbeddingProviderName = Field(EmbeddingProviderName.OLLAMA, alias="EMBEDDING_PROVIDER")
     embedding_model: str = Field("nomic-embed-text", alias="EMBEDDING_MODEL")
-    embedding_dimension: int = Field(768, alias="EMBEDDING_DIMENSION")
+    embedding_dimension: int | None = Field(None, alias="EMBEDDING_DIMENSION")
     embedding_version: str = Field("v1", alias="EMBEDDING_VERSION")
     embedding_batch_size: int = Field(64, alias="EMBEDDING_BATCH_SIZE")
     embedding_concurrency: int = Field(1, alias="EMBEDDING_CONCURRENCY")
+    embedding_max_retries: int = Field(2, alias="EMBEDDING_MAX_RETRIES")
+    embedding_retry_backoff_seconds: float = Field(1.0, alias="EMBEDDING_RETRY_BACKOFF_SECONDS")
+    embedding_retry_shrink_batch: bool = Field(True, alias="EMBEDDING_RETRY_SHRINK_BATCH")
+    embedding_min_batch_size: int = Field(1, alias="EMBEDDING_MIN_BATCH_SIZE")
     ollama_embedding_model_options: dict[str, int] = Field(
         default_factory=lambda: {
             "embeddinggemma": 768,
@@ -47,7 +51,9 @@ class Settings(BaseSettings):
         }
     )
     openai_api_key: str | None = Field(None, alias="OPENAI_API_KEY")
+    allow_fake_embeddings: bool = Field(False, alias="ALLOW_FAKE_EMBEDDINGS")
     ollama_base_url: str = Field("http://127.0.0.1:11434", alias="OLLAMA_BASE_URL")
+    ollama_embedding_timeout_seconds: float = Field(60.0, alias="OLLAMA_EMBEDDING_TIMEOUT_SECONDS")
     llm_provider: str = Field("ollama", alias="LLM_PROVIDER")
     llm_model: str = Field("mistral:latest", alias="LLM_MODEL")
 
@@ -57,6 +63,10 @@ class Settings(BaseSettings):
     kafka_ingestion_topic: str = Field("rag.document.ingest.requested", alias="KAFKA_INGESTION_TOPIC")
     db_worker_poll_interval_seconds: int = Field(5, alias="DB_WORKER_POLL_INTERVAL_SECONDS")
     db_worker_batch_size: int = Field(5, alias="DB_WORKER_BATCH_SIZE")
+    recovery_worker_poll_interval_seconds: int = Field(30, alias="RECOVERY_WORKER_POLL_INTERVAL_SECONDS")
+    recovery_stale_after_seconds: int = Field(900, alias="RECOVERY_STALE_AFTER_SECONDS")
+    auto_create_tables: bool = Field(False, alias="AUTO_CREATE_TABLES")
+    auto_migrate_on_startup: bool = Field(True, alias="AUTO_MIGRATE_ON_STARTUP")
 
     @field_validator("supported_extensions", mode="before")
     @classmethod
@@ -106,6 +116,76 @@ class Settings(BaseSettings):
         if value > 8:
             raise ValueError("EMBEDDING_CONCURRENCY must be 8 or lower")
         return value
+
+    @field_validator("embedding_max_retries")
+    @classmethod
+    def validate_embedding_max_retries(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("EMBEDDING_MAX_RETRIES must be 0 or greater")
+        if value > 10:
+            raise ValueError("EMBEDDING_MAX_RETRIES must be 10 or lower")
+        return value
+
+    @field_validator("embedding_retry_backoff_seconds")
+    @classmethod
+    def validate_embedding_retry_backoff_seconds(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("EMBEDDING_RETRY_BACKOFF_SECONDS must be 0 or greater")
+        if value > 60:
+            raise ValueError("EMBEDDING_RETRY_BACKOFF_SECONDS must be 60 or lower")
+        return value
+
+    @field_validator("embedding_min_batch_size")
+    @classmethod
+    def validate_embedding_min_batch_size(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("EMBEDDING_MIN_BATCH_SIZE must be at least 1")
+        if value > 256:
+            raise ValueError("EMBEDDING_MIN_BATCH_SIZE must be 256 or lower")
+        return value
+
+    @field_validator("ollama_embedding_timeout_seconds")
+    @classmethod
+    def validate_ollama_embedding_timeout_seconds(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("OLLAMA_EMBEDDING_TIMEOUT_SECONDS must be greater than 0")
+        if value > 3600:
+            raise ValueError("OLLAMA_EMBEDDING_TIMEOUT_SECONDS must be 3600 or lower")
+        return value
+
+    @field_validator("recovery_worker_poll_interval_seconds")
+    @classmethod
+    def validate_recovery_worker_poll_interval_seconds(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("RECOVERY_WORKER_POLL_INTERVAL_SECONDS must be at least 1")
+        if value > 3600:
+            raise ValueError("RECOVERY_WORKER_POLL_INTERVAL_SECONDS must be 3600 or lower")
+        return value
+
+    @field_validator("recovery_stale_after_seconds")
+    @classmethod
+    def validate_recovery_stale_after_seconds(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("RECOVERY_STALE_AFTER_SECONDS must be at least 1")
+        if value > 86400:
+            raise ValueError("RECOVERY_STALE_AFTER_SECONDS must be 86400 or lower")
+        return value
+
+    @field_validator("embedding_model")
+    @classmethod
+    def normalize_embedding_model(cls, value: str) -> str:
+        return value.strip()
+
+    @model_validator(mode="after")
+    def validate_embedding_configuration(self) -> "Settings":
+        from app.services.embedding_model_registry import resolve_embedding_dimension, validate_embedding_model
+
+        if self.embedding_dimension is None:
+            self.embedding_dimension = resolve_embedding_dimension(self.embedding_provider, self.embedding_model)
+        validate_embedding_model(self.embedding_provider, self.embedding_model, self.embedding_dimension)
+        if self.embedding_provider == EmbeddingProviderName.OPENAI and not self.openai_api_key and not self.allow_fake_embeddings:
+            raise ValueError("OPENAI_API_KEY is required unless ALLOW_FAKE_EMBEDDINGS=true")
+        return self
 
     @property
     def max_upload_bytes(self) -> int:

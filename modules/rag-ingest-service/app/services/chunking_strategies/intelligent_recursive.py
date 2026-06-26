@@ -1,5 +1,6 @@
 from app.services.chunking_strategies.base import ChunkingStrategy
 from app.services.chunking_types import TextChunk
+from app.services.page_markers import page_range_for_text
 from app.utils.hashing import sha256_text
 from app.utils.token_counter import count_tokens
 
@@ -25,6 +26,7 @@ class IntelligentRecursiveChunkingStrategy(ChunkingStrategy):
                 chunk_hash = sha256_text(chunk_text)
                 if chunk_text and chunk_hash not in seen_hashes:
                     seen_hashes.add(chunk_hash)
+                    page_start, page_end = page_range_for_text(chunk_text)
                     chunks.append(
                         TextChunk(
                             chunk_index=index,
@@ -32,6 +34,8 @@ class IntelligentRecursiveChunkingStrategy(ChunkingStrategy):
                             token_count=count_tokens(chunk_text),
                             char_count=len(chunk_text),
                             chunk_hash_sha256=chunk_hash,
+                            page_start=page_start,
+                            page_end=page_end,
                             section_title=section_title,
                             heading_path=[section_title] if section_title else [],
                             chunk_type="token_window",

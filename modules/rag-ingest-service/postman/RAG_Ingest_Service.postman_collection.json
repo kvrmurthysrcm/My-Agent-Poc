@@ -1,174 +1,438 @@
-{
-  "info": {
-    "_postman_id": "2a8c38c0-9f01-4e4e-95f5-9e079d1c3b91",
-    "name": "RAG Ingest Service",
-    "description": "Postman collection for the FastAPI RAG ingestion service POC.",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-  },
-  "variable": [
-    {
-      "key": "base_url",
-      "value": "http://localhost:8000",
-      "type": "string"
-    },
-    {
-      "key": "job_id",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "resource_id",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "sample_file_path",
-      "value": "sample.txt",
-      "type": "string"
-    }
-  ],
-  "item": [
-    {
-      "name": "Health",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}/health",
-          "host": [
-            "{{base_url}}"
-          ],
-          "path": [
-            "health"
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Ingest Document",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test(\"request accepted\", function () {",
-              "  pm.expect(pm.response.code).to.eql(202);",
-              "});",
-              "",
-              "const body = pm.response.json();",
-              "if (body.job_id) { pm.collectionVariables.set(\"job_id\", body.job_id); }",
-              "if (body.resource_id) { pm.collectionVariables.set(\"resource_id\", body.resource_id); }"
-            ],
-            "type": "text/javascript"
-          }
-        }
-      ],
-      "request": {
-        "method": "POST",
-        "header": [],
-        "body": {
-          "mode": "formdata",
-          "formdata": [
-            {
-              "key": "file",
-              "type": "file",
-              "src": "{{sample_file_path}}"
-            },
-            {
-              "key": "metadata",
-              "type": "text",
-              "value": "{\n  \"title\": \"Provider Claims Submission Policy\",\n  \"description\": \"Policy document used by provider portal claims team\",\n  \"resource_type\": \"DOCUMENT\",\n  \"category_name\": \"Claims\",\n  \"business_domain\": \"insurance\",\n  \"source_system\": \"manual_upload\",\n  \"author\": \"Operations Team\",\n  \"language\": \"English\",\n  \"tags\": [\"provider-portal\", \"claims\", \"policy\"],\n  \"custom_metadata\": {\n    \"department\": \"Claims\",\n    \"confidentiality\": \"Internal\",\n    \"document_owner\": \"Provider Operations\"\n  },\n  \"chunking\": {\n    \"strategy\": \"SEMANTIC_RECURSIVE\",\n    \"chunk_size_tokens\": 1200,\n    \"chunk_overlap_tokens\": 80\n  }\n}"
-            }
-          ]
-        },
-        "url": {
-          "raw": "{{base_url}}/rag/ingest",
-          "host": [
-            "{{base_url}}"
-          ],
-          "path": [
-            "rag",
-            "ingest"
-          ]
-        },
-        "description": "Upload a .txt, .pdf, .docx, or .epub file with metadata JSON. Update sample_file_path before running. For EPUB/PDF/DOCX files with embedded metadata, title/author/language may be omitted and will be filled from the file when available."
-      },
-      "response": []
-    },
-    {
-      "name": "Get Ingestion Job Status",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}/rag/ingest/jobs/{{job_id}}",
-          "host": [
-            "{{base_url}}"
-          ],
-          "path": [
-            "rag",
-            "ingest",
-            "jobs",
-            "{{job_id}}"
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Dev Delete Resource",
-      "request": {
-        "method": "DELETE",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}/rag/dev/resources/{{resource_id}}",
-          "host": [
-            "{{base_url}}"
-          ],
-          "path": [
-            "rag",
-            "dev",
-            "resources",
-            "{{resource_id}}"
-          ]
-        },
-        "description": "Local development only. Enabled only when APP_PROFILE=local and ENABLE_DEV_DELETE_ENDPOINT=true. Deletes the resource, ingestion jobs, extracted text, chunks, embeddings, profiling rows, errors, resource links, and stored file if present."
-      },
-      "response": []
-    },
-    {
-      "name": "Invalid Metadata Example",
-      "request": {
-        "method": "POST",
-        "header": [],
-        "body": {
-          "mode": "formdata",
-          "formdata": [
-            {
-              "key": "file",
-              "type": "file",
-              "src": "{{sample_file_path}}"
-            },
-            {
-              "key": "metadata",
-              "type": "text",
-              "value": "{not-json"
-            }
-          ]
-        },
-        "url": {
-          "raw": "{{base_url}}/rag/ingest",
-          "host": [
-            "{{base_url}}"
-          ],
-          "path": [
-            "rag",
-            "ingest"
-          ]
-        }
-      },
-      "response": []
-    }
-  ]
+﻿{
+    "info":  {
+                 "_postman_id":  "2a8c38c0-9f01-4e4e-95f5-9e079d1c3b91",
+                 "name":  "RAG Ingest Service",
+                 "description":  "Postman collection for the FastAPI RAG ingestion and search service POC. Covers UI, health, readiness, ingestion, job polling, local-dev cleanup, and retrieval search.",
+                 "schema":  "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+             },
+    "variable":  [
+                     {
+                         "key":  "base_url",
+                         "value":  "http://localhost:8000",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "job_id",
+                         "value":  "",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "resource_id",
+                         "value":  "",
+                         "type":  "string"
+                     },
+                     {
+                         "key":  "sample_file_path",
+                         "value":  "sample.txt",
+                         "type":  "string"
+                     }
+                 ],
+    "item":  [
+                 {
+                     "name":  "UI - Root",
+                     "request":  {
+                                     "method":  "GET",
+                                     "header":  [
+
+                                                ],
+                                     "url":  {
+                                                 "raw":  "{{base_url}}/",
+                                                 "host":  [
+                                                              "{{base_url}}"
+                                                          ],
+                                                 "path":  [
+                                                              ""
+                                                          ]
+                                             },
+                                     "description":  "Serves the browser upload UI from the root path."
+                                 },
+                     "response":  [
+                                      {
+                                          "name":  "HTML UI",
+                                          "originalRequest":  {
+                                                                  "method":  "GET",
+                                                                  "header":  [
+
+                                                                             ],
+                                                                  "url":  "{{base_url}}/"
+                                                              },
+                                          "status":  "OK",
+                                          "code":  200,
+                                          "_postman_previewlanguage":  "html",
+                                          "header":  [
+                                                         {
+                                                             "key":  "Content-Type",
+                                                             "value":  "text/html"
+                                                         }
+                                                     ],
+                                          "body":  "\u003c!doctype html\u003e\n\u003chtml\u003e...\u003c/html\u003e"
+                                      }
+                                  ]
+                 },
+                 {
+                     "name":  "UI - /ui",
+                     "request":  {
+                                     "method":  "GET",
+                                     "header":  [
+
+                                                ],
+                                     "url":  {
+                                                 "raw":  "{{base_url}}/ui",
+                                                 "host":  [
+                                                              "{{base_url}}"
+                                                          ],
+                                                 "path":  [
+                                                              "ui"
+                                                          ]
+                                             },
+                                     "description":  "Serves the same browser upload UI as GET /."
+                                 },
+                     "response":  [
+
+                                  ]
+                 },
+                 {
+                     "name":  "Health",
+                     "event":  [
+                                   {
+                                       "listen":  "test",
+                                       "script":  {
+                                                      "type":  "text/javascript",
+                                                      "exec":  [
+                                                                   "pm.test(\"health is ok\", function () {",
+                                                                   "  pm.expect(pm.response.code).to.eql(200);",
+                                                                   "  pm.expect(pm.response.json().status).to.eql(\"ok\");",
+                                                                   "});"
+                                                               ]
+                                                  }
+                                   }
+                               ],
+                     "request":  {
+                                     "method":  "GET",
+                                     "header":  [
+
+                                                ],
+                                     "url":  {
+                                                 "raw":  "{{base_url}}/health",
+                                                 "host":  [
+                                                              "{{base_url}}"
+                                                          ],
+                                                 "path":  [
+                                                              "health"
+                                                          ]
+                                             },
+                                     "description":  "Lightweight liveness check. Does not check the database or embedding provider."
+                                 },
+                     "response":  [
+                                      {
+                                          "name":  "OK",
+                                          "originalRequest":  {
+                                                                  "method":  "GET",
+                                                                  "header":  [
+
+                                                                             ],
+                                                                  "url":  "{{base_url}}/health"
+                                                              },
+                                          "status":  "OK",
+                                          "code":  200,
+                                          "_postman_previewlanguage":  "json",
+                                          "header":  [
+                                                         {
+                                                             "key":  "Content-Type",
+                                                             "value":  "application/json"
+                                                         }
+                                                     ],
+                                          "body":  "{\n  \"status\": \"ok\",\n  \"service\": \"rag-ingest-service\"\n}"
+                                      }
+                                  ]
+                 },
+                 {
+                     "name":  "Ready",
+                     "event":  [
+                                   {
+                                       "listen":  "test",
+                                       "script":  {
+                                                      "type":  "text/javascript",
+                                                      "exec":  [
+                                                                   "pm.test(\"service is ready\", function () {",
+                                                                   "  pm.expect(pm.response.code).to.eql(200);",
+                                                                   "  pm.expect(pm.response.json().status).to.eql(\"ready\");",
+                                                                   "});"
+                                                               ]
+                                                  }
+                                   }
+                               ],
+                     "request":  {
+                                     "method":  "GET",
+                                     "header":  [
+
+                                                ],
+                                     "url":  {
+                                                 "raw":  "{{base_url}}/ready",
+                                                 "host":  [
+                                                              "{{base_url}}"
+                                                          ],
+                                                 "path":  [
+                                                              "ready"
+                                                          ]
+                                             },
+                                     "description":  "Readiness check. Verifies DB connectivity and embedding configuration without calling expensive OpenAI/Ollama embedding APIs."
+                                 },
+                     "response":  [
+                                      {
+                                          "name":  "Ready",
+                                          "originalRequest":  {
+                                                                  "method":  "GET",
+                                                                  "header":  [
+
+                                                                             ],
+                                                                  "url":  "{{base_url}}/ready"
+                                                              },
+                                          "status":  "OK",
+                                          "code":  200,
+                                          "_postman_previewlanguage":  "json",
+                                          "header":  [
+                                                         {
+                                                             "key":  "Content-Type",
+                                                             "value":  "application/json"
+                                                         }
+                                                     ],
+                                          "body":  "{\n  \"status\": \"ready\",\n  \"database\": \"ok\",\n  \"embedding_provider\": \"ollama\",\n  \"embedding_model\": \"nomic-embed-text\"\n}"
+                                      }
+                                  ]
+                 },
+                 {
+                     "name":  "Ingest Document",
+                     "event":  [
+                                   {
+                                       "listen":  "test",
+                                       "script":  {
+                                                      "type":  "text/javascript",
+                                                      "exec":  [
+                                                                   "pm.test(\"request accepted\", function () {",
+                                                                   "  pm.expect(pm.response.code).to.eql(202);",
+                                                                   "});",
+                                                                   "",
+                                                                   "const body = pm.response.json();",
+                                                                   "if (body.job_id) { pm.collectionVariables.set(\"job_id\", body.job_id); }",
+                                                                   "if (body.resource_id) { pm.collectionVariables.set(\"resource_id\", body.resource_id); }"
+                                                               ]
+                                                  }
+                                   }
+                               ],
+                     "request":  {
+                                     "method":  "POST",
+                                     "header":  [
+
+                                                ],
+                                     "body":  {
+                                                  "mode":  "formdata",
+                                                  "formdata":  [
+                                                                   {
+                                                                       "key":  "file",
+                                                                       "type":  "file",
+                                                                       "src":  "{{sample_file_path}}"
+                                                                   },
+                                                                   {
+                                                                       "key":  "metadata",
+                                                                       "type":  "text",
+                                                                       "value":  "{\n  \"title\": \"Provider Claims Submission Policy\",\n  \"description\": \"Policy document used by provider portal claims team\",\n  \"resource_type\": \"DOCUMENT\",\n  \"category_name\": \"Claims\",\n  \"business_domain\": \"insurance\",\n  \"source_system\": \"manual_upload\",\n  \"author\": \"Operations Team\",\n  \"language\": \"English\",\n  \"tags\": [\"provider-portal\", \"claims\", \"policy\"],\n  \"custom_metadata\": {\n    \"department\": \"Claims\",\n    \"confidentiality\": \"Internal\",\n    \"document_owner\": \"Provider Operations\"\n  },\n  \"chunking\": {\n    \"strategy\": \"SEMANTIC_RECURSIVE\",\n    \"chunk_size_tokens\": 1200,\n    \"chunk_overlap_tokens\": 80\n  }\n}"
+                                                                   }
+                                                               ]
+                                              },
+                                     "url":  {
+                                                 "raw":  "{{base_url}}/rag/ingest",
+                                                 "host":  [
+                                                              "{{base_url}}"
+                                                          ],
+                                                 "path":  [
+                                                              "rag",
+                                                              "ingest"
+                                                          ]
+                                             },
+                                     "description":  "Upload a .txt, .pdf, .docx, or .epub file with metadata JSON. Update sample_file_path before running. The response returns resource_id and job_id immediately; processing continues asynchronously."
+                                 },
+                     "response":  [
+                                      {
+                                          "name":  "Accepted",
+                                          "originalRequest":  {
+                                                                  "method":  "POST",
+                                                                  "header":  [
+
+                                                                             ],
+                                                                  "url":  "{{base_url}}/rag/ingest"
+                                                              },
+                                          "status":  "Accepted",
+                                          "code":  202,
+                                          "_postman_previewlanguage":  "json",
+                                          "header":  [
+                                                         {
+                                                             "key":  "Content-Type",
+                                                             "value":  "application/json"
+                                                         }
+                                                     ],
+                                          "body":  "{\n  \"resource_id\": \"7f78647a-7601-4a27-8c64-73cd25d6a24a\",\n  \"job_id\": \"83f1cb84-0667-47e0-8ef8-77d9fe1552ec\",\n  \"status\": \"QUEUED\"\n}"
+                                      }
+                                  ]
+                 },
+                 {
+                     "name":  "Get Ingestion Job Status",
+                     "event":  [
+                                   {
+                                       "listen":  "test",
+                                       "script":  {
+                                                      "type":  "text/javascript",
+                                                      "exec":  [
+                                                                   "pm.test(\"job status returned\", function () {",
+                                                                   "  pm.expect(pm.response.code).to.eql(200);",
+                                                                   "  pm.expect(pm.response.json()).to.have.property(\"job_id\");",
+                                                                   "});"
+                                                               ]
+                                                  }
+                                   }
+                               ],
+                     "request":  {
+                                     "method":  "GET",
+                                     "header":  [
+
+                                                ],
+                                     "url":  {
+                                                 "raw":  "{{base_url}}/rag/ingest/jobs/{{job_id}}",
+                                                 "host":  [
+                                                              "{{base_url}}"
+                                                          ],
+                                                 "path":  [
+                                                              "rag",
+                                                              "ingest",
+                                                              "jobs",
+                                                              "{{job_id}}"
+                                                          ]
+                                             },
+                                     "description":  "Poll the ingestion job returned by POST /rag/ingest. Includes counters, progress, error_message, and profiling rows when available."
+                                 },
+                     "response":  [
+                                      {
+                                          "name":  "Completed",
+                                          "originalRequest":  {
+                                                                  "method":  "GET",
+                                                                  "header":  [
+
+                                                                             ],
+                                                                  "url":  "{{base_url}}/rag/ingest/jobs/{{job_id}}"
+                                                              },
+                                          "status":  "OK",
+                                          "code":  200,
+                                          "_postman_previewlanguage":  "json",
+                                          "header":  [
+                                                         {
+                                                             "key":  "Content-Type",
+                                                             "value":  "application/json"
+                                                         }
+                                                     ],
+                                          "body":  "{\n  \"job_id\": \"83f1cb84-0667-47e0-8ef8-77d9fe1552ec\",\n  \"resource_id\": \"7f78647a-7601-4a27-8c64-73cd25d6a24a\",\n  \"status\": \"COMPLETED\",\n  \"parser_name\": \"plain_text\",\n  \"total_chunks\": 4,\n  \"processed_chunks\": 4,\n  \"embedded_chunks\": 4,\n  \"failed_chunks\": 0,\n  \"started_at\": \"2026-06-25T20:50:53.123456\",\n  \"completed_at\": \"2026-06-25T20:50:54.234567\",\n  \"message\": \"Ingestion completed\",\n  \"progress_message\": \"Ingestion completed\",\n  \"error_message\": null,\n  \"profiling\": []\n}"
+                                      }
+                                  ]
+                 },
+                 {
+                     "name":  "Dev Delete Resource",
+                     "request":  {
+                                     "method":  "DELETE",
+                                     "header":  [
+
+                                                ],
+                                     "url":  {
+                                                 "raw":  "{{base_url}}/rag/dev/resources/{{resource_id}}",
+                                                 "host":  [
+                                                              "{{base_url}}"
+                                                          ],
+                                                 "path":  [
+                                                              "rag",
+                                                              "dev",
+                                                              "resources",
+                                                              "{{resource_id}}"
+                                                          ]
+                                             },
+                                     "description":  "Local development only. Enabled only when APP_PROFILE=local and ENABLE_DEV_DELETE_ENDPOINT=true. Deletes the resource, ingestion jobs, extracted text, chunks, embeddings, profiling rows, errors, resource links, and stored file if present."
+                                 },
+                     "response":  [
+                                      {
+                                          "name":  "Deleted",
+                                          "originalRequest":  {
+                                                                  "method":  "DELETE",
+                                                                  "header":  [
+
+                                                                             ],
+                                                                  "url":  "{{base_url}}/rag/dev/resources/{{resource_id}}"
+                                                              },
+                                          "status":  "OK",
+                                          "code":  200,
+                                          "_postman_previewlanguage":  "json",
+                                          "header":  [
+                                                         {
+                                                             "key":  "Content-Type",
+                                                             "value":  "application/json"
+                                                         }
+                                                     ],
+                                          "body":  "{\n  \"resource_id\": \"7f78647a-7601-4a27-8c64-73cd25d6a24a\",\n  \"deleted\": true,\n  \"deleted_file_path\": \"storage/resources/7f78647a-7601-4a27-8c64-73cd25d6a24a/sample.txt\",\n  \"deleted_counts\": {\n    \"rag_chunk_embeddings\": 4,\n    \"rag_document_chunks\": 4,\n    \"rag_document_extractions\": 1,\n    \"rag_processing_errors\": 0,\n    \"rag_profiling_events\": 8,\n    \"rag_ingestion_jobs\": 1,\n    \"resources\": 1\n  }\n}"
+                                      }
+                                  ]
+                 },
+                 {
+                     "name":  "Invalid Metadata Example",
+                     "request":  {
+                                     "method":  "POST",
+                                     "header":  [
+
+                                                ],
+                                     "body":  {
+                                                  "mode":  "formdata",
+                                                  "formdata":  [
+                                                                   {
+                                                                       "key":  "file",
+                                                                       "type":  "file",
+                                                                       "src":  "{{sample_file_path}}"
+                                                                   },
+                                                                   {
+                                                                       "key":  "metadata",
+                                                                       "type":  "text",
+                                                                       "value":  "{not-json"
+                                                                   }
+                                                               ]
+                                              },
+                                     "url":  {
+                                                 "raw":  "{{base_url}}/rag/ingest",
+                                                 "host":  [
+                                                              "{{base_url}}"
+                                                          ],
+                                                 "path":  [
+                                                              "rag",
+                                                              "ingest"
+                                                          ]
+                                             },
+                                     "description":  "Negative example: metadata is not valid JSON and should return 400."
+                                 },
+                     "response":  [
+                                      {
+                                          "name":  "Bad Request",
+                                          "originalRequest":  {
+                                                                  "method":  "POST",
+                                                                  "header":  [
+
+                                                                             ],
+                                                                  "url":  "{{base_url}}/rag/ingest"
+                                                              },
+                                          "status":  "Bad Request",
+                                          "code":  400,
+                                          "_postman_previewlanguage":  "json",
+                                          "header":  [
+                                                         {
+                                                             "key":  "Content-Type",
+                                                             "value":  "application/json"
+                                                         }
+                                                     ],
+                                          "body":  "{\n  \"detail\": \"metadata must be valid JSON\"\n}"
+                                      }
+                                  ]
+                 }
+             ]
 }

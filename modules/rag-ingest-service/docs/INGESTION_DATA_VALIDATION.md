@@ -194,7 +194,7 @@ SELECT
     c.chunk_index,
     e.embedding_model,
     e.embedding_dimension,
-    jsonb_array_length(e.vector::jsonb) AS vector_length
+    vector_dims(e.vector) AS vector_length
 FROM public.rag_chunk_embeddings e
 JOIN public.rag_document_chunks c ON c.chunk_id = e.chunk_id
 WHERE c.job_id = :'job_id'

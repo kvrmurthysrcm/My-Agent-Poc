@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RAG Search</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #f6f7f9; color: #20242a; }
+    main { max-width: 980px; margin: 0 auto; padding: 28px 18px; }
+    h1 { font-size: 28px; margin: 0 0 18px; }
+    form { display: grid; gap: 12px; background: #fff; border: 1px solid #dde1e7; border-radius: 8px; padding: 16px; }
+    label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
+    input, select, textarea, button { font: inherit; }
+    textarea, input, select { border: 1px solid #c9d0da; border-radius: 6px; padding: 10px; background: #fff; }
+    textarea { min-height: 88px; resize: vertical; }
+    .row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    button { width: fit-content; border: 0; border-radius: 6px; padding: 10px 16px; background: #1f6feb; color: #fff; cursor: pointer; }
+    .result { margin-top: 14px; padding: 14px; background: #fff; border: 1px solid #dde1e7; border-radius: 8px; }
+    .meta { color: #5d6673; font-size: 13px; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #111827; color: #f9fafb; border-radius: 8px; padding: 12px; }
+    @media (max-width: 760px) { .row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>RAG Search</h1>
+    <form id="search-form">
+      <label>
+        Query
+        <textarea id="query" required placeholder="Search ingested documents"></textarea>
+      </label>
+      <div class="row">
+        <label>
+          Mode
+          <select id="search_mode">
+            <option value="hybrid">Hybrid</option>
+            <option value="vector">Vector</option>
+            <option value="keyword">Keyword</option>
+          </select>
+        </label>
+        <label>
+          Top K
+          <input id="top_k" type="number" min="1" max="50" value="10">
+        </label>
+        <label>
+          Resource ID
+          <input id="resource_id" placeholder="optional">
+        </label>
+        <label>
+          Category
+          <input id="category" placeholder="optional">
+        </label>
+      </div>
+      <label>
+        Tags
+        <input id="tags" placeholder="comma separated">
+      </label>
+      <button type="submit">Search</button>
+    </form>
+    <section id="results"></section>
+  </main>
+  <script>
+    const form = document.getElementById("search-form");
+    const results = document.getElementById("results");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      results.innerHTML = "<div class=\"result\">Searching...</div>";
+      const tags = document.getElementById("tags").value.split(",").map((item) => item.trim()).filter(Boolean);
+      const payload = {
+        query: document.getElementById("query").value,
+        search_mode: document.getElementById("search_mode").value,
+        top_k: Number(document.getElementById("top_k").value || 10),
+        filters: {
+          resource_id: document.getElementById("resource_id").value || null,
+          category: document.getElementById("category").value || null,
+          tags
+        }
+      };
+      const response = await fetch("/rag/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        results.innerHTML = `<pre>${JSON.stringify(body, null, 2)}</pre>`;
+        return;
+      }
+      results.innerHTML = body.results.map((item) => `
+        <article class="result">
+          <strong>${item.rank}. ${escapeHtml(item.title)}</strong>
+          <div class="meta">score ${item.score} | chunk ${item.chunk_index} | ${item.resource_id}</div>
+          <p>${escapeHtml(item.snippet)}</p>
+        </article>
+      `).join("") || "<div class=\"result\">No results found.</div>";
+    });
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;"
+      }[char]));
+    }
+  </script>
+</body>
+</html>

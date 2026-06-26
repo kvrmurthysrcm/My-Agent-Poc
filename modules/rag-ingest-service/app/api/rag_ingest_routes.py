@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
@@ -18,6 +20,7 @@ from app.utils.file_validation import validate_upload_file
 from app.utils.profiling import get_profile_events
 
 router = APIRouter(prefix="/rag", tags=["rag-ingest"])
+logger = logging.getLogger("rag_ingest_service.api")
 
 
 def _require_local_dev(settings: Settings) -> None:
@@ -45,6 +48,10 @@ async def ingest_document(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except NotImplementedError as exc:
         raise HTTPException(status_code=501, detail=str(exc)) from exc
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Unexpected ingestion request failure")
+        raise HTTPException(status_code=500, detail=f"Unexpected ingestion error: {type(exc).__name__}") from exc
 
 
 @router.get("/ingest/jobs/{job_id}", response_model=JobStatusResponse)

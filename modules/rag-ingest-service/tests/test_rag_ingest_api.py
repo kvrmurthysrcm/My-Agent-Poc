@@ -1,14 +1,20 @@
+import asyncio
 import json
+from io import BytesIO
 from zipfile import ZipFile
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
+from starlette.datastructures import UploadFile
 
 from app.core.config import get_settings
-from app.db.models import RagChunkEmbedding, RagDocumentChunk, RagIngestionJob, Resource
+from app.db.models import RagChunkEmbedding, RagDocumentChunk, RagIngestionJob, RagProcessingError, Resource
 from app.db import models  # noqa: F401
 from app.db.session import Base, SessionLocal, engine
 from app.main import app
+from app.services.file_storage_service import FileStorageService
+from app.services.chunking_types import TextChunk
+from app.utils.hashing import sha256_text
 
 
 def setup_function():
@@ -21,6 +27,13 @@ def test_health_endpoint():
         response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_ready_endpoint():
+    with TestClient(app) as client:
+        response = client.get("/ready")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
 
 
 def test_upload_ui_endpoint():
@@ -64,6 +77,200 @@ def test_successful_upload_returns_resource_and_job():
         assert job.chunk_overlap_tokens == 80
     finally:
         db.close()
+
+
+def test_empty_extracted_text_marks_job_failed():
+    with TestClient(app) as client:
+        response = client.post(
+            "/rag/ingest",
+            files={"file": ("empty.txt", b"   \n\t", "text/plain")},
+            data={"metadata": json.dumps({"title": "Empty"})},
+        )
+
+    assert response.status_code == 202
+    db = SessionLocal()
+    try:
+        job = db.get(RagIngestionJob, response.json()["job_id"])
+        resource = db.get(Resource, response.json()["resource_id"])
+        error = db.scalar(select(RagProcessingError).where(RagProcessingError.job_id == job.job_id))
+        assert job.status == "FAILED"
+        assert resource.ingestion_status == "FAILED"
+        assert "Extracted text is empty" in job.error_message
+        assert error is not None
+    finally:
+        db.close()
+
+
+def test_zero_chunks_marks_job_failed(monkeypatch):
+    monkeypatch.setattr("app.workers.rag_ingestion_worker.ChunkingService.chunk", lambda *args, **kwargs: [])
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/rag/ingest",
+            files={"file": ("zero-chunks.txt", b"Text that parser can extract.", "text/plain")},
+            data={"metadata": json.dumps({"title": "Zero Chunks"})},
+        )
+
+    assert response.status_code == 202
+    db = SessionLocal()
+    try:
+        job = db.get(RagIngestionJob, response.json()["job_id"])
+        resource = db.get(Resource, response.json()["resource_id"])
+        assert job.status == "FAILED"
+        assert resource.ingestion_status == "FAILED"
+        assert "zero chunks" in job.error_message
+    finally:
+        db.close()
+
+
+def test_embedding_count_mismatch_marks_job_failed(monkeypatch):
+    chunks = [
+        TextChunk(
+            chunk_index=0,
+            chunk_text="First chunk text.",
+            token_count=3,
+            char_count=17,
+            chunk_hash_sha256=sha256_text("First chunk text."),
+        ),
+        TextChunk(
+            chunk_index=1,
+            chunk_text="Second chunk text.",
+            token_count=3,
+            char_count=18,
+            chunk_hash_sha256=sha256_text("Second chunk text."),
+        ),
+    ]
+    monkeypatch.setattr("app.workers.rag_ingestion_worker.ChunkingService.chunk", lambda *args, **kwargs: chunks)
+    monkeypatch.setattr(
+        "app.workers.rag_ingestion_worker.EmbeddingService.embed_chunks",
+        lambda *args, **kwargs: [[0.1] * 1536],
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/rag/ingest",
+            files={"file": ("mismatch.txt", b"Text that parser can extract for mismatch.", "text/plain")},
+            data={"metadata": json.dumps({"title": "Embedding Mismatch"})},
+        )
+
+    assert response.status_code == 202
+    db = SessionLocal()
+    try:
+        job = db.get(RagIngestionJob, response.json()["job_id"])
+        resource = db.get(Resource, response.json()["resource_id"])
+        error = db.scalar(select(RagProcessingError).where(RagProcessingError.job_id == job.job_id))
+        assert job.status == "FAILED"
+        assert resource.ingestion_status == "FAILED"
+        assert "Embedding count mismatch" in job.error_message
+        assert error is not None
+    finally:
+        db.close()
+
+
+def test_ingestion_embeds_context_enriched_chunk_text(monkeypatch):
+    captured_texts = []
+
+    def capture_embed_chunks(self, texts, *args, **kwargs):
+        captured_texts.extend(texts)
+        return [[0.1] * self.settings.embedding_dimension for _ in texts]
+
+    monkeypatch.setattr("app.workers.rag_ingestion_worker.EmbeddingService.embed_chunks", capture_embed_chunks)
+
+    metadata = {
+        "title": "Frankenstein",
+        "author": "Mary Shelley",
+        "category_name": "Scifi",
+        "tags": ["classic", "gothic"],
+        "description": "A gothic novel.",
+    }
+    with TestClient(app) as client:
+        response = client.post(
+            "/rag/ingest",
+            files={
+                "file": (
+                    "frankenstein.txt",
+                    b"[Page 1] Frankenstein18 Letter 1 begins with a meaningful passage about Victor and his family.",
+                    "text/plain",
+                )
+            },
+            data={"metadata": json.dumps(metadata)},
+        )
+
+    assert response.status_code == 202
+    assert captured_texts
+    first_input = captured_texts[0]
+    assert "Title: Frankenstein" in first_input
+    assert "Author: Mary Shelley" in first_input
+    assert "Category: Scifi" in first_input
+    assert "Tags: classic, gothic" in first_input
+    assert "[Page 1]" not in first_input
+
+
+def test_temp_file_paths_are_unique_when_filenames_match():
+    metadata = {"title": "Duplicate Name"}
+    with TestClient(app) as client:
+        first = client.post(
+            "/rag/ingest",
+            files={"file": ("same.txt", b"First unique temp path document.", "text/plain")},
+            data={"metadata": json.dumps(metadata)},
+        )
+        second = client.post(
+            "/rag/ingest",
+            files={"file": ("same.txt", b"Second unique temp path document.", "text/plain")},
+            data={"metadata": json.dumps(metadata)},
+        )
+
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert first.json()["resource_id"] != second.json()["resource_id"]
+
+
+def test_file_storage_uses_unique_tmp_paths_for_same_filename(tmp_path):
+    settings = get_settings().model_copy(update={"storage_root": tmp_path})
+    storage = FileStorageService(settings)
+
+    async def save_two():
+        first = UploadFile(BytesIO(b"first"), filename="same.txt")
+        second = UploadFile(BytesIO(b"second"), filename="same.txt")
+        first_path, _, _ = await storage.save_upload(first)
+        second_path, _, _ = await storage.save_upload(second)
+        return first_path, second_path
+
+    first_path, second_path = asyncio.run(save_two())
+
+    assert first_path != second_path
+    assert first_path.parent != second_path.parent
+    assert first_path.parent.parent.name == "tmp"
+    assert second_path.parent.parent.name == "tmp"
+
+
+def test_file_storage_accepts_dots_in_filename(tmp_path):
+    settings = get_settings().model_copy(update={"storage_root": tmp_path})
+    storage = FileStorageService(settings)
+    upload = UploadFile(BytesIO(b"content"), filename="Ramayana.of.Valmiki.by.Hari.Prasad.Shastri.pdf")
+
+    path, size, file_hash = asyncio.run(storage.save_upload(upload))
+
+    assert path.name == "Ramayana.of.Valmiki.by.Hari.Prasad.Shastri.pdf"
+    assert path.exists()
+    assert size == len(b"content")
+    assert file_hash
+
+
+def test_file_storage_oversized_upload_returns_validation_error_and_cleans_temp(tmp_path):
+    settings = get_settings().model_copy(update={"storage_root": tmp_path, "max_upload_mb": 1})
+    storage = FileStorageService(settings)
+    upload = UploadFile(BytesIO(b"x" * (1024 * 1024 + 1)), filename="large.with.dots.pdf")
+
+    try:
+        asyncio.run(storage.save_upload(upload))
+    except Exception as exc:
+        assert "Upload exceeds maximum size" in str(exc)
+    else:
+        raise AssertionError("Expected oversized upload to fail")
+
+    tmp_root = tmp_path / "tmp"
+    assert not list(tmp_root.rglob("*")) if tmp_root.exists() else True
 
 
 def test_invalid_file_extension_fails():
