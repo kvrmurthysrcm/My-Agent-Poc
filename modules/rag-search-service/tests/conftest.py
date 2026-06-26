@@ -1,7 +1,10 @@
 import os
 
 
-os.environ["DATABASE_URL"] = "sqlite:///./rag_search_test.db"
+os.environ["DATABASE_URL"] = os.getenv(
+    "RAG_SEARCH_TEST_DATABASE_URL",
+    "postgresql://library_user:library_pass@localhost:5432/online_library_test",
+)
 os.environ["EMBEDDING_PROVIDER"] = "openai"
 os.environ["EMBEDDING_MODEL"] = "text-embedding-3-small"
 os.environ["EMBEDDING_DIMENSION"] = "1536"

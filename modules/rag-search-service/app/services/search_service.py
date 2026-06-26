@@ -7,7 +7,12 @@ from app.schemas.search_response import SearchResponse, SearchResultItem
 from app.search.filters import to_filter_set
 from app.search.lexical import token_counts
 from app.search.query_preprocessor import QueryPreprocessor
-from app.search.result_quality import clean_result_text, is_searchable_result_text, is_short_boilerplate_text
+from app.search.result_quality import (
+    clean_result_text,
+    is_searchable_chunk_metadata,
+    is_searchable_result_text,
+    is_short_boilerplate_text,
+)
 from app.search.snippet_builder import SnippetBuilder
 from app.services.embedding_providers.factory import EmbeddingProviderFactory
 from app.services.hybrid_search_service import HybridSearchService
@@ -45,10 +50,15 @@ class SearchService:
         candidates = [
             item
             for item in candidates
-            if not is_short_boilerplate_text(item.get("chunk_text") or "")
+            if is_searchable_chunk_metadata(item.get("chunk_metadata") or {})
+            and not is_short_boilerplate_text(item.get("chunk_text") or "")
             and (
                 float(item.get("resource_match_score") or 0.0) > 0.0
-                or is_searchable_result_text(item.get("chunk_text") or "")
+                or is_searchable_result_text(
+                    item.get("chunk_text") or "",
+                    keep_numeric_table_chunks=self.settings.search_keep_numeric_table_chunks,
+                    min_alpha_ratio=self.settings.search_min_alpha_ratio,
+                )
             )
         ]
         if self.settings.rerank_enabled:

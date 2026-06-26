@@ -212,7 +212,7 @@ Create RagSearchRepository:
 - load_resource_metadata(resource_ids)
 - Apply filters safely with SQLAlchemy
 - Support PostgreSQL + pgvector
-- Keep SQLite fallback tests simple if necessary
+- Use PostgreSQL-backed tests; do not add a file-based database fallback
 
 Step 5:
 Create HybridSearchService:

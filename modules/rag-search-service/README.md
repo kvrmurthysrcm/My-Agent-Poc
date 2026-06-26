@@ -22,6 +22,21 @@ uvicorn app.main:app --reload --port 8001
 
 The service reads the same RAG ingestion tables. Use the same `DATABASE_URL`, `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSION`, and `EMBEDDING_VERSION` values as the ingest service so vector queries match stored embeddings.
 
+PostgreSQL is the intended runtime database for this service:
+
+```text
+DATABASE_URL=postgresql://library_user:library_pass@localhost:5432/online_library
+AUTO_MIGRATE_ON_STARTUP=false
+```
+
+`AUTO_MIGRATE_ON_STARTUP=false` is recommended for the search service during local development because vector index creation can be slow or operationally sensitive. Run Alembic migrations explicitly when applying search DB/index changes:
+
+```powershell
+alembic upgrade head
+```
+
+PostgreSQL is required. Do not use file-based local databases when validating ingest/search behavior across services.
+
 ## Search
 
 ```text
@@ -49,6 +64,8 @@ Details are in `docs/RAG_SEARCH_MODULE.md`.
 
 Hybrid retrieval/ranking details are in `docs/OVERSAMPLED_HYBRID_RRF_RERANKING.md`.
 
+Chunk quality/searchability handling is in `docs/SEARCH_CHUNK_QUALITY_HANDLING.md`.
+
 Useful tuning settings:
 
 ```text
@@ -61,6 +78,20 @@ RERANK_STRATEGY=local
 ```
 
 ## Tests
+
+Tests use PostgreSQL. Create a separate test database; do not point tests at `online_library` because the test setup drops and recreates tables.
+
+Default test URL:
+
+```text
+postgresql://library_user:library_pass@localhost:5432/online_library_test
+```
+
+Override when needed:
+
+```powershell
+$env:RAG_SEARCH_TEST_DATABASE_URL="postgresql://library_user:library_pass@localhost:5432/online_library_test"
+```
 
 ```powershell
 cd modules\rag-search-service

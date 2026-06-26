@@ -31,7 +31,7 @@ class JsonCompat(TypeDecorator):
 
 
 class VectorCompat(TypeDecorator):
-    """Use pgvector on PostgreSQL and JSON on SQLite so local tests stay lightweight."""
+    """Use pgvector for PostgreSQL vector storage."""
 
     impl = JSON
     cache_ok = True
@@ -48,7 +48,7 @@ class VectorCompat(TypeDecorator):
             except ValueError:
                 dimension = 768
             return dialect.type_descriptor(Vector(dimension))
-        return dialect.type_descriptor(JSON)
+        raise RuntimeError("PostgreSQL with pgvector is required for RAG vector storage")
 
 
 def uuid_str() -> str:

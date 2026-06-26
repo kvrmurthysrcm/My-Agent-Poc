@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     rerank_enabled: bool = Field(True, alias="RERANK_ENABLED")
     rerank_top_n: int = Field(30, alias="RERANK_TOP_N")
     rerank_strategy: str = Field("local", alias="RERANK_STRATEGY")
+    search_keep_numeric_table_chunks: bool = Field(True, alias="SEARCH_KEEP_NUMERIC_TABLE_CHUNKS")
+    search_min_alpha_ratio: float = Field(0.45, alias="SEARCH_MIN_ALPHA_RATIO")
     search_enable_metadata_filters: bool = Field(True, alias="SEARCH_ENABLE_METADATA_FILTERS")
     search_include_chunk_text_default: bool = Field(True, alias="SEARCH_INCLUDE_CHUNK_TEXT_DEFAULT")
     search_admin_enabled: bool = Field(True, alias="SEARCH_ADMIN_ENABLED")
@@ -120,10 +122,19 @@ class Settings(BaseSettings):
             raise ValueError("RERANK_STRATEGY must be local")
         return normalized
 
+    @field_validator("search_min_alpha_ratio")
+    @classmethod
+    def validate_search_min_alpha_ratio(cls, value: float) -> float:
+        if value < 0 or value > 1:
+            raise ValueError("SEARCH_MIN_ALPHA_RATIO must be between 0 and 1")
+        return value
+
     @model_validator(mode="after")
     def validate_embedding_configuration(self) -> "Settings":
         from app.services.embedding_model_registry import resolve_embedding_dimension, validate_embedding_model
 
+        if not self.database_url.startswith(("postgresql://", "postgresql+psycopg://")):
+            raise ValueError("DATABASE_URL must point to PostgreSQL")
         if self.embedding_dimension is None:
             self.embedding_dimension = resolve_embedding_dimension(self.embedding_provider, self.embedding_model)
         validate_embedding_model(self.embedding_provider, self.embedding_model, self.embedding_dimension)

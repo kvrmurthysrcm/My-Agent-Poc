@@ -1,4 +1,6 @@
 from app.services.chunking_service import ChunkingService
+from app.services.chunk_quality import filter_quality_chunks
+from app.services.chunking_types import TextChunk
 
 
 def test_intelligent_recursive_chunking_preserves_existing_behavior():
@@ -78,3 +80,55 @@ def test_chunking_keeps_real_short_content_after_cleaning_page_markers():
     assert len(chunks) == 1
     assert chunks[0].chunk_text.startswith("The very gold")
     assert chunks[0].metadata["quality"] == "searchable"
+
+
+def test_chunking_keeps_long_front_matter_with_metadata_flags():
+    chunks = ChunkingService().chunk(
+        (
+            "Second Impression 1977. This preface explains the publication history and the editorial context "
+            "for readers before the main document begins. It contains enough descriptive text to be retained."
+        ),
+        80,
+        5,
+        strategy="SEMANTIC_RECURSIVE",
+    )
+
+    assert len(chunks) == 1
+    assert chunks[0].metadata["quality"] == "front_matter"
+    assert chunks[0].metadata["front_matter"] is True
+    assert chunks[0].metadata["boilerplate"] is False
+    assert chunks[0].metadata["searchable"] is True
+
+
+def test_chunk_quality_keeps_numeric_table_heavy_chunks_when_enabled():
+    raw = TextChunk(
+        chunk_index=0,
+        chunk_text=(
+            "Invoice table | INV-1001 | 2026-06-25 | 1500.75 | CLAIM-8891\n"
+            "Invoice table | INV-1002 | 2026-06-26 | 2750.20 | CLAIM-8892\n"
+            "Invoice table | INV-1003 | 2026-06-27 | 3250.99 | CLAIM-8893"
+        ),
+        token_count=20,
+        char_count=180,
+        chunk_hash_sha256="raw",
+    )
+
+    chunks = filter_quality_chunks([raw], keep_numeric_table_chunks=True, min_alpha_ratio=0.70)
+
+    assert len(chunks) == 1
+    assert chunks[0].metadata["numeric_table_heavy"] is True
+    assert chunks[0].metadata["searchable"] is True
+
+
+def test_chunk_quality_can_filter_numeric_table_heavy_chunks_when_disabled():
+    raw = TextChunk(
+        chunk_index=0,
+        chunk_text="Invoice | INV-1001 | 2026-06-25 | 1500.75 | CLAIM-8891",
+        token_count=8,
+        char_count=60,
+        chunk_hash_sha256="raw",
+    )
+
+    chunks = filter_quality_chunks([raw], keep_numeric_table_chunks=False, min_alpha_ratio=0.70)
+
+    assert chunks == []

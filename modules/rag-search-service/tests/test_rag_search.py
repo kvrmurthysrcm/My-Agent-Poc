@@ -296,7 +296,7 @@ def test_conversational_subject_prefix_is_removed(monkeypatch):
     assert response.results[0].title == "A Christmas Carol"
 
 
-def test_sqlite_title_match_orders_early_chunks_first():
+def test_title_match_orders_early_chunks_first():
     db = SessionLocal()
     try:
         from app.db.models import RagDocumentChunk, Resource
@@ -389,7 +389,7 @@ def test_question_reranking_prefers_direct_evidence_over_title_front_matter():
     assert response.results[0].chunk_id == "direct-evidence"
 
 
-def test_sqlite_keyword_ignores_stopword_noise_and_promotes_exact_phrase():
+def test_keyword_ignores_stopword_noise_and_promotes_exact_phrase():
     db = SessionLocal()
     try:
         from app.db.models import RagDocumentChunk, Resource
@@ -554,6 +554,88 @@ def test_search_filters_low_value_result_chunks():
     assert [item.chunk_id for item in response.results] == ["content"]
 
 
+def test_search_filters_chunks_marked_not_searchable():
+    class QualityMetadataRepository(FakeRepository):
+        def keyword_search(self, **kwargs):
+            self.keyword_called = True
+            return [
+                {
+                    "chunk_id": "not-searchable",
+                    "resource_id": "resource-1",
+                    "chunk_index": 0,
+                    "chunk_text": "This text has enough words but was marked as not searchable by ingestion.",
+                    "title": "Policy",
+                    "heading_path": [],
+                    "keyword_score": 5.0,
+                    "resource_match_score": 0.0,
+                    "resource_metadata": {},
+                    "chunk_metadata": {"quality": "filtered", "searchable": False},
+                },
+                {
+                    "chunk_id": "searchable",
+                    "resource_id": "resource-1",
+                    "chunk_index": 1,
+                    "chunk_text": "This searchable policy chunk describes claim submission requirements.",
+                    "title": "Policy",
+                    "heading_path": [],
+                    "keyword_score": 4.0,
+                    "resource_match_score": 0.0,
+                    "resource_metadata": {},
+                    "chunk_metadata": {"quality": "searchable", "searchable": True},
+                },
+            ]
+
+    db = SessionLocal()
+    try:
+        service = SearchService(db, _settings(SEARCH_DEFAULT_MODE="keyword"))
+        service.repository = QualityMetadataRepository()
+        response = service.search(SearchRequest(query="claim submission requirements", search_mode="keyword", top_k=5))
+    finally:
+        db.close()
+
+    assert [item.chunk_id for item in response.results] == ["searchable"]
+
+
+def test_search_keeps_numeric_table_heavy_chunks_when_enabled():
+    class NumericTableRepository(FakeRepository):
+        def keyword_search(self, **kwargs):
+            self.keyword_called = True
+            return [
+                {
+                    "chunk_id": "invoice-table",
+                    "resource_id": "resource-1",
+                    "chunk_index": 4,
+                    "chunk_text": (
+                        "Invoice table | INV-1001 | 2026-06-25 | 1500.75 | CLAIM-8891 "
+                        "Invoice table | INV-1002 | 2026-06-26 | 2750.20 | CLAIM-8892"
+                    ),
+                    "title": "Invoice Register",
+                    "heading_path": [],
+                    "keyword_score": 6.0,
+                    "resource_match_score": 0.0,
+                    "resource_metadata": {},
+                    "chunk_metadata": {"quality": "searchable", "numeric_table_heavy": True, "searchable": True},
+                }
+            ]
+
+    db = SessionLocal()
+    try:
+        service = SearchService(
+            db,
+            _settings(
+                SEARCH_DEFAULT_MODE="keyword",
+                SEARCH_KEEP_NUMERIC_TABLE_CHUNKS=True,
+                SEARCH_MIN_ALPHA_RATIO=0.70,
+            ),
+        )
+        service.repository = NumericTableRepository()
+        response = service.search(SearchRequest(query="CLAIM-8891 INV-1001", search_mode="keyword", top_k=5))
+    finally:
+        db.close()
+
+    assert [item.chunk_id for item in response.results] == ["invoice-table"]
+
+
 def test_search_response_strips_page_markers_from_display_text():
     db = SessionLocal()
     try:
@@ -587,7 +669,7 @@ def test_search_response_strips_page_markers_from_display_text():
     assert "[Page 12]" not in response.results[0].chunk_text
 
 
-def test_search_api_returns_empty_result_for_sqlite_without_rows():
+def test_search_api_returns_empty_result_without_rows():
     with TestClient(app) as client:
         response = client.post(
             "/rag/search",

@@ -71,6 +71,17 @@ The search module adds retrieval over documents that have completed ingestion an
 
 ## Database
 
+PostgreSQL is the intended runtime database for the search module. The search service should point to the same database as the ingestion service so both services use the same `resources`, chunks, and embeddings.
+
+Current local PostgreSQL settings:
+
+```text
+DATABASE_URL=postgresql://library_user:library_pass@localhost:5432/online_library
+AUTO_MIGRATE_ON_STARTUP=false
+```
+
+PostgreSQL is required for runtime search. File-based local databases do not exercise PostgreSQL full-text search, pgvector indexes, or production locking/index behavior and should not be used for this service.
+
 The search module reads from the ingestion tables and adds no new business tables. Migration `20260625_0001` adds:
 
 - `rag_document_chunks.search_vector` generated `tsvector` column.
@@ -80,6 +91,15 @@ The search module reads from the ingestion tables and adds no new business table
 - HNSW vector index on `rag_chunk_embeddings.vector`.
 
 Search only returns resources with `resources.rag_enabled = true` and `resources.ingestion_status = 'READY'`. Vector search also requires the stored embedding provider, model, version, and dimension to match the current service configuration.
+
+Run migrations explicitly when applying DB/index changes:
+
+```powershell
+cd modules\rag-search-service
+alembic upgrade head
+```
+
+The current database has the `search_vector` column and GIN keyword index. If the HNSW vector index is missing or slow to build, handle that as an explicit DB/index operation rather than blocking API startup.
 
 ## Configuration
 
@@ -107,6 +127,8 @@ For `hybrid` mode, the service retrieves `top_k * HYBRID_OVERSAMPLING_FACTOR` ve
 The local reranker favors exact phrase matches and direct content evidence. Title/resource matches are treated as a boost, not a dominant sort key, except for short title-lookup queries.
 
 More implementation details and test coverage are documented in `OVERSAMPLED_HYBRID_RRF_RERANKING.md`.
+
+Chunk quality metadata handling is documented in `SEARCH_CHUNK_QUALITY_HANDLING.md`.
 
 The default embedding model remains:
 

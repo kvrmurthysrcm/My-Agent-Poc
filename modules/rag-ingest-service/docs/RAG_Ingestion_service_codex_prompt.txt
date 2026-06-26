@@ -16,7 +16,7 @@ Current production-hardening baseline already implemented:
 * OpenAI fake embeddings are disabled by default using ALLOW_FAKE_EMBEDDINGS=false.
 * OPENAI_API_KEY is required for OpenAI embeddings unless ALLOW_FAKE_EMBEDDINGS=true is explicitly set for tests/local development.
 * Runtime embedding validation checks vector count equals chunk count and every vector length equals EMBEDDING_DIMENSION.
-* PostgreSQL embedding storage uses pgvector-compatible SQLAlchemy mapping, while SQLite remains test-compatible.
+* PostgreSQL embedding storage uses pgvector-compatible SQLAlchemy mapping.
 * PostgreSQL schema is aligned to vector(768) for the local nomic-embed-text default.
 * Uploads are first written under unique storage/tmp/{upload_id}/ folders, then moved under storage/resources/{resource_id}/ after resource creation.
 * Ingestion fails instead of marking READY when extracted text is empty, zero chunks are created, zero embeddings are returned, embedding count mismatches, or dimensions mismatch.
@@ -166,7 +166,7 @@ Primary requirements:
    * Alembic migrations
    * PostgreSQL
    * pgvector schema for PostgreSQL embedding vectors
-   * SQLite-compatible fallback for tests
+   * PostgreSQL-backed tests
    * AUTO_CREATE_TABLES=false by default; use Alembic migrations for production schema management
 
 9. Create tables or models based on the document:
@@ -266,7 +266,7 @@ Primary requirements:
 * page marker preservation into page_start/page_end
 * async dispatcher factory selects configured backend
 * AUTO_CREATE_TABLES defaults to false
-* startup migrations run for local/dev PostgreSQL and do not run for production or SQLite
+* startup migrations run for local/dev PostgreSQL and do not run for production unless explicitly enabled
 * DB worker claim method does not reclaim an already claimed PROCESSING job
 * DB worker --once mode processes a single polling batch
 

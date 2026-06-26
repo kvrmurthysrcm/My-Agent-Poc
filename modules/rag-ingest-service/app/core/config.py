@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     default_chunk_overlap_tokens: int = Field(80, alias="DEFAULT_CHUNK_OVERLAP_TOKENS")
     default_chunking_strategy: str = Field("SEMANTIC_RECURSIVE", alias="DEFAULT_CHUNKING_STRATEGY")
     minimum_chunk_tokens: int = Field(80, alias="MINIMUM_CHUNK_TOKENS")
+    chunk_quality_keep_numeric_table_chunks: bool = Field(True, alias="CHUNK_QUALITY_KEEP_NUMERIC_TABLE_CHUNKS")
+    chunk_quality_min_alpha_ratio: float = Field(0.45, alias="CHUNK_QUALITY_MIN_ALPHA_RATIO")
     pdf_parser: str = Field("pymupdf", alias="PDF_PARSER")
 
     embedding_provider: EmbeddingProviderName = Field(EmbeddingProviderName.OLLAMA, alias="EMBEDDING_PROVIDER")
@@ -90,6 +92,13 @@ class Settings(BaseSettings):
         if normalized not in {"INTELLIGENT_RECURSIVE", "SEMANTIC_RECURSIVE"}:
             raise ValueError("DEFAULT_CHUNKING_STRATEGY must be INTELLIGENT_RECURSIVE or SEMANTIC_RECURSIVE")
         return normalized
+
+    @field_validator("chunk_quality_min_alpha_ratio")
+    @classmethod
+    def validate_chunk_quality_min_alpha_ratio(cls, value: float) -> float:
+        if value < 0 or value > 1:
+            raise ValueError("CHUNK_QUALITY_MIN_ALPHA_RATIO must be between 0 and 1")
+        return value
 
     @field_validator("duplicate_document_policy")
     @classmethod
@@ -180,6 +189,8 @@ class Settings(BaseSettings):
     def validate_embedding_configuration(self) -> "Settings":
         from app.services.embedding_model_registry import resolve_embedding_dimension, validate_embedding_model
 
+        if not self.database_url.startswith(("postgresql://", "postgresql+psycopg://")):
+            raise ValueError("DATABASE_URL must point to PostgreSQL")
         if self.embedding_dimension is None:
             self.embedding_dimension = resolve_embedding_dimension(self.embedding_provider, self.embedding_model)
         validate_embedding_model(self.embedding_provider, self.embedding_model, self.embedding_dimension)

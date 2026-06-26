@@ -1,0 +1,1 @@
+Text that parser can extract.

@@ -34,7 +34,7 @@ def should_run_startup_migrations(settings) -> bool:
         return False
     if not settings.auto_migrate_on_startup:
         return False
-    return not settings.sqlalchemy_database_url.startswith("sqlite")
+    return True
 
 
 def run_startup_migrations(settings) -> None:

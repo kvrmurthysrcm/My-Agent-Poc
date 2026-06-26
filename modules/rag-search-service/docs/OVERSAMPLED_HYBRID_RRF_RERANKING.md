@@ -64,6 +64,8 @@ For normal questions, content relevance dominates title/resource match. This add
 
 ## PostgreSQL Keyword Parsing
 
+This behavior is intended to run against PostgreSQL because keyword parsing and vector search depend on PostgreSQL full-text search and pgvector.
+
 PostgreSQL keyword search now uses:
 
 ```sql
@@ -98,7 +100,7 @@ cd modules\rag-search-service
 Expected result after this change:
 
 ```text
-20 passed
+22 passed
 ```
 
 ## Live Notes

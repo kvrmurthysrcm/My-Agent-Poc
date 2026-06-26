@@ -62,14 +62,6 @@ Copy-Item .env.example .env
 uvicorn app.main:app --reload
 ```
 
-For a no-PostgreSQL smoke test, set:
-
-```text
-DATABASE_URL=sqlite:///./rag_ingest.db
-ASYNC_BACKEND=fastapi_background_tasks
-DELETE_ORIGINAL_FILE_AFTER_INGESTION=true
-```
-
 By default, this module uses the same local PostgreSQL settings as `online_library`:
 
 ```text
@@ -90,7 +82,7 @@ For `APP_PROFILE=local`, `APP_PROFILE=dev`, or `APP_PROFILE=development`, Postgr
 AUTO_MIGRATE_ON_STARTUP=true
 ```
 
-This uses Alembic `upgrade head`, not SQLAlchemy `create_all`. SQLite is skipped by startup migrations because tests and local SQLite smoke runs manage their schema separately.
+This uses Alembic `upgrade head`, not SQLAlchemy `create_all`.
 
 Production startup does not create tables automatically. `AUTO_CREATE_TABLES=false` is the default; set it to `true` only for local throwaway environments that intentionally use SQLAlchemy `create_all`. For production profiles, run Alembic explicitly as part of deployment.
 
@@ -120,6 +112,15 @@ Request metadata can override the default per upload:
   "chunk_overlap_tokens": 80
 }
 ```
+
+Chunk quality filtering marks retained chunks with `quality`, `searchable`, `front_matter`, `boilerplate`, and `numeric_table_heavy` metadata. Short boilerplate is skipped. Longer front matter is kept and marked for search-side downranking. Numeric/table-heavy chunks are kept by default:
+
+```text
+CHUNK_QUALITY_KEEP_NUMERIC_TABLE_CHUNKS=true
+CHUNK_QUALITY_MIN_ALPHA_RATIO=0.45
+```
+
+Details are in `docs/CHUNK_QUALITY_FILTERS.md`.
 
 ## Embeddings
 
@@ -256,6 +257,20 @@ curl.exe -X DELETE http://localhost:8000/rag/dev/resources/<resource_id>
 Details are in `docs/DEV_DELETE_ENDPOINT.md`.
 
 ## Tests
+
+Tests use PostgreSQL. Create a separate test database; do not point tests at `online_library` because the test setup drops and recreates tables.
+
+Default test URL:
+
+```text
+postgresql://library_user:library_pass@localhost:5432/online_library_test
+```
+
+Override when needed:
+
+```powershell
+$env:RAG_INGEST_TEST_DATABASE_URL="postgresql://library_user:library_pass@localhost:5432/online_library_test"
+```
 
 ```powershell
 cd modules\rag-ingest-service

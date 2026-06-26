@@ -142,16 +142,6 @@ def test_startup_migrations_do_not_run_for_prod():
     assert should_run_startup_migrations(settings) is False
 
 
-def test_startup_migrations_do_not_run_for_sqlite():
-    settings = Settings(
-        APP_PROFILE="local",
-        DATABASE_URL="sqlite:///./rag_ingest_test.db",
-        AUTO_MIGRATE_ON_STARTUP=True,
-    )
-
-    assert should_run_startup_migrations(settings) is False
-
-
 def test_pdf_parser_factory_selects_pymupdf():
     settings = Settings(PDF_PARSER="pymupdf")
     assert isinstance(PdfParserFactory.build(settings), PyMuPdfParser)

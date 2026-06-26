@@ -79,8 +79,13 @@ class RerankingService:
 
     def _front_matter_penalty(self, item: dict, text: str) -> float:
         chunk_index = int(item.get("chunk_index") or 0)
+        metadata = item.get("chunk_metadata") or {}
         text_lower = text.lower()
         penalty = 0.0
+        if metadata.get("front_matter"):
+            penalty += 0.55
+        if metadata.get("boilerplate"):
+            penalty += 0.65
         if chunk_index == 0 and len(text) < 350:
             penalty += 0.25
         for marker in ("impression 19", "publisher", "publications division", "copyright", "table of contents"):

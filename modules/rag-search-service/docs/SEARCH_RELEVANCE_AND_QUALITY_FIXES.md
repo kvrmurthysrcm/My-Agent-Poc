@@ -4,7 +4,7 @@
 
 Hybrid search was ranking unrelated chunks above exact matches for some queries. The clearest failure was an exact `A Christmas Carol` quote ranking below Ramayan, Gita, and Upanishads chunks.
 
-The SQLite keyword fallback counted raw query substrings. Common words such as `the`, `a`, `and`, `of`, `in`, and `that` gave long unrelated chunks very high keyword scores. Hybrid ranking then forced any keyword score over a small threshold to `0.95`, which let bad keyword hits overpower semantic and title matches.
+The previous local keyword fallback counted raw query substrings. Common words such as `the`, `a`, `and`, `of`, `in`, and `that` gave long unrelated chunks very high keyword scores. Hybrid ranking then forced any keyword score over a small threshold to `0.95`, which let bad keyword hits overpower semantic and title matches.
 
 Search responses also exposed stored page markers and already-ingested low-value chunks, such as publisher/footer text.
 

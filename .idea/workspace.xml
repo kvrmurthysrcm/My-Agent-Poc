@@ -4,45 +4,42 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="">
+    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="added rag-answer-service module related files:&#10;OVERSAMPLED_HYBRID_RRF_RERANKING.md added with feature implimented to tighten the production readiness.&#10;add missing file">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/codex_rag_search_module_prompt.txt" beforeDir="false" afterPath="$PROJECT_DIR$/codex_rag_search_module_prompt.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/RAG_SEARCH_INGESTION_QUALITY_FIXES.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/RAG_SEARCH_INGESTION_QUALITY_FIXES.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/.env" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/.env" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/.env.example" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/alembic/versions/20260624_0001_rag_ingestion_schema.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/alembic/versions/20260624_0001_rag_ingestion_schema.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/alembic/versions/20260625_0002_ingest_observability.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/alembic/versions/20260625_0002_ingest_observability.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/api/rag_ingest_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/api/rag_ingest_routes.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/core/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/core/config.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/db/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/db/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/db/session.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/db/session.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/rag_chunk_repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/rag_chunk_repository.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/rag_embedding_repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/rag_embedding_repository.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/rag_job_repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/rag_job_repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunk_quality.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunk_quality.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunking_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunking_service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunking_strategies/intelligent_recursive.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunking_strategies/intelligent_recursive.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunking_strategies/semantic_recursive.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunking_strategies/semantic_recursive.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/embedding_providers/factory.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/embedding_providers/factory.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/embedding_providers/ollama_provider.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/embedding_providers/ollama_provider.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/embedding_providers/openai_provider.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/embedding_providers/openai_provider.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/embedding_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/embedding_service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/file_storage_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/file_storage_service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/ingest_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/ingest_service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/ui/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/ui/index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/workers/rag_ingestion_worker.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/workers/rag_ingestion_worker.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/docs/INGESTION_DATA_VALIDATION.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/docs/INGESTION_DATA_VALIDATION.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/docs/CHUNK_QUALITY_FILTERS.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/docs/CHUNK_QUALITY_FILTERS.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/docs/RAG_Ingestion_service_codex_prompt.txt" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/docs/RAG_Ingestion_service_codex_prompt.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/postman/RAG_Ingest_Service.postman_collection.json" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/postman/RAG_Ingest_Service.postman_collection.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/pyproject.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/rag_ingest_test.db" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/rag_ingest_test.db" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/sql/schema.sql" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/sql/schema.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/storage/resources/c3fe3b39-40a2-481f-9b71-aefd4cbcf888/The Bhagavad Gita_TTD.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/rag_ingest_test.db" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/tests/conftest.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/tests/conftest.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_chunking_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_chunking_service.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_factories.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_factories.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_rag_ingest_api.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_rag_ingest_api.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/uv.lock" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/uv.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/worker.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/worker.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/.env" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/core/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/core/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/db/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/db/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/db/session.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/db/session.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/repositories/rag_search_repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/repositories/rag_search_repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/search/result_quality.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/search/result_quality.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/services/reranking_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/services/reranking_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/services/search_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/services/search_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/docs/OVERSAMPLED_HYBRID_RRF_RERANKING.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/docs/OVERSAMPLED_HYBRID_RRF_RERANKING.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/docs/RAG_SEARCH_MODULE.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/docs/RAG_SEARCH_MODULE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/docs/SEARCH_RELEVANCE_AND_QUALITY_FIXES.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/docs/SEARCH_RELEVANCE_AND_QUALITY_FIXES.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/docs/codex_rag_search_module_prompt.txt" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/docs/codex_rag_search_module_prompt.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/tests/conftest.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/tests/conftest.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/tests/test_rag_search.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/tests/test_rag_search.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -88,11 +85,12 @@
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;master&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;D:/py-workspace/My-Agent-Poc/modules/rag-ingest-service/sql&quot;
+    &quot;last_opened_file_path&quot;: &quot;D:/py-workspace/My-Agent-Poc/modules/rag-search-service&quot;
   }
 }</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="D:\py-workspace\My-Agent-Poc\modules\rag-search-service" />
       <recent name="D:\py-workspace\My-Agent-Poc\modules\rag-ingest-service\sql" />
       <recent name="D:\py-workspace\My-Agent-Poc\modules\rag-ingest-service\docs" />
     </key>
@@ -168,7 +166,47 @@
       <option name="project" value="LOCAL" />
       <updated>1782379724034</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="added rad-search-serice module&#10;updated he rag-ingest-service to handle lot of edge cases and fixes for issues found in regression.">
+      <option name="closed" value="true" />
+      <created>1782474009094</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1782474009094</updated>
+    </task>
+    <task id="LOCAL-00009" summary="added rad-search-serice module&#10;updated he rag-ingest-service to handle lot of edge cases and fixes for issues found in regression.&#10;&#10;add missing files">
+      <option name="closed" value="true" />
+      <created>1782474042505</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1782474042505</updated>
+    </task>
+    <task id="LOCAL-00010" summary="added rag-answer-service module related files:">
+      <option name="closed" value="true" />
+      <created>1782479177803</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1782479177803</updated>
+    </task>
+    <task id="LOCAL-00011" summary="added rag-answer-service module related files:&#10;OVERSAMPLED_HYBRID_RRF_RERANKING.md added with feature implimented to tighten the production readiness.">
+      <option name="closed" value="true" />
+      <created>1782492497617</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1782492497617</updated>
+    </task>
+    <task id="LOCAL-00012" summary="added rag-answer-service module related files:&#10;OVERSAMPLED_HYBRID_RRF_RERANKING.md added with feature implimented to tighten the production readiness.&#10;add missing file">
+      <option name="closed" value="true" />
+      <created>1782492531517</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1782492531517</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -179,6 +217,11 @@
     <MESSAGE value="rag-ingest-service: added the following :&#10;add browser /ui to upload a file, meta data.&#10;add profiling support&#10;add configurable parser&#10;&#10;Add missing files" />
     <MESSAGE value="Add missing .env files" />
     <MESSAGE value="Add the following:&#10;persists teh profiling details.&#10;use semantic recursive embeddings so the search results will be accurate.&#10;use a batch to send the embeddings to LLM so vectors can be created.&#10;Tried both 32, 64 as batch size, both work similar.&#10;add delete API end point ot delete a file, embeddings. This is only for the LOCAL profile similar ot Spring boot profile.&#10;add instructions to find the data/embeddings when a new file is saved." />
-    <option name="LAST_COMMIT_MESSAGE" value="Add the following:&#10;persists teh profiling details.&#10;use semantic recursive embeddings so the search results will be accurate.&#10;use a batch to send the embeddings to LLM so vectors can be created.&#10;Tried both 32, 64 as batch size, both work similar.&#10;add delete API end point ot delete a file, embeddings. This is only for the LOCAL profile similar ot Spring boot profile.&#10;add instructions to find the data/embeddings when a new file is saved." />
+    <MESSAGE value="added rad-search-serice module&#10;updated he rag-ingest-service to handle lot of edge cases and fixes for issues found in regression." />
+    <MESSAGE value="added rad-search-serice module&#10;updated he rag-ingest-service to handle lot of edge cases and fixes for issues found in regression.&#10;&#10;add missing files" />
+    <MESSAGE value="added rag-answer-service module related files:" />
+    <MESSAGE value="added rag-answer-service module related files:&#10;OVERSAMPLED_HYBRID_RRF_RERANKING.md added with feature implimented to tighten the production readiness." />
+    <MESSAGE value="added rag-answer-service module related files:&#10;OVERSAMPLED_HYBRID_RRF_RERANKING.md added with feature implimented to tighten the production readiness.&#10;add missing file" />
+    <option name="LAST_COMMIT_MESSAGE" value="added rag-answer-service module related files:&#10;OVERSAMPLED_HYBRID_RRF_RERANKING.md added with feature implimented to tighten the production readiness.&#10;add missing file" />
   </component>
 </project>

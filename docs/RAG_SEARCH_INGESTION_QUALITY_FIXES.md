@@ -11,7 +11,7 @@ The local RAG search service returned poor results for these cases:
 
 ## Root Causes
 
-The SQLite keyword fallback scored raw query substrings. Common words such as `the`, `a`, `and`, `of`, `in`, and `that` counted heavily in long chunks. Long unrelated chunks therefore received very large keyword scores.
+The previous local keyword fallback scored raw query substrings. Common words such as `the`, `a`, `and`, `of`, `in`, and `that` counted heavily in long chunks. Long unrelated chunks therefore received very large keyword scores.
 
 Hybrid ranking then forced any keyword result with `keyword_score >= 5` to score `0.95`, so noisy keyword hits overpowered semantic matches and exact document matches.
 
