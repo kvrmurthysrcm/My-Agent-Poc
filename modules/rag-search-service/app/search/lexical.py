@@ -1,5 +1,7 @@
 import re
 from collections import Counter
+from json import loads
+from pathlib import Path
 
 
 STOPWORDS = {
@@ -51,37 +53,32 @@ STOPWORDS = {
 }
 
 TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9'-]*", flags=re.IGNORECASE)
-TOKEN_ALIASES = {
-    "bhagawat": "bhagavad",
-    "bhagawad": "bhagavad",
-    "geetha": "gita",
-    "githa": "gita",
-    "ramayana": "ramayan",
-}
+DEFAULT_TOKEN_ALIASES = loads((Path(__file__).with_name("default_query_aliases.json")).read_text(encoding="utf-8"))
 
 
-def tokenize_meaningful(text: str) -> list[str]:
+def tokenize_meaningful(text: str, aliases: dict[str, str] | None = None) -> list[str]:
     return [
-        normalize_token(token.lower().strip("'-"))
+        normalize_token(token.lower().strip("'-"), aliases=aliases)
         for token in TOKEN_RE.findall(text)
         if len(token.strip("'-")) >= 3 and token.lower().strip("'-") not in STOPWORDS
     ]
 
 
-def token_counts(text: str) -> Counter[str]:
-    return Counter(tokenize_meaningful(text))
+def token_counts(text: str, aliases: dict[str, str] | None = None) -> Counter[str]:
+    return Counter(tokenize_meaningful(text, aliases=aliases))
 
 
-def normalized_text(text: str) -> str:
-    return " ".join(normalize_token(token.lower().strip("'-")) for token in TOKEN_RE.findall(text))
+def normalized_text(text: str, aliases: dict[str, str] | None = None) -> str:
+    return " ".join(normalize_token(token.lower().strip("'-"), aliases=aliases) for token in TOKEN_RE.findall(text))
 
 
-def phrase_in_text(phrase: str, text: str) -> bool:
-    normalized_phrase = normalized_text(phrase)
+def phrase_in_text(phrase: str, text: str, aliases: dict[str, str] | None = None) -> bool:
+    normalized_phrase = normalized_text(phrase, aliases=aliases)
     if not normalized_phrase:
         return False
-    return normalized_phrase in normalized_text(text)
+    return normalized_phrase in normalized_text(text, aliases=aliases)
 
 
-def normalize_token(token: str) -> str:
-    return TOKEN_ALIASES.get(token, token)
+def normalize_token(token: str, aliases: dict[str, str] | None = None) -> str:
+    lookup = aliases if aliases is not None else DEFAULT_TOKEN_ALIASES
+    return lookup.get(token, token)

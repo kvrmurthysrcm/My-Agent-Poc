@@ -23,6 +23,9 @@ class SearchResultItem(BaseModel):
 
 class SearchResponse(BaseModel):
     query: str
+    original_query: str | None = None
+    query_intent: str | None = None
+    spelling_normalized: bool = False
     search_mode: str
     top_k: int
     total_results: int

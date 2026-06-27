@@ -260,7 +260,76 @@ def test_conversational_title_query_promotes_keyword_match(monkeypatch):
         db.close()
 
     assert response.query == "frankenstein"
+    assert response.query_intent == "summary_request"
     assert response.results[0].title == "frankenstein"
+
+
+def test_query_understanding_normalizes_configured_typos(monkeypatch):
+    provider = FakeProvider()
+    monkeypatch.setattr("app.services.search_service.EmbeddingProviderFactory.build", lambda settings: provider)
+
+    class AliasRepository(FakeRepository):
+        def keyword_search(self, **kwargs):
+            self.keyword_called = True
+            assert kwargs["query"] == "A Christmas Carol"
+            return [
+                {
+                    "chunk_id": "christmas-title",
+                    "resource_id": "christmas",
+                    "chunk_index": 0,
+                    "chunk_text": "A Christmas Carol by Charles Dickens.",
+                    "title": "A Christmas Carol",
+                    "heading_path": [],
+                    "keyword_score": 10.0,
+                    "resource_metadata": {},
+                    "chunk_metadata": {},
+                }
+            ]
+
+    db = SessionLocal()
+    try:
+        service = SearchService(db, _settings(SEARCH_DEFAULT_MODE="keyword"))
+        service.repository = AliasRepository()
+        response = service.search(SearchRequest(query="tell me about the novel: A Christams Carol", search_mode="keyword", top_k=1))
+    finally:
+        db.close()
+
+    assert response.query == "A Christmas Carol"
+    assert response.spelling_normalized is True
+    assert response.results[0].title == "A Christmas Carol"
+
+
+def test_query_understanding_supports_runtime_aliases(monkeypatch):
+    provider = FakeProvider()
+    monkeypatch.setattr("app.services.search_service.EmbeddingProviderFactory.build", lambda settings: provider)
+
+    class AliasRepository(FakeRepository):
+        def keyword_search(self, **kwargs):
+            assert kwargs["query"] == "customer policy"
+            return [
+                {
+                    "chunk_id": "policy",
+                    "resource_id": "resource-1",
+                    "chunk_index": 1,
+                    "chunk_text": "Customer policy requirements.",
+                    "title": "Customer Policy",
+                    "heading_path": [],
+                    "keyword_score": 5.0,
+                    "resource_metadata": {},
+                    "chunk_metadata": {},
+                }
+            ]
+
+    db = SessionLocal()
+    try:
+        service = SearchService(db, _settings(SEARCH_DEFAULT_MODE="keyword", QUERY_ALIASES={"custmr": "customer"}))
+        service.repository = AliasRepository()
+        response = service.search(SearchRequest(query="custmr policy", search_mode="keyword", top_k=1))
+    finally:
+        db.close()
+
+    assert response.query == "customer policy"
+    assert response.spelling_normalized is True
 
 
 def test_conversational_subject_prefix_is_removed(monkeypatch):
@@ -294,6 +363,46 @@ def test_conversational_subject_prefix_is_removed(monkeypatch):
 
     assert response.query == "A Christmas Carol"
     assert response.results[0].title == "A Christmas Carol"
+
+
+def test_exact_quote_intent_is_passed_to_keyword_search(monkeypatch):
+    provider = FakeProvider()
+    monkeypatch.setattr("app.services.search_service.EmbeddingProviderFactory.build", lambda settings: provider)
+
+    class QuoteRepository(FakeRepository):
+        def keyword_search(self, **kwargs):
+            assert kwargs["query_intent"] == "exact_quote"
+            assert kwargs["query"] == "The very gold and silver fish, set forth among these choice fruits in a bowl"
+            return [
+                {
+                    "chunk_id": "quote",
+                    "resource_id": "christmas",
+                    "chunk_index": 24,
+                    "chunk_text": "The very gold and silver fish, set forth among these choice fruits in a bowl.",
+                    "title": "A Christmas Carol",
+                    "heading_path": [],
+                    "keyword_score": 8.0,
+                    "resource_metadata": {},
+                    "chunk_metadata": {},
+                }
+            ]
+
+    db = SessionLocal()
+    try:
+        service = SearchService(db, _settings(SEARCH_DEFAULT_MODE="keyword"))
+        service.repository = QuoteRepository()
+        response = service.search(
+            SearchRequest(
+                query='"The very gold and silver fish, set forth among these choice fruits in a bowl"',
+                search_mode="keyword",
+                top_k=1,
+            )
+        )
+    finally:
+        db.close()
+
+    assert response.query_intent == "exact_quote"
+    assert response.results[0].chunk_id == "quote"
 
 
 def test_title_match_orders_early_chunks_first():

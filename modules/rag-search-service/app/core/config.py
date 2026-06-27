@@ -1,9 +1,12 @@
+import json
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.constants import EmbeddingProviderName
+from app.search.lexical import DEFAULT_TOKEN_ALIASES
 
 
 class Settings(BaseSettings):
@@ -42,6 +45,8 @@ class Settings(BaseSettings):
     search_enable_metadata_filters: bool = Field(True, alias="SEARCH_ENABLE_METADATA_FILTERS")
     search_include_chunk_text_default: bool = Field(True, alias="SEARCH_INCLUDE_CHUNK_TEXT_DEFAULT")
     search_admin_enabled: bool = Field(True, alias="SEARCH_ADMIN_ENABLED")
+    query_aliases: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_TOKEN_ALIASES), alias="QUERY_ALIASES")
+    query_aliases_file: str | None = Field(None, alias="QUERY_ALIASES_FILE")
 
     @field_validator("embedding_model")
     @classmethod
@@ -129,6 +134,15 @@ class Settings(BaseSettings):
             raise ValueError("SEARCH_MIN_ALPHA_RATIO must be between 0 and 1")
         return value
 
+    @field_validator("query_aliases")
+    @classmethod
+    def normalize_query_aliases(cls, value: dict[str, str]) -> dict[str, str]:
+        return {
+            str(source).strip().lower(): str(target).strip().lower()
+            for source, target in value.items()
+            if str(source).strip() and str(target).strip()
+        }
+
     @model_validator(mode="after")
     def validate_embedding_configuration(self) -> "Settings":
         from app.services.embedding_model_registry import resolve_embedding_dimension, validate_embedding_model
@@ -140,7 +154,32 @@ class Settings(BaseSettings):
         validate_embedding_model(self.embedding_provider, self.embedding_model, self.embedding_dimension)
         if self.embedding_provider == EmbeddingProviderName.OPENAI and not self.openai_api_key and not self.allow_fake_embeddings:
             raise ValueError("OPENAI_API_KEY is required unless ALLOW_FAKE_EMBEDDINGS=true")
+        self.query_aliases = self._load_query_aliases()
         return self
+
+    def _load_query_aliases(self) -> dict[str, str]:
+        aliases = dict(DEFAULT_TOKEN_ALIASES)
+        aliases.update(self.query_aliases)
+        if not self.query_aliases_file:
+            return aliases
+
+        alias_path = Path(self.query_aliases_file)
+        if not alias_path.exists():
+            raise ValueError(f"QUERY_ALIASES_FILE does not exist: {self.query_aliases_file}")
+        try:
+            file_aliases = json.loads(alias_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"QUERY_ALIASES_FILE must contain a JSON object: {self.query_aliases_file}") from exc
+        if not isinstance(file_aliases, dict):
+            raise ValueError("QUERY_ALIASES_FILE must contain a JSON object")
+        aliases.update(
+            {
+                str(source).strip().lower(): str(target).strip().lower()
+                for source, target in file_aliases.items()
+                if str(source).strip() and str(target).strip()
+            }
+        )
+        return aliases
 
     @property
     def sqlalchemy_database_url(self) -> str:

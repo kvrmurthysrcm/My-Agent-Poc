@@ -15,10 +15,11 @@ class ContextBuilder:
         context_parts: list[str] = []
         remaining = max_chars
 
-        query_weights = self._query_weights(query)
+        query_intent = str(search_response.get("query_intent") or "")
+        query_weights = self._query_weights(query, query_intent=query_intent)
         results = sorted(
             (search_response.get("results") or [])[:context_top_k],
-            key=lambda item: self._item_focus_score(item, query_weights),
+            key=lambda item: self._item_focus_score(item, query_weights, query_intent=query_intent),
             reverse=True,
         )
         reserved_per_source = max(500, (max_chars - (len(results) * 180)) // max(1, len(results)))
@@ -28,7 +29,7 @@ class ContextBuilder:
             if not text:
                 continue
             per_source_limit = min(max_chars_per_source, reserved_per_source, max(500, remaining - 250))
-            text = self._excerpt(text, query=query, limit=per_source_limit)
+            text = self._excerpt(text, query=query, limit=per_source_limit, query_intent=query_intent)
             citation = self._citation_label(item)
             block = f"{citation}\n{text}"
             if len(block) > remaining:
@@ -43,13 +44,13 @@ class ContextBuilder:
 
         return "\n\n".join(context_parts), selected
 
-    def _excerpt(self, text: str, query: str, limit: int) -> str:
+    def _excerpt(self, text: str, query: str, limit: int, query_intent: str = "") -> str:
         compacted = re.sub(r"\s+", " ", text).strip()
         if len(compacted) <= limit:
             return compacted
 
         sentence_matches = list(re.finditer(r"[^.!?]+[.!?]?", compacted))
-        query_weights = self._query_weights(query)
+        query_weights = self._query_weights(query, query_intent=query_intent)
         if not sentence_matches or not query_weights:
             return compacted[:limit].rstrip() + "..."
 
@@ -76,7 +77,7 @@ class ContextBuilder:
         suffix = "..." if end < len(compacted) else ""
         return prefix + compacted[start:end].strip() + suffix
 
-    def _item_focus_score(self, item: dict[str, Any], query_weights: dict[str, int]) -> tuple[int, float]:
+    def _item_focus_score(self, item: dict[str, Any], query_weights: dict[str, int], query_intent: str = "") -> tuple[int, float]:
         text = " ".join(
             str(value or "")
             for value in (
@@ -86,10 +87,16 @@ class ContextBuilder:
             )
         ).lower()
         score = sum(weight for stem, weight in query_weights.items() if stem in text)
+        if query_intent in {"summary_request", "broad_document_query"}:
+            chunk_metadata = item.get("metadata", {}).get("chunk", {}) if isinstance(item.get("metadata"), dict) else {}
+            if chunk_metadata.get("front_matter") or chunk_metadata.get("boilerplate"):
+                score -= 4
+            if int(item.get("chunk_index") or 0) == 0 and len(text) < 350:
+                score -= 2
         rank = float(item.get("rank") or 999)
         return score, -rank
 
-    def _query_weights(self, query: str) -> dict[str, int]:
+    def _query_weights(self, query: str, query_intent: str = "") -> dict[str, int]:
         terms = re.findall(r"[A-Za-z][A-Za-z']+", query.lower())
         stop_words = {
             "about",
@@ -124,6 +131,10 @@ class ContextBuilder:
                     "restful": 2,
                 }
             )
+        if query_intent == "exact_quote":
+            for term in terms:
+                if len(term) >= 4 and term not in stop_words:
+                    weights[term[:7]] = max(weights.get(term[:7], 0), 4)
         return weights
 
     def _citation_label(self, item: dict[str, Any]) -> str:

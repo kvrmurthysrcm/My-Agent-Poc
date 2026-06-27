@@ -26,9 +26,15 @@ class RagSearchRepository:
             return self._postgres_vector_search(query_vector, filters, top_k, provider, model, version, dimension)
         raise RuntimeError("RAG search requires PostgreSQL with pgvector")
 
-    def keyword_search(self, query: str, filters: SearchFilterSet, top_k: int) -> list[dict]:
+    def keyword_search(
+        self,
+        query: str,
+        filters: SearchFilterSet,
+        top_k: int,
+        query_intent: str | None = None,
+    ) -> list[dict]:
         if self.db.bind and self.db.bind.dialect.name == "postgresql":
-            return self._postgres_keyword_search(query, filters, top_k)
+            return self._postgres_keyword_search(query, filters, top_k, query_intent)
         raise RuntimeError("RAG keyword search requires PostgreSQL full-text search")
 
     def _postgres_vector_search(
@@ -84,12 +90,24 @@ class RagSearchRepository:
         )
         return [dict(row._mapping) for row in self.db.execute(sql, params)]
 
-    def _postgres_keyword_search(self, query: str, filters: SearchFilterSet, top_k: int) -> list[dict]:
+    def _postgres_keyword_search(
+        self,
+        query: str,
+        filters: SearchFilterSet,
+        top_k: int,
+        query_intent: str | None = None,
+    ) -> list[dict]:
         where_sql, params = self._postgres_filter_sql(filters)
-        params.update({"query": query, "top_k": top_k})
+        params.update({"query": query, "top_k": top_k, "query_intent": query_intent or ""})
         sql = text(
             f"""
-            WITH tag_matches AS (
+            WITH search_query AS (
+                SELECT CASE
+                    WHEN :query_intent = 'exact_quote' THEN phraseto_tsquery('english', :query)
+                    ELSE websearch_to_tsquery('english', :query)
+                END AS tsq
+            ),
+            tag_matches AS (
                 SELECT rt.resource_id, string_agg(t.tag_name, ' ') AS tag_text
                 FROM public.resource_tags rt
                 JOIN public.tags t ON t.tag_id = rt.tag_id
@@ -113,7 +131,7 @@ class RagSearchRepository:
                     ELSE 0
                 END AS resource_match_score,
                 (
-                    ts_rank_cd(c.search_vector, websearch_to_tsquery('english', :query))
+                    ts_rank_cd(c.search_vector, sq.tsq)
                     + CASE WHEN lower(r.title) = lower(:query) THEN 10.0 ELSE 0.0 END
                     + CASE WHEN lower(r.title) LIKE '%' || lower(:query) || '%' THEN 5.0 ELSE 0.0 END
                     + CASE WHEN lower(coalesce(r.metadata_json->>'author', '')) LIKE '%' || lower(:query) || '%' THEN 3.0 ELSE 0.0 END
@@ -125,10 +143,12 @@ class RagSearchRepository:
             JOIN public.resources r ON r.resource_id = c.resource_id
             LEFT JOIN public.categories cat ON cat.category_id = r.category_id
             LEFT JOIN tag_matches tm ON tm.resource_id = r.resource_id
+            CROSS JOIN search_query sq
             WHERE r.rag_enabled = true
               AND r.ingestion_status = 'READY'
               AND (
-                  c.search_vector @@ websearch_to_tsquery('english', :query)
+                  c.search_vector @@ sq.tsq
+                  OR (:query_intent = 'exact_quote' AND lower(c.chunk_text) LIKE '%' || lower(:query) || '%')
                   OR lower(r.title) LIKE '%' || lower(:query) || '%'
                   OR lower(coalesce(r.metadata_json->>'author', '')) LIKE '%' || lower(:query) || '%'
                   OR lower(coalesce(cat.category_name, '')) LIKE '%' || lower(:query) || '%'

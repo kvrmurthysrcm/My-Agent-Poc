@@ -6,7 +6,7 @@ from app.schemas.search_request import SearchRequest
 from app.schemas.search_response import SearchResponse, SearchResultItem
 from app.search.filters import to_filter_set
 from app.search.lexical import token_counts
-from app.search.query_preprocessor import QueryPreprocessor
+from app.search.query_preprocessor import QueryPreprocessor, QueryUnderstanding
 from app.search.result_quality import (
     clean_result_text,
     is_searchable_chunk_metadata,
@@ -25,14 +25,15 @@ class SearchService:
         self.db = db
         self.settings = settings
         self.repository = RagSearchRepository(db)
-        self.query_preprocessor = QueryPreprocessor()
+        self.query_preprocessor = QueryPreprocessor(settings.query_aliases)
         self.snippet_builder = SnippetBuilder()
         self.hybrid_service = HybridSearchService()
         self.ranking_service = RankingService()
-        self.reranking_service = RerankingService()
+        self.reranking_service = RerankingService(settings.query_aliases)
 
     def search(self, request: SearchRequest) -> SearchResponse:
-        query = self.query_preprocessor.normalize(request.query)
+        query_info = self.query_preprocessor.understand(request.query)
+        query = query_info.normalized_query
         mode = request.search_mode or self.settings.search_default_mode
         top_k = request.top_k or self.settings.search_default_top_k
         min_score = self.settings.search_min_score if request.min_score is None else request.min_score
@@ -46,7 +47,7 @@ class SearchService:
             raise ValueError(f"top_k must be {self.settings.search_max_top_k} or lower")
 
         filters = to_filter_set(request.filters if self.settings.search_enable_metadata_filters else None)
-        candidates = self._retrieve(mode, query, filters, top_k)
+        candidates = self._retrieve(mode, query_info, filters, top_k)
         candidates = [
             item
             for item in candidates
@@ -64,6 +65,7 @@ class SearchService:
         if self.settings.rerank_enabled:
             candidates = self.reranking_service.rerank(
                 query=query,
+                query_intent=query_info.query_intent,
                 items=candidates,
                 top_n=max(top_k, self.settings.rerank_top_n),
             )
@@ -74,6 +76,9 @@ class SearchService:
         ]
         return SearchResponse(
             query=query,
+            original_query=query_info.original_query,
+            query_intent=query_info.query_intent,
+            spelling_normalized=query_info.spelling_normalized,
             search_mode=mode,
             top_k=top_k,
             total_results=len(results),
@@ -82,7 +87,8 @@ class SearchService:
             results=results,
         )
 
-    def _retrieve(self, mode: str, query: str, filters, top_k: int) -> list[dict]:
+    def _retrieve(self, mode: str, query_info: QueryUnderstanding, filters, top_k: int) -> list[dict]:
+        query = query_info.normalized_query
         vector_results: list[dict] = []
         keyword_results: list[dict] = []
         retrieve_k = top_k
@@ -105,11 +111,16 @@ class SearchService:
                 item["score"] = float(item.get("vector_score") or 0.0)
 
         if mode in {"keyword", "hybrid"}:
-            keyword_results = self.repository.keyword_search(query=query, filters=filters, top_k=retrieve_k)
+            keyword_results = self.repository.keyword_search(
+                query=query,
+                filters=filters,
+                top_k=retrieve_k,
+                query_intent=query_info.query_intent,
+            )
             for item in keyword_results:
                 item["resource_match_score"] = max(
                     float(item.get("resource_match_score") or 0.0),
-                    _resource_match_score(query, item.get("title") or ""),
+                    _resource_match_score(query, item.get("title") or "", self.settings.query_aliases),
                 )
                 item["score"] = float(item.get("keyword_score") or 0.0)
 
@@ -164,9 +175,9 @@ def _round_optional(value) -> float | None:
     return round(float(value), 6)
 
 
-def _resource_match_score(query: str, title: str) -> float:
-    query_terms = set(token_counts(query))
-    title_terms = set(token_counts(title))
+def _resource_match_score(query: str, title: str, aliases: dict[str, str] | None = None) -> float:
+    query_terms = set(token_counts(query, aliases=aliases))
+    title_terms = set(token_counts(title, aliases=aliases))
     if not query_terms or not title_terms:
         return 0.0
     title_overlap = len(title_terms & query_terms) / len(title_terms)

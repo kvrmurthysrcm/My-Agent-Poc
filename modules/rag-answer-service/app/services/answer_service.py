@@ -21,7 +21,7 @@ class AnswerService:
             search_response=search_response,
             context_top_k=context_top_k,
             max_chars=self.settings.answer_max_context_chars,
-            query=request.query,
+            query=search_response.get("query") or request.query,
             max_chars_per_source=self.settings.answer_max_chars_per_source,
         )
         include_sources = self.settings.answer_include_sources if request.include_sources is None else request.include_sources
