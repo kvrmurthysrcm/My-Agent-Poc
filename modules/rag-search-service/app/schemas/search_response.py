@@ -19,6 +19,7 @@ class SearchResultItem(BaseModel):
     snippet: str
     chunk_text: str | None = None
     metadata: dict[str, Any] | None = None
+    debug: dict[str, Any] | None = None
 
 
 class SearchResponse(BaseModel):
@@ -32,3 +33,4 @@ class SearchResponse(BaseModel):
     embedding_provider: str
     embedding_model: str
     results: list[SearchResultItem]
+    observability: dict[str, Any] | None = None

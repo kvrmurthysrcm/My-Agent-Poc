@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     answer_max_chars_per_source: int = Field(1800, alias="ANSWER_MAX_CHARS_PER_SOURCE")
     answer_include_sources: bool = Field(True, alias="ANSWER_INCLUDE_SOURCES")
     answer_require_context: bool = Field(True, alias="ANSWER_REQUIRE_CONTEXT")
+    answer_observability_enabled: bool = Field(False, alias="ANSWER_OBSERVABILITY_ENABLED")
 
     llm_provider: LlmProviderName = Field("ollama", alias="LLM_PROVIDER")
     llm_model: str = Field("mistral:latest", alias="LLM_MODEL")

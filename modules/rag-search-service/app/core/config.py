@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     search_enable_metadata_filters: bool = Field(True, alias="SEARCH_ENABLE_METADATA_FILTERS")
     search_include_chunk_text_default: bool = Field(True, alias="SEARCH_INCLUDE_CHUNK_TEXT_DEFAULT")
     search_admin_enabled: bool = Field(True, alias="SEARCH_ADMIN_ENABLED")
+    search_observability_enabled: bool = Field(False, alias="SEARCH_OBSERVABILITY_ENABLED")
     query_aliases: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_TOKEN_ALIASES), alias="QUERY_ALIASES")
     query_aliases_file: str | None = Field(None, alias="QUERY_ALIASES_FILE")
 

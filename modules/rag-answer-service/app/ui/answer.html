@@ -96,6 +96,7 @@
       color: #344054;
       line-height: 1.45;
     }
+    pre { white-space: pre-wrap; word-break: break-word; background: #111827; color: #f9fafb; border-radius: 8px; padding: 12px; }
     @media (max-width: 800px) {
       .toolbar { grid-template-columns: 1fr 1fr; }
       .toolbar .query { grid-column: 1 / -1; }
@@ -137,18 +138,26 @@
       <strong>Sources</strong>
       <div id="sources"></div>
     </section>
+    <section class="panel" id="observability-panel" style="display:none">
+      <strong>Observability</strong>
+      <pre id="observability"></pre>
+    </section>
   </main>
   <script>
     const askButton = document.getElementById('ask');
     const answerEl = document.getElementById('answer');
     const metaEl = document.getElementById('meta');
     const sourcesEl = document.getElementById('sources');
+    const observabilityPanel = document.getElementById('observability-panel');
+    const observabilityEl = document.getElementById('observability');
 
     askButton.addEventListener('click', async () => {
       askButton.disabled = true;
       answerEl.textContent = 'Generating...';
       metaEl.textContent = '';
       sourcesEl.innerHTML = '';
+      observabilityPanel.style.display = 'none';
+      observabilityEl.textContent = '';
       const payload = {
         query: document.getElementById('query').value,
         search_mode: document.getElementById('mode').value,
@@ -176,6 +185,10 @@
           div.innerHTML = `<div class="source-title">${source.rank}. ${source.title} | chunk ${source.chunk_index}${page}</div><div class="snippet"></div>`;
           div.querySelector('.snippet').textContent = source.snippet || '';
           sourcesEl.appendChild(div);
+        }
+        if (body.observability) {
+          observabilityPanel.style.display = 'block';
+          observabilityEl.textContent = JSON.stringify(body.observability, null, 2);
         }
       } catch (error) {
         answerEl.textContent = String(error.message || error);

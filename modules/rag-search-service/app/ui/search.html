@@ -55,6 +55,9 @@
         Tags
         <input id="tags" placeholder="comma separated">
       </label>
+      <label>
+        <span><input id="debug" type="checkbox"> Debug</span>
+      </label>
       <button type="submit">Search</button>
     </form>
     <section id="results"></section>
@@ -77,7 +80,8 @@
           tags
         }
       };
-      const response = await fetch("/rag/search", {
+      const endpoint = document.getElementById("debug").checked ? "/rag/search/debug" : "/rag/search";
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -92,8 +96,12 @@
           <strong>${item.rank}. ${escapeHtml(item.title)}</strong>
           <div class="meta">score ${item.score} | chunk ${item.chunk_index} | ${item.resource_id}</div>
           <p>${escapeHtml(item.snippet)}</p>
+          ${item.debug ? `<pre>${escapeHtml(JSON.stringify(item.debug, null, 2))}</pre>` : ""}
         </article>
       `).join("") || "<div class=\"result\">No results found.</div>";
+      if (body.observability) {
+        results.innerHTML += `<pre>${escapeHtml(JSON.stringify(body.observability, null, 2))}</pre>`;
+      }
     });
 
     function escapeHtml(value) {

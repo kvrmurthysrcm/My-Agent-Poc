@@ -1,3 +1,5 @@
+from time import perf_counter
+
 from app.core.config import Settings
 from app.schemas.answer_request import AnswerRequest
 from app.schemas.answer_response import AnswerResponse, AnswerSource
@@ -17,8 +19,13 @@ class AnswerService:
         self.verifier = FaithfulnessVerifier()
 
     def answer(self, request: AnswerRequest) -> AnswerResponse:
+        started = perf_counter()
+        timings: dict[str, float] = {}
+        search_started = perf_counter()
         search_response = self.search_client.search(request)
+        timings["search_request_ms"] = _elapsed_ms(search_started)
         context_top_k = request.context_top_k or self.settings.answer_context_top_k
+        context_started = perf_counter()
         context, selected_sources = self.context_builder.build(
             search_response=search_response,
             context_top_k=context_top_k,
@@ -26,9 +33,12 @@ class AnswerService:
             query=search_response.get("query") or request.query,
             max_chars_per_source=self.settings.answer_max_chars_per_source,
         )
+        timings["context_packing_ms"] = _elapsed_ms(context_started)
         include_sources = self.settings.answer_include_sources if request.include_sources is None else request.include_sources
 
+        provider_started = perf_counter()
         provider = LlmProviderFactory.build(self.settings)
+        timings["llm_provider_build_ms"] = _elapsed_ms(provider_started)
         prompt = None
         answer_status = "answered"
         cited_source_ranks: list[int] = []
@@ -49,8 +59,12 @@ class AnswerService:
                 system_instruction=request.system_instruction,
                 answer_mode=request.answer_mode,
             )
+            llm_started = perf_counter()
             answer = provider.generate(prompt)
+            timings["llm_generation_ms"] = _elapsed_ms(llm_started)
+            verification_started = perf_counter()
             verification_result = self.verifier.verify(answer, selected_sources)
+            timings["faithfulness_verification_ms"] = _elapsed_ms(verification_started)
             verification = verification_result.to_dict()
             cited_source_ranks = verification_result.cited_source_ranks
             if answer.strip().lower().startswith("insufficient_context"):
@@ -59,6 +73,9 @@ class AnswerService:
             elif not verification_result.supported:
                 answer = self._insufficient_context_answer(verification_result.reason)
                 answer_status = "insufficient_context"
+        timings.setdefault("llm_generation_ms", 0.0)
+        timings.setdefault("faithfulness_verification_ms", 0.0)
+        timings["total_ms"] = _elapsed_ms(started)
 
         return AnswerResponse(
             query=search_response.get("query") or request.query,
@@ -75,6 +92,7 @@ class AnswerService:
             sources=[self._to_source(item) for item in selected_sources] if include_sources else [],
             raw_search=search_response if include_sources else None,
             raw_prompt=prompt if request.include_raw_prompt else None,
+            observability=self._observability_payload(search_response, selected_sources, timings) if self.settings.answer_observability_enabled else None,
         )
 
     def _to_source(self, item: dict) -> AnswerSource:
@@ -96,3 +114,22 @@ class AnswerService:
             "I could not verify the generated answer against the retrieved context, "
             f"so I cannot answer without guessing. Verification reason: {reason}."
         )
+
+    def _observability_payload(self, search_response: dict, selected_sources: list[dict], timings: dict[str, float]) -> dict:
+        return {
+            "timings_ms": {key: round(value, 3) for key, value in timings.items()},
+            "search_observability": search_response.get("observability"),
+            "selected_sources": [
+                {
+                    "rank": int(item.get("rank") or 0),
+                    "chunk_id": str(item.get("chunk_id") or ""),
+                    "chunk_index": int(item.get("chunk_index") or 0),
+                    "score": float(item.get("score") or 0.0),
+                }
+                for item in selected_sources
+            ],
+        }
+
+
+def _elapsed_ms(started: float) -> float:
+    return (perf_counter() - started) * 1000.0

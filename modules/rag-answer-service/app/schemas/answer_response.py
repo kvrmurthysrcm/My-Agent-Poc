@@ -31,3 +31,4 @@ class AnswerResponse(BaseModel):
     sources: list[AnswerSource] = Field(default_factory=list)
     raw_search: dict[str, Any] | None = None
     raw_prompt: str | None = None
+    observability: dict[str, Any] | None = None

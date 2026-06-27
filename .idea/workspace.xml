@@ -4,11 +4,23 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="Added lexical.py search now uses lexical map/dictionary to handle input query.&#10;added the documentation file also.">
+    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="Added response faithfulness, citation control features added, added teh KB md file to explain the feature.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/schemas/answer_request.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/schemas/answer_request.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/TODO/RAG_TIGHTENING_PLAN.md" beforeDir="false" afterPath="$PROJECT_DIR$/TODO/RAG_TIGHTENING_PLAN.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/core/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/core/config.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/schemas/answer_response.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/schemas/answer_response.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/services/prompt_builder.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/services/prompt_builder.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/services/answer_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/services/answer_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/services/search_client.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/services/search_client.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/ui/answer.html" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/ui/answer.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/tests/test_rag_answer.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/tests/test_rag_answer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/.env" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/api/rag_search_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/api/rag_search_routes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/core/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/core/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/schemas/search_response.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/schemas/search_response.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/services/search_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/services/search_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/ui/search.html" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/ui/search.html" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -191,7 +203,15 @@
       <option name="project" value="LOCAL" />
       <updated>1782532965182</updated>
     </task>
-    <option name="localTasksCounter" value="15" />
+    <task id="LOCAL-00015" summary="Added response faithfulness, citation control features added, added teh KB md file to explain the feature.">
+      <option name="closed" value="true" />
+      <created>1782533596229</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1782533596229</updated>
+    </task>
+    <option name="localTasksCounter" value="16" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -209,6 +229,7 @@
     <MESSAGE value="added rag-answer-service module related files:&#10;OVERSAMPLED_HYBRID_RRF_RERANKING.md added with feature implimented to tighten the production readiness.&#10;add missing file" />
     <MESSAGE value="update the search chunk quality, removed references to SQLite DB." />
     <MESSAGE value="Added lexical.py search now uses lexical map/dictionary to handle input query.&#10;added the documentation file also." />
-    <option name="LAST_COMMIT_MESSAGE" value="Added lexical.py search now uses lexical map/dictionary to handle input query.&#10;added the documentation file also." />
+    <MESSAGE value="Added response faithfulness, citation control features added, added teh KB md file to explain the feature." />
+    <option name="LAST_COMMIT_MESSAGE" value="Added response faithfulness, citation control features added, added teh KB md file to explain the feature." />
   </component>
 </project>

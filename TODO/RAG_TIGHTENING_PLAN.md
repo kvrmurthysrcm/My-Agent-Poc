@@ -242,6 +242,7 @@ Acceptance:
 ### Task 8: Add Search and Answer Observability
 
 Priority: `P0`
+Status: `DONE` on 2026-06-27
 
 Goal: make bad results diagnosable without reading raw logs manually.
 

@@ -155,6 +155,19 @@ def test_answer_service_supports_modes_and_raw_prompt(monkeypatch):
     assert "Prefer short direct quotations" in response.raw_prompt
 
 
+def test_answer_observability_is_config_gated(monkeypatch):
+    provider = FakeProvider()
+    monkeypatch.setattr("app.services.answer_service.LlmProviderFactory.build", lambda settings: provider)
+
+    service = AnswerService(Settings(ANSWER_OBSERVABILITY_ENABLED=True))
+    service.search_client = FakeSearchClient()
+    response = service.answer(AnswerRequest(query="What did he feel?", top_k=5, context_top_k=1))
+
+    assert response.observability is not None
+    assert response.observability["timings_ms"]["context_packing_ms"] >= 0
+    assert response.observability["selected_sources"][0]["chunk_index"] == 8
+
+
 def test_context_builder_preserves_later_ranked_sources_under_budget():
     response = {
         "results": [

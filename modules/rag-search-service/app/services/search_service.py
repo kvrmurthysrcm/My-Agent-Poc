@@ -1,3 +1,5 @@
+from time import perf_counter
+
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -32,6 +34,18 @@ class SearchService:
         self.reranking_service = RerankingService(settings.query_aliases)
 
     def search(self, request: SearchRequest) -> SearchResponse:
+        return self._search(request, include_debug=self.settings.search_observability_enabled)
+
+    def debug_search(self, request: SearchRequest) -> SearchResponse:
+        if not self.settings.search_observability_enabled:
+            raise ValueError("Search observability is disabled. Set SEARCH_OBSERVABILITY_ENABLED=true to use debug search.")
+        return self._search(request, include_debug=True)
+
+    def _search(self, request: SearchRequest, include_debug: bool) -> SearchResponse:
+        started = perf_counter()
+        timings: dict[str, float] = {}
+        debug: dict = {"candidates": {}} if include_debug else {}
+
         query_info = self.query_preprocessor.understand(request.query)
         query = query_info.normalized_query
         mode = request.search_mode or self.settings.search_default_mode
@@ -47,33 +61,46 @@ class SearchService:
             raise ValueError(f"top_k must be {self.settings.search_max_top_k} or lower")
 
         filters = to_filter_set(request.filters if self.settings.search_enable_metadata_filters else None)
-        candidates = self._retrieve(mode, query_info, filters, top_k)
-        candidates = [
-            item
-            for item in candidates
-            if is_searchable_chunk_metadata(item.get("chunk_metadata") or {})
-            and not is_short_boilerplate_text(item.get("chunk_text") or "")
-            and (
-                float(item.get("resource_match_score") or 0.0) > 0.0
-                or is_searchable_result_text(
-                    item.get("chunk_text") or "",
-                    keep_numeric_table_chunks=self.settings.search_keep_numeric_table_chunks,
-                    min_alpha_ratio=self.settings.search_min_alpha_ratio,
-                )
-            )
-        ]
+        candidates = self._retrieve(mode, query_info, filters, top_k, timings=timings, debug=debug if include_debug else None)
+        before_quality_count = len(candidates)
+        quality_started = perf_counter()
+        kept_candidates = []
+        filtered_candidates = []
+        for item in candidates:
+            keep, reason = self._quality_decision(item)
+            item["quality_filter_reason"] = reason
+            if keep:
+                kept_candidates.append(item)
+            elif include_debug:
+                filtered_candidates.append(self._debug_candidate(item, reason=reason))
+        candidates = kept_candidates
+        timings["quality_filter_ms"] = _elapsed_ms(quality_started)
+        if include_debug:
+            debug["candidates"]["after_merge_count"] = before_quality_count
+            debug["candidates"]["after_quality_filter_count"] = len(candidates)
+            debug["candidates"]["filtered"] = filtered_candidates[: self.settings.search_max_top_k]
+
         if self.settings.rerank_enabled:
+            rerank_started = perf_counter()
             candidates = self.reranking_service.rerank(
                 query=query,
                 query_intent=query_info.query_intent,
                 items=candidates,
                 top_n=max(top_k, self.settings.rerank_top_n),
             )
+            timings["reranking_ms"] = _elapsed_ms(rerank_started)
+        else:
+            timings["reranking_ms"] = 0.0
+
+        ranking_started = perf_counter()
         ranked = self.ranking_service.rank(candidates, min_score=min_score, limit=top_k)
+        timings["final_ranking_ms"] = _elapsed_ms(ranking_started)
         results = [
-            self._to_result_item(index + 1, item, query, request.include_metadata, include_chunk_text)
+            self._to_result_item(index + 1, item, query, request.include_metadata, include_chunk_text, include_debug)
             for index, item in enumerate(ranked)
         ]
+        timings["total_ms"] = _elapsed_ms(started)
+
         return SearchResponse(
             query=query,
             original_query=query_info.original_query,
@@ -85,9 +112,18 @@ class SearchService:
             embedding_provider=self.settings.embedding_provider.value,
             embedding_model=self.settings.embedding_model,
             results=results,
+            observability=self._observability_payload(query_info, mode, top_k, timings, debug) if include_debug else None,
         )
 
-    def _retrieve(self, mode: str, query_info: QueryUnderstanding, filters, top_k: int) -> list[dict]:
+    def _retrieve(
+        self,
+        mode: str,
+        query_info: QueryUnderstanding,
+        filters,
+        top_k: int,
+        timings: dict[str, float],
+        debug: dict | None = None,
+    ) -> list[dict]:
         query = query_info.normalized_query
         vector_results: list[dict] = []
         keyword_results: list[dict] = []
@@ -96,8 +132,11 @@ class SearchService:
             retrieve_k = min(self.settings.search_max_top_k * self.settings.hybrid_oversampling_factor, top_k * self.settings.hybrid_oversampling_factor)
 
         if mode in {"vector", "hybrid"}:
+            embedding_started = perf_counter()
             provider = EmbeddingProviderFactory.build(self.settings)
             query_vector = provider.embed_texts([query])[0]
+            timings["query_embedding_ms"] = _elapsed_ms(embedding_started)
+            vector_started = perf_counter()
             vector_results = self.repository.vector_search(
                 query_vector=query_vector,
                 filters=filters,
@@ -107,10 +146,24 @@ class SearchService:
                 version=self.settings.embedding_version,
                 dimension=self.settings.embedding_dimension or len(query_vector),
             )
+            timings["vector_db_retrieval_ms"] = _elapsed_ms(vector_started)
             for item in vector_results:
                 item["score"] = float(item.get("vector_score") or 0.0)
+            if debug is not None:
+                debug["query_embedding_model"] = {
+                    "provider": self.settings.embedding_provider.value,
+                    "model": self.settings.embedding_model,
+                    "version": self.settings.embedding_version,
+                    "dimension": self.settings.embedding_dimension or len(query_vector),
+                }
+                debug["candidates"]["vector_count"] = len(vector_results)
+                debug["candidates"]["vector"] = [self._debug_candidate(item) for item in vector_results]
+        else:
+            timings["query_embedding_ms"] = 0.0
+            timings["vector_db_retrieval_ms"] = 0.0
 
         if mode in {"keyword", "hybrid"}:
+            keyword_started = perf_counter()
             keyword_results = self.repository.keyword_search(
                 query=query,
                 filters=filters,
@@ -123,9 +176,16 @@ class SearchService:
                     _resource_match_score(query, item.get("title") or "", self.settings.query_aliases),
                 )
                 item["score"] = float(item.get("keyword_score") or 0.0)
+            timings["keyword_db_retrieval_ms"] = _elapsed_ms(keyword_started)
+            if debug is not None:
+                debug["candidates"]["keyword_count"] = len(keyword_results)
+                debug["candidates"]["keyword"] = [self._debug_candidate(item) for item in keyword_results]
+        else:
+            timings["keyword_db_retrieval_ms"] = 0.0
 
         if mode == "hybrid":
-            return self.hybrid_service.merge(
+            merge_started = perf_counter()
+            merged = self.hybrid_service.merge(
                 vector_results=vector_results,
                 keyword_results=keyword_results,
                 vector_weight=self.settings.search_vector_weight,
@@ -133,6 +193,12 @@ class SearchService:
                 fusion_strategy=self.settings.hybrid_fusion_strategy,
                 rrf_k=self.settings.rrf_k,
             )
+            timings["hybrid_merge_ms"] = _elapsed_ms(merge_started)
+            if debug is not None:
+                debug["candidates"]["merged_count"] = len(merged)
+                debug["candidates"]["merged"] = [self._debug_candidate(item) for item in merged]
+            return merged
+        timings["hybrid_merge_ms"] = 0.0
         return vector_results if mode == "vector" else keyword_results
 
     def _to_result_item(
@@ -142,6 +208,7 @@ class SearchService:
         query: str,
         include_metadata: bool,
         include_chunk_text: bool,
+        include_debug: bool,
     ) -> SearchResultItem:
         metadata = None
         if include_metadata:
@@ -166,13 +233,94 @@ class SearchService:
             snippet=self.snippet_builder.build(display_text, query),
             chunk_text=display_text if include_chunk_text else None,
             metadata=metadata,
+            debug=self._result_debug(item) if include_debug else None,
         )
+
+    def _quality_decision(self, item: dict) -> tuple[bool, str]:
+        metadata = item.get("chunk_metadata") or {}
+        text = item.get("chunk_text") or ""
+        if not is_searchable_chunk_metadata(metadata):
+            return False, "chunk_metadata_not_searchable"
+        if is_short_boilerplate_text(text):
+            return False, "short_boilerplate_text"
+        if float(item.get("resource_match_score") or 0.0) > 0.0:
+            return True, "resource_metadata_match"
+        if not is_searchable_result_text(
+            text,
+            keep_numeric_table_chunks=self.settings.search_keep_numeric_table_chunks,
+            min_alpha_ratio=self.settings.search_min_alpha_ratio,
+        ):
+            return False, "low_value_result_text"
+        return True, "searchable_text"
+
+    def _result_debug(self, item: dict) -> dict:
+        reasons = []
+        if item.get("exact_phrase_match"):
+            reasons.append("exact_phrase_match")
+        if item.get("resource_match_score"):
+            reasons.append("resource_match")
+        if item.get("rerank_score") is not None:
+            reasons.append("reranked")
+        if item.get("quality_filter_reason"):
+            reasons.append(str(item["quality_filter_reason"]))
+        return {
+            "vector_rank": item.get("vector_rank"),
+            "keyword_rank": item.get("keyword_rank"),
+            "vector_score": _round_optional(item.get("vector_score")),
+            "keyword_score": _round_optional(item.get("keyword_score")),
+            "rrf_score": _round_optional(item.get("rrf_score")),
+            "retrieval_score": _round_optional(item.get("retrieval_score")),
+            "rerank_score": _round_optional(item.get("rerank_score")),
+            "resource_match_score": _round_optional(item.get("resource_match_score")),
+            "quality_filter_reason": item.get("quality_filter_reason"),
+            "final_score": _round_optional(item.get("score")),
+            "ranking_reasons": reasons,
+        }
+
+    def _debug_candidate(self, item: dict, reason: str | None = None) -> dict:
+        return {
+            "chunk_id": str(item.get("chunk_id") or ""),
+            "resource_id": str(item.get("resource_id") or ""),
+            "title": item.get("title") or "",
+            "chunk_index": int(item.get("chunk_index") or 0),
+            "vector_score": _round_optional(item.get("vector_score")),
+            "keyword_score": _round_optional(item.get("keyword_score")),
+            "rrf_score": _round_optional(item.get("rrf_score")),
+            "retrieval_score": _round_optional(item.get("retrieval_score")),
+            "rerank_score": _round_optional(item.get("rerank_score")),
+            "resource_match_score": _round_optional(item.get("resource_match_score")),
+            "score": _round_optional(item.get("score")),
+            "reason": reason or item.get("quality_filter_reason"),
+        }
+
+    def _observability_payload(
+        self,
+        query_info: QueryUnderstanding,
+        mode: str,
+        top_k: int,
+        timings: dict[str, float],
+        debug: dict,
+    ) -> dict:
+        return {
+            "normalized_query": query_info.normalized_query,
+            "original_query": query_info.original_query,
+            "query_intent": query_info.query_intent,
+            "spelling_normalized": query_info.spelling_normalized,
+            "search_mode": mode,
+            "top_k": top_k,
+            "timings_ms": {key: round(value, 3) for key, value in timings.items()},
+            **debug,
+        }
 
 
 def _round_optional(value) -> float | None:
     if value is None:
         return None
     return round(float(value), 6)
+
+
+def _elapsed_ms(started: float) -> float:
+    return (perf_counter() - started) * 1000.0
 
 
 def _resource_match_score(query: str, title: str, aliases: dict[str, str] | None = None) -> float:
