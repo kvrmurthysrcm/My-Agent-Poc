@@ -44,7 +44,7 @@ class FakeProvider:
 
     def generate(self, prompt):
         self.prompt = prompt
-        return "He felt a deep quietness and peace in Maharshi's presence."
+        return "A great peace was penetrating the inner reaches of his being. [Source rank 1, chunk 8, page 19]"
 
 
 def test_answer_ui_endpoint():
@@ -71,10 +71,14 @@ def test_answer_service_uses_search_context_and_returns_sources(monkeypatch):
     service.search_client = FakeSearchClient()
     response = service.answer(AnswerRequest(query="What did he feel?", top_k=5, context_top_k=1))
 
-    assert response.answer == "He felt a deep quietness and peace in Maharshi's presence."
+    assert response.answer_status == "answered"
+    assert "Source rank 1, chunk 8, page 19" in response.answer
+    assert response.cited_source_ranks == [1]
+    assert response.citation_verification["supported"] is True
     assert response.context_source_count == 1
     assert response.sources[0].page_start == 19
     assert "A great peace" in provider.prompt
+    assert "Citation rules" in provider.prompt
 
 
 def test_answer_service_does_not_guess_without_context(monkeypatch):
@@ -90,7 +94,65 @@ def test_answer_service_does_not_guess_without_context(monkeypatch):
     response = service.answer(AnswerRequest(query="Unknown question"))
 
     assert "could not find enough retrieved context" in response.answer
+    assert response.answer_status == "insufficient_context"
+    assert response.citation_verification["reason"] == "no_selected_context"
     assert provider.prompt is None
+
+
+def test_answer_service_rejects_unsupported_uncited_answer(monkeypatch):
+    class UnsupportedProvider(FakeProvider):
+        def generate(self, prompt):
+            self.prompt = prompt
+            return "He later founded a new monastery in another city."
+
+    provider = UnsupportedProvider()
+    monkeypatch.setattr("app.services.answer_service.LlmProviderFactory.build", lambda settings: provider)
+
+    service = AnswerService(Settings())
+    service.search_client = FakeSearchClient()
+    response = service.answer(AnswerRequest(query="What did he feel?", top_k=5, context_top_k=1))
+
+    assert response.answer_status == "insufficient_context"
+    assert "could not verify" in response.answer
+    assert response.citation_verification["reason"] == "answer_has_no_source_rank_citations"
+
+
+def test_answer_service_rejects_wrong_chunk_citation(monkeypatch):
+    class WrongChunkProvider(FakeProvider):
+        def generate(self, prompt):
+            self.prompt = prompt
+            return "He felt peace in Maharshi's presence. [Source rank 1, chunk 99, page 19]"
+
+    provider = WrongChunkProvider()
+    monkeypatch.setattr("app.services.answer_service.LlmProviderFactory.build", lambda settings: provider)
+
+    service = AnswerService(Settings())
+    service.search_client = FakeSearchClient()
+    response = service.answer(AnswerRequest(query="What did he feel?", top_k=5, context_top_k=1))
+
+    assert response.answer_status == "insufficient_context"
+    assert response.citation_verification["reason"] == "answer_cites_wrong_chunk_for_source_rank"
+
+
+def test_answer_service_supports_modes_and_raw_prompt(monkeypatch):
+    provider = FakeProvider()
+    monkeypatch.setattr("app.services.answer_service.LlmProviderFactory.build", lambda settings: provider)
+
+    service = AnswerService(Settings())
+    service.search_client = FakeSearchClient()
+    response = service.answer(
+        AnswerRequest(
+            query="What did he feel?",
+            answer_mode="quote-backed",
+            include_raw_prompt=True,
+            top_k=5,
+            context_top_k=1,
+        )
+    )
+
+    assert response.answer_mode == "quote-backed"
+    assert response.raw_prompt is not None
+    assert "Prefer short direct quotations" in response.raw_prompt
 
 
 def test_context_builder_preserves_later_ranked_sources_under_budget():

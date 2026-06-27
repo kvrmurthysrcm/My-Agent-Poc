@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 SearchMode = Literal["vector", "keyword", "hybrid"]
+AnswerMode = Literal["concise", "detailed", "quote-backed"]
 
 
 class AnswerFilters(BaseModel):
@@ -20,6 +21,8 @@ class AnswerRequest(BaseModel):
     context_top_k: int | None = Field(None, ge=1, le=20)
     filters: AnswerFilters = Field(default_factory=AnswerFilters)
     include_sources: bool | None = None
+    answer_mode: AnswerMode = "concise"
+    include_raw_prompt: bool = False
     system_instruction: str | None = Field(None, max_length=2000)
 
     @field_validator("query")

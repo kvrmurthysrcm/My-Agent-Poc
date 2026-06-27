@@ -218,6 +218,7 @@ Acceptance:
 ### Task 7: Add Answer Faithfulness and Citation Controls
 
 Priority: `P1`
+Status: `DONE` on 2026-06-27
 
 Goal: make `rag-answer-service` answer only from retrieved evidence and cite the exact supporting chunks.
 

@@ -4,42 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="added rag-answer-service module related files:&#10;OVERSAMPLED_HYBRID_RRF_RERANKING.md added with feature implimented to tighten the production readiness.&#10;add missing file">
+    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="Added lexical.py search now uses lexical map/dictionary to handle input query.&#10;added the documentation file also.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/codex_rag_search_module_prompt.txt" beforeDir="false" afterPath="$PROJECT_DIR$/codex_rag_search_module_prompt.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/RAG_SEARCH_INGESTION_QUALITY_FIXES.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/RAG_SEARCH_INGESTION_QUALITY_FIXES.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/.env" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/.env.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/core/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/core/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/db/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/db/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/db/session.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/db/session.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunk_quality.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunk_quality.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunking_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunking_service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/docs/CHUNK_QUALITY_FILTERS.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/docs/CHUNK_QUALITY_FILTERS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/docs/RAG_Ingestion_service_codex_prompt.txt" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/docs/RAG_Ingestion_service_codex_prompt.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/rag_ingest_test.db" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/tests/conftest.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/tests/conftest.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_chunking_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_chunking_service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_factories.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_factories.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/.env" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/.env.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/core/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/core/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/db/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/db/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/db/session.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/db/session.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/repositories/rag_search_repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/repositories/rag_search_repository.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/search/result_quality.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/search/result_quality.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/services/reranking_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/services/reranking_service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/services/search_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/services/search_service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/docs/OVERSAMPLED_HYBRID_RRF_RERANKING.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/docs/OVERSAMPLED_HYBRID_RRF_RERANKING.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/docs/RAG_SEARCH_MODULE.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/docs/RAG_SEARCH_MODULE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/docs/SEARCH_RELEVANCE_AND_QUALITY_FIXES.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/docs/SEARCH_RELEVANCE_AND_QUALITY_FIXES.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/docs/codex_rag_search_module_prompt.txt" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/docs/codex_rag_search_module_prompt.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/tests/conftest.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/tests/conftest.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/tests/test_rag_search.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/tests/test_rag_search.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/schemas/answer_request.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/schemas/answer_request.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/schemas/answer_response.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/schemas/answer_response.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/services/prompt_builder.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/services/prompt_builder.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -47,7 +16,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="10455" />
+    <option name="cachedIndexableFilesCount" value="10512" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -206,7 +175,23 @@
       <option name="project" value="LOCAL" />
       <updated>1782492531517</updated>
     </task>
-    <option name="localTasksCounter" value="13" />
+    <task id="LOCAL-00013" summary="update the search chunk quality, removed references to SQLite DB.">
+      <option name="closed" value="true" />
+      <created>1782496059090</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1782496059090</updated>
+    </task>
+    <task id="LOCAL-00014" summary="Added lexical.py search now uses lexical map/dictionary to handle input query.&#10;added the documentation file also.">
+      <option name="closed" value="true" />
+      <created>1782532965182</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1782532965182</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -222,6 +207,8 @@
     <MESSAGE value="added rag-answer-service module related files:" />
     <MESSAGE value="added rag-answer-service module related files:&#10;OVERSAMPLED_HYBRID_RRF_RERANKING.md added with feature implimented to tighten the production readiness." />
     <MESSAGE value="added rag-answer-service module related files:&#10;OVERSAMPLED_HYBRID_RRF_RERANKING.md added with feature implimented to tighten the production readiness.&#10;add missing file" />
-    <option name="LAST_COMMIT_MESSAGE" value="added rag-answer-service module related files:&#10;OVERSAMPLED_HYBRID_RRF_RERANKING.md added with feature implimented to tighten the production readiness.&#10;add missing file" />
+    <MESSAGE value="update the search chunk quality, removed references to SQLite DB." />
+    <MESSAGE value="Added lexical.py search now uses lexical map/dictionary to handle input query.&#10;added the documentation file also." />
+    <option name="LAST_COMMIT_MESSAGE" value="Added lexical.py search now uses lexical map/dictionary to handle input query.&#10;added the documentation file also." />
   </component>
 </project>
