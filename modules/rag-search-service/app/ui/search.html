@@ -31,6 +31,14 @@
       </label>
       <div class="row">
         <label>
+          Search Type
+          <select id="search_type">
+            <option value="standard">Standard RAG</option>
+            <option value="graph">Graph RAG</option>
+            <option value="combined">Combined</option>
+          </select>
+        </label>
+        <label>
           Mode
           <select id="search_mode">
             <option value="hybrid">Hybrid</option>
@@ -70,17 +78,23 @@
       event.preventDefault();
       results.innerHTML = "<div class=\"result\">Searching...</div>";
       const tags = document.getElementById("tags").value.split(",").map((item) => item.trim()).filter(Boolean);
-      const payload = {
+      const resourceId = document.getElementById("resource_id").value || null;
+      const searchType = document.getElementById("search_type").value;
+      const payload = searchType === "graph" ? {
+        query: document.getElementById("query").value,
+        top_k: Number(document.getElementById("top_k").value || 10),
+        resource_ids: resourceId ? [resourceId] : []
+      } : {
         query: document.getElementById("query").value,
         search_mode: document.getElementById("search_mode").value,
         top_k: Number(document.getElementById("top_k").value || 10),
         filters: {
-          resource_id: document.getElementById("resource_id").value || null,
+          resource_id: resourceId,
           category: document.getElementById("category").value || null,
           tags
         }
       };
-      const endpoint = document.getElementById("debug").checked ? "/rag/search/debug" : "/rag/search";
+      const endpoint = endpointFor(searchType);
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -91,7 +105,34 @@
         results.innerHTML = `<pre>${JSON.stringify(body, null, 2)}</pre>`;
         return;
       }
-      results.innerHTML = body.results.map((item) => `
+      if (searchType === "graph") {
+        results.innerHTML = renderGraphResults(body);
+        return;
+      }
+      if (searchType === "combined") {
+        results.innerHTML = `
+          <article class="result"><strong>Standard RAG</strong></article>
+          ${renderStandardResults(body.standard_results)}
+          <article class="result"><strong>Graph RAG</strong></article>
+          ${renderGraphResults(body.graph_results)}
+        `;
+        return;
+      }
+      results.innerHTML = renderStandardResults(body);
+    });
+
+    function endpointFor(searchType) {
+      if (searchType === "graph") {
+        return "/rag/graph/search";
+      }
+      if (searchType === "combined") {
+        return "/rag/search/combined";
+      }
+      return document.getElementById("debug").checked ? "/rag/search/debug" : "/rag/search";
+    }
+
+    function renderStandardResults(body) {
+      let html = body.results.map((item) => `
         <article class="result">
           <strong>${item.rank}. ${escapeHtml(item.title)}</strong>
           <div class="meta">score ${item.score} | chunk ${item.chunk_index} | ${item.resource_id}</div>
@@ -100,9 +141,42 @@
         </article>
       `).join("") || "<div class=\"result\">No results found.</div>";
       if (body.observability) {
-        results.innerHTML += `<pre>${escapeHtml(JSON.stringify(body.observability, null, 2))}</pre>`;
+        html += `<pre>${escapeHtml(JSON.stringify(body.observability, null, 2))}</pre>`;
       }
-    });
+      return html;
+    }
+
+    function renderGraphResults(body) {
+      const entities = (body.matched_entities || []).map((item) => `
+        <article class="result">
+          <strong>${escapeHtml(item.name)}</strong>
+          <div class="meta">${escapeHtml(item.entity_type)} | score ${Number(item.score || 0).toFixed(3)} | ${item.resource_id}</div>
+          <p>${escapeHtml(item.description || "")}</p>
+        </article>
+      `).join("");
+      const relationships = (body.matched_relationships || []).map((item) => `
+        <article class="result">
+          <strong>${escapeHtml(item.source_entity_name)} -> ${escapeHtml(item.target_entity_name)}</strong>
+          <div class="meta">${escapeHtml(item.relationship_type)} | score ${Number(item.score || 0).toFixed(3)} | ${item.resource_id}</div>
+          <p>${escapeHtml(item.description || "")}</p>
+        </article>
+      `).join("");
+      const summaries = (body.graph_summaries || []).map((item) => `
+        <article class="result">
+          <strong>${escapeHtml(item.summary_type)}</strong>
+          <div class="meta">${item.resource_id}</div>
+          <p>${escapeHtml(item.summary_text)}</p>
+        </article>
+      `).join("");
+      return `
+        <article class="result"><strong>Entities</strong></article>
+        ${entities || "<div class=\"result\">No matching entities.</div>"}
+        <article class="result"><strong>Relationships</strong></article>
+        ${relationships || "<div class=\"result\">No matching relationships.</div>"}
+        <article class="result"><strong>Summaries</strong></article>
+        ${summaries || "<div class=\"result\">No matching summaries.</div>"}
+      `;
+    }
 
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, (char) => ({

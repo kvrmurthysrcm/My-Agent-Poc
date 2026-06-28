@@ -2,7 +2,7 @@ from datetime import date, datetime
 import os
 from uuid import uuid4
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON, TypeDecorator
@@ -145,11 +145,14 @@ class RagIngestionJob(Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="QUEUED", index=True)
     async_backend: Mapped[str] = mapped_column(String(50), nullable=False)
     chunking_strategy: Mapped[str] = mapped_column(String(80), nullable=False, default="SEMANTIC_RECURSIVE")
+    indexing_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="STANDARD")
     chunk_size_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=1200)
     chunk_overlap_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=80)
     total_chunks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     processed_chunks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     embedded_chunks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    graph_entities_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    graph_relationships_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     failed_chunks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_retries: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
@@ -244,3 +247,92 @@ class RagProfilingEvent(Base):
     event_index: Mapped[int] = mapped_column(Integer, nullable=False)
     event_details: Mapped[dict] = mapped_column("details_json", JsonCompat, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+
+class RagGraphEntity(Base):
+    __tablename__ = "rag_graph_entities"
+    __table_args__ = (
+        UniqueConstraint("resource_id", "normalized_name", name="ux_rag_graph_entity_resource_name"),
+        Index("ix_rag_graph_entities_resource_id", "resource_id"),
+        Index("ix_rag_graph_entities_chunk_id", "chunk_id"),
+        Index("ix_rag_graph_entities_normalized_name", "normalized_name"),
+        Index("ix_rag_graph_entities_entity_type", "entity_type"),
+    )
+
+    entity_id: Mapped[str] = mapped_column(GUID, primary_key=True, default=uuid_str)
+    resource_id: Mapped[str] = mapped_column(GUID, ForeignKey("resources.resource_id"), nullable=False)
+    chunk_id: Mapped[str | None] = mapped_column(GUID, ForeignKey("rag_document_chunks.chunk_id"))
+    name: Mapped[str] = mapped_column(String(500), nullable=False)
+    normalized_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    entity_type: Mapped[str] = mapped_column(String(120), nullable=False, default="UNKNOWN")
+    description: Mapped[str | None] = mapped_column(Text)
+    confidence_score: Mapped[float | None] = mapped_column(Float)
+    metadata_json: Mapped[dict] = mapped_column(JsonCompat, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
+
+
+class RagGraphRelationship(Base):
+    __tablename__ = "rag_graph_relationships"
+    __table_args__ = (
+        Index("ix_rag_graph_relationships_resource_id", "resource_id"),
+        Index("ix_rag_graph_relationships_chunk_id", "chunk_id"),
+        Index("ix_rag_graph_relationships_source_entity_id", "source_entity_id"),
+        Index("ix_rag_graph_relationships_target_entity_id", "target_entity_id"),
+        Index("ix_rag_graph_relationships_type", "relationship_type"),
+    )
+
+    relationship_id: Mapped[str] = mapped_column(GUID, primary_key=True, default=uuid_str)
+    resource_id: Mapped[str] = mapped_column(GUID, ForeignKey("resources.resource_id"), nullable=False)
+    source_entity_id: Mapped[str] = mapped_column(GUID, ForeignKey("rag_graph_entities.entity_id"), nullable=False)
+    target_entity_id: Mapped[str] = mapped_column(GUID, ForeignKey("rag_graph_entities.entity_id"), nullable=False)
+    relationship_type: Mapped[str] = mapped_column(String(160), nullable=False, default="RELATED_TO")
+    description: Mapped[str | None] = mapped_column(Text)
+    confidence_score: Mapped[float | None] = mapped_column(Float)
+    chunk_id: Mapped[str | None] = mapped_column(GUID, ForeignKey("rag_document_chunks.chunk_id"))
+    metadata_json: Mapped[dict] = mapped_column(JsonCompat, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
+
+
+class RagGraphCommunity(Base):
+    __tablename__ = "rag_graph_communities"
+    __table_args__ = (Index("ix_rag_graph_communities_resource_id", "resource_id"),)
+
+    community_id: Mapped[str] = mapped_column(GUID, primary_key=True, default=uuid_str)
+    resource_id: Mapped[str] = mapped_column(GUID, ForeignKey("resources.resource_id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text)
+    metadata_json: Mapped[dict] = mapped_column(JsonCompat, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
+
+
+class RagGraphEntityCommunity(Base):
+    __tablename__ = "rag_graph_entity_communities"
+    __table_args__ = (
+        UniqueConstraint("entity_id", "community_id", name="ux_rag_graph_entity_community"),
+        Index("ix_rag_graph_entity_communities_entity_id", "entity_id"),
+        Index("ix_rag_graph_entity_communities_community_id", "community_id"),
+    )
+
+    id: Mapped[str] = mapped_column(GUID, primary_key=True, default=uuid_str)
+    entity_id: Mapped[str] = mapped_column(GUID, ForeignKey("rag_graph_entities.entity_id"), nullable=False)
+    community_id: Mapped[str] = mapped_column(GUID, ForeignKey("rag_graph_communities.community_id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+
+class RagGraphSummary(Base):
+    __tablename__ = "rag_graph_summaries"
+    __table_args__ = (
+        Index("ix_rag_graph_summaries_resource_id", "resource_id"),
+        Index("ix_rag_graph_summaries_type", "summary_type"),
+    )
+
+    summary_id: Mapped[str] = mapped_column(GUID, primary_key=True, default=uuid_str)
+    resource_id: Mapped[str] = mapped_column(GUID, ForeignKey("resources.resource_id"), nullable=False)
+    summary_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    summary_text: Mapped[str] = mapped_column(Text, nullable=False)
+    metadata_json: Mapped[dict] = mapped_column(JsonCompat, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())

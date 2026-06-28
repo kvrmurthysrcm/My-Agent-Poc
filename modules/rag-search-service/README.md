@@ -26,14 +26,15 @@ PostgreSQL is the intended runtime database for this service:
 
 ```text
 DATABASE_URL=postgresql://library_user:library_pass@localhost:5432/online_library
-AUTO_MIGRATE_ON_STARTUP=false
 ```
 
-`AUTO_MIGRATE_ON_STARTUP=false` is recommended for the search service during local development because vector index creation can be slow or operationally sensitive. Run Alembic migrations explicitly when applying search DB/index changes:
+Apply schema changes through the ingest service SQL files:
 
 ```powershell
-alembic upgrade head
+psql "postgresql://library_user:library_pass@localhost:5432/online_library" -f ..\rag-ingest-service\sql\schema.sql
 ```
+
+This POC uses SQL schema files only.
 
 PostgreSQL is required. Do not use file-based local databases when validating ingest/search behavior across services.
 
@@ -42,6 +43,8 @@ PostgreSQL is required. Do not use file-based local databases when validating in
 ```text
 GET /ui/search
 POST /rag/search
+POST /rag/graph/search
+POST /rag/search/combined
 ```
 
 Search modes:

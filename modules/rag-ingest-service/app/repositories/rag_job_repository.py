@@ -10,7 +10,15 @@ class RagJobRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_job(self, resource_id: str, async_backend: str, strategy: str, size: int, overlap: int) -> RagIngestionJob:
+    def create_job(
+        self,
+        resource_id: str,
+        async_backend: str,
+        strategy: str,
+        size: int,
+        overlap: int,
+        indexing_mode: str = "STANDARD",
+    ) -> RagIngestionJob:
         job = RagIngestionJob(
             resource_id=resource_id,
             status="QUEUED",
@@ -18,6 +26,7 @@ class RagJobRepository:
             chunking_strategy=strategy,
             chunk_size_tokens=size,
             chunk_overlap_tokens=overlap,
+            indexing_mode=indexing_mode,
         )
         self.db.add(job)
         self.db.flush()

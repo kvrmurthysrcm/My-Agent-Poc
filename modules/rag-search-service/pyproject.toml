@@ -3,7 +3,6 @@ name = "rag-search-service"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
-    "alembic>=1.17.0",
     "fastapi>=0.137.1",
     "httpx>=0.28.1",
     "openai>=2.14.0",

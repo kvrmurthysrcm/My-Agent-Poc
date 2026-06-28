@@ -77,26 +77,26 @@ Current local PostgreSQL settings:
 
 ```text
 DATABASE_URL=postgresql://library_user:library_pass@localhost:5432/online_library
-AUTO_MIGRATE_ON_STARTUP=false
 ```
 
 PostgreSQL is required for runtime search. File-based local databases do not exercise PostgreSQL full-text search, pgvector indexes, or production locking/index behavior and should not be used for this service.
 
-The search module reads from the ingestion tables and adds no new business tables. Migration `20260625_0001` adds:
+The search module reads from the ingestion tables and Graph RAG tables created by the ingest service SQL schema. The SQL schema includes:
 
 - `rag_document_chunks.search_vector` generated `tsvector` column.
 - GIN index on `rag_document_chunks.search_vector`.
 - page/resource lookup index on `rag_document_chunks`.
 - embedding provider/model/version/dimension lookup index on `rag_chunk_embeddings`.
 - HNSW vector index on `rag_chunk_embeddings.vector`.
+- Graph RAG entity, relationship, summary, and community tables.
 
 Search only returns resources with `resources.rag_enabled = true` and `resources.ingestion_status = 'READY'`. Vector search also requires the stored embedding provider, model, version, and dimension to match the current service configuration.
 
-Run migrations explicitly when applying DB/index changes:
+Apply schema changes through SQL scripts:
 
 ```powershell
 cd modules\rag-search-service
-alembic upgrade head
+psql "postgresql://library_user:library_pass@localhost:5432/online_library" -f ..\rag-ingest-service\sql\schema.sql
 ```
 
 The current database has the `search_vector` column and GIN keyword index. If the HNSW vector index is missing or slow to build, handle that as an explicit DB/index operation rather than blocking API startup.

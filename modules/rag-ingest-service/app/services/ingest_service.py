@@ -62,6 +62,7 @@ class IngestService:
                 strategy=chunking_strategy,
                 size=chunk_size,
                 overlap=chunk_overlap,
+                indexing_mode=metadata.indexing_mode.value,
             )
             self.db.commit()
             return resource.resource_id, job.job_id

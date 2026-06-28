@@ -1,7 +1,14 @@
 from datetime import datetime
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
+
+
+class IndexingMode(StrEnum):
+    STANDARD = "STANDARD"
+    GRAPH = "GRAPH"
+    BOTH = "BOTH"
 
 
 class ChunkingOptions(BaseModel):
@@ -35,3 +42,4 @@ class IngestMetadata(BaseModel):
     created_date_from_file: datetime | None = None
     custom_metadata: dict[str, Any] = Field(default_factory=dict)
     chunking: ChunkingOptions = Field(default_factory=ChunkingOptions)
+    indexing_mode: IndexingMode = IndexingMode.STANDARD

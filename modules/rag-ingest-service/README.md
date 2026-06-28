@@ -32,6 +32,7 @@ UI fields:
 - title, author, category, language, source system, business domain, and description
 - comma-separated tags
 - custom metadata JSON
+- indexing mode: Standard RAG, Graph RAG, or Both
 - chunk size and chunk overlap
 - metadata JSON preview
 - resource/job status display
@@ -71,20 +72,12 @@ DATABASE_URL=postgresql://library_user:library_pass@localhost:5432/online_librar
 Apply the RAG schema to that database:
 
 ```powershell
-alembic upgrade head
+psql "postgresql://library_user:library_pass@localhost:5432/online_library" -f .\sql\schema.sql
 ```
 
-The full base schema is in `sql/schema.sql`.
+The full base schema is in `sql/schema.sql`. Graph RAG additions are also available separately in `sql/graph_rag_schema.sql` for local POC databases that already have the base tables. This POC uses SQL schema files only.
 
-For `APP_PROFILE=local`, `APP_PROFILE=dev`, or `APP_PROFILE=development`, PostgreSQL schema migrations run automatically on API startup when:
-
-```text
-AUTO_MIGRATE_ON_STARTUP=true
-```
-
-This uses Alembic `upgrade head`, not SQLAlchemy `create_all`.
-
-Production startup does not create tables automatically. `AUTO_CREATE_TABLES=false` is the default; set it to `true` only for local throwaway environments that intentionally use SQLAlchemy `create_all`. For production profiles, run Alembic explicitly as part of deployment.
+Startup does not create tables automatically. `AUTO_CREATE_TABLES=false` is the default; set it to `true` only for local throwaway environments that intentionally use SQLAlchemy `create_all`. Prefer the SQL schema files for repeatable PostgreSQL/pgvector setup.
 
 ## Chunking
 
@@ -122,6 +115,24 @@ CHUNK_QUALITY_MIN_ALPHA_RATIO=0.45
 
 Details are in `docs/CHUNK_QUALITY_FILTERS.md`.
 
+## Indexing Modes
+
+The upload metadata accepts `indexing_mode`; if it is omitted, the service uses `STANDARD`.
+
+| Mode | Behavior |
+| --- | --- |
+| `STANDARD` | Runs the existing chunk embedding/vector indexing flow only. |
+| `GRAPH` | Runs the shared extraction/chunking flow and Graph RAG indexing. Chunk embeddings are skipped by default. |
+| `BOTH` | Runs both standard chunk embeddings and Graph RAG indexing. |
+
+For graph-only ingestion, chunk embedding creation is controlled by:
+
+```text
+GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS=false
+```
+
+When this flag is `false`, `indexing_mode=GRAPH` does not save rows in `rag_chunk_embeddings`. Set it to `true` only when you want graph-only uploads to also create chunk embeddings for vector search. `BOTH` always creates embeddings.
+
 ## Embeddings
 
 Default local model configuration keeps embeddings and NLQ text processing separate:
@@ -138,13 +149,17 @@ EMBEDDING_RETRY_SHRINK_BATCH=true
 EMBEDDING_MIN_BATCH_SIZE=1
 
 LLM_PROVIDER=ollama
-LLM_MODEL=mistral:latest
+LLM_MODEL=mistral:7b-instruct-v0.3-q2_K
+LLM_BASE_URL=http://localhost:11434
+LLM_GENERATE_PATH=/api/generate
+LLM_TIMEOUT_SECONDS=120
+GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS=false
 
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_EMBEDDING_TIMEOUT_SECONDS=60
 ```
 
-Use `nomic-embed-text` for vector creation. Use `mistral:latest` for NLQ/text processing.
+Use `nomic-embed-text` for vector creation. Use `mistral:7b-instruct-v0.3-q2_K` for Graph RAG extraction and summary generation.
 
 `EMBEDDING_CONCURRENCY` defaults to `1`. Increase to `2` only when testing whether local Ollama can process embedding batches in parallel without slowing down.
 
@@ -170,7 +185,7 @@ EMBEDDING_DIMENSION=1536
 OPENAI_API_KEY=<from environment>
 ```
 
-`EMBEDDING_MODEL` is validated against a registry at startup. Chat/generation models such as `mistral:latest` are valid for `LLM_MODEL`, but are rejected as `EMBEDDING_MODEL`.
+`EMBEDDING_MODEL` is validated against a registry at startup. Chat/generation models such as `mistral:7b-instruct-v0.3-q2_K` are valid for `LLM_MODEL`, but are rejected as `EMBEDDING_MODEL`.
 
 Fake OpenAI embeddings are disabled by default. Tests or local-only smoke runs can opt in with:
 

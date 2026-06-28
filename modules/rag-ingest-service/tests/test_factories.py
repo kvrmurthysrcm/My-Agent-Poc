@@ -7,10 +7,11 @@ from app.services.embedding_providers.ollama_provider import OllamaEmbeddingProv
 from app.services.embedding_providers.openai_provider import OpenAIEmbeddingProvider
 from app.services.embedding_model_registry import get_embedding_model_spec
 from app.services.embedding_service import EmbeddingService
-from app.main import should_run_startup_migrations
+from app.schemas.ingest_request import IndexingMode, IngestMetadata
 from app.services.pdf_parsers.factory import PdfParserFactory
 from app.services.pdf_parsers.pymupdf_parser import PyMuPdfParser
 from app.services.pdf_parsers.pypdf_parser import PyPdfParser
+from app.workers.rag_ingestion_worker import _should_create_chunk_embeddings
 
 
 def test_embedding_provider_factory_selects_openai():
@@ -122,24 +123,32 @@ def test_auto_create_tables_defaults_false():
     assert settings.auto_create_tables is False
 
 
-def test_startup_migrations_run_for_local_postgresql():
+def test_graph_rag_create_chunk_embeddings_defaults_false():
+    settings = Settings()
+    assert settings.graph_rag_create_chunk_embeddings is False
+
+
+def test_ingest_metadata_indexing_mode_defaults_standard():
+    metadata = IngestMetadata()
+    assert metadata.indexing_mode == IndexingMode.STANDARD
+
+
+def test_graph_mode_embedding_creation_is_flag_controlled():
+    assert _should_create_chunk_embeddings("GRAPH", graph_rag_create_chunk_embeddings=False) is False
+    assert _should_create_chunk_embeddings("GRAPH", graph_rag_create_chunk_embeddings=True) is True
+
+
+def test_standard_and_both_modes_always_create_embeddings():
+    assert _should_create_chunk_embeddings("STANDARD", graph_rag_create_chunk_embeddings=False) is True
+    assert _should_create_chunk_embeddings("BOTH", graph_rag_create_chunk_embeddings=False) is True
+
+
+def test_settings_accepts_postgresql_only_poc_config():
     settings = Settings(
-        APP_PROFILE="local",
         DATABASE_URL="postgresql://library_user:library_pass@localhost:5432/online_library",
-        AUTO_MIGRATE_ON_STARTUP=True,
     )
 
-    assert should_run_startup_migrations(settings) is True
-
-
-def test_startup_migrations_do_not_run_for_prod():
-    settings = Settings(
-        APP_PROFILE="prod",
-        DATABASE_URL="postgresql://library_user:library_pass@localhost:5432/online_library",
-        AUTO_MIGRATE_ON_STARTUP=True,
-    )
-
-    assert should_run_startup_migrations(settings) is False
+    assert settings.sqlalchemy_database_url.startswith("postgresql+psycopg://")
 
 
 def test_pdf_parser_factory_selects_pymupdf():

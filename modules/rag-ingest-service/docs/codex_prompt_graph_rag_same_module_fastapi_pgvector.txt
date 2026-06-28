@@ -1,0 +1,431 @@
+You are a very senior Python backend developer, FastAPI expert, and RAG / Graph RAG architect.
+
+I have an existing Python FastAPI-based RAG POC implementation. The current implementation already supports standard RAG ingestion, file upload, HTML UI, chunking, embeddings, PostgreSQL/pgvector storage, and hybrid search.
+
+I want to extend the SAME EXISTING MODULE to support Graph RAG.
+
+Important context:
+- This is a POC.
+- The UI is simple FastAPI HTML/templates/static UI already present in the ZIP/source.
+- I am NOT using React, Angular, Vue, or any separate frontend.
+- Use the existing FastAPI HTML UI and update it.
+- I am using PostgreSQL with pgvector only.
+- This POC must not use Alembic at all.
+- If Alembic files, startup migration code, migration docs, or Alembic dependencies exist, remove them.
+- There is no existing data that needs migration.
+- Schema changes must be represented as PostgreSQL/pgvector SQL scripts and SQLAlchemy models only.
+- I have removed SQLite usage from the project.
+- If any old SQLite references, fallback code, test fixtures, config flags, sample comments, or dead code still exist, clean them up.
+- Do not introduce SQLite again.
+- Do not add or rely on SQLite migration logic.
+- Migration framework usage is not wanted in this POC. If the project has old Alembic/migration startup wiring, clean it up.
+- If DB tables need to be created and no migration framework exists, provide SQL DDL scripts or a clearly documented manual schema file for PostgreSQL/pgvector.
+- Do not focus on enterprise security, Kafka, full observability, secrets management, or deployment hardening.
+- Focus on clean code, correct behavior, extensibility, and production-oriented structure.
+- Reuse the existing ingestion flow as much as possible.
+- Do not create a completely separate duplicate ingest service.
+- Do not break existing standard RAG functionality.
+- Do not remove current hybrid search.
+- Mistral is used for LLM-style extraction/generation only if needed.
+- Do not use Mistral as an embedding model.
+- Use the existing embedding provider for embeddings only.
+
+Goal:
+Add Graph RAG support into the same FastAPI module/codebase while preserving current standard RAG behavior.
+
+UI requirement:
+Update the existing FastAPI HTML UI to allow the user to choose indexing mode during upload/ingest.
+
+Add a dropdown or radio button in the existing HTML upload form:
+
+1. Standard RAG
+2. Graph RAG
+3. Both Standard RAG and Graph RAG
+
+Use the existing UI style/templates. Do not create a React/Angular UI.
+
+Backend indexing mode requirement:
+Add an indexing mode field to the ingest metadata/request model.
+
+Allowed values:
+- STANDARD
+- GRAPH
+- BOTH
+
+Default value:
+- STANDARD
+
+This default is required so existing API calls and UI behavior continue to work when indexing_mode is not provided.
+
+Expected behavior:
+- STANDARD: run the existing standard RAG ingest/indexing flow only
+- GRAPH: run shared ingestion steps and Graph RAG indexing. By default, skip embeddings/vector indexing when GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS=false.
+- BOTH: run both standard RAG indexing and Graph RAG indexing
+
+Graph RAG chunk embedding flag:
+- Add GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS as a boolean config flag.
+- Default value: false.
+- When indexing_mode=GRAPH and GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS=false, do not save rows in rag_chunk_embeddings.
+- When indexing_mode=GRAPH and GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS=true, create chunk embeddings using the existing embedding provider in addition to Graph RAG indexing.
+- BOTH mode always creates standard chunk embeddings regardless of this flag.
+
+High-level architecture:
+Use this structure conceptually:
+
+Shared Ingest Pipeline
+  - file upload
+  - resource registration
+  - metadata capture
+  - text extraction
+  - chunking
+  - job tracking
+
+Then branch into:
+  - Standard RAG indexing
+  - Graph RAG indexing
+  - or both, based on indexing_mode
+
+Do not duplicate file upload, resource registration, text extraction, or chunking.
+
+Preferred internal structure:
+Add a clean Graph RAG package/module under the existing app folder.
+
+Suggested structure:
+
+app/
+  graph_rag/
+    __init__.py
+    models.py
+    schemas.py
+    services/
+      graph_indexing_service.py
+      entity_extraction_service.py
+      relationship_extraction_service.py
+      graph_summary_service.py
+    repositories/
+      graph_repository.py
+    prompts/
+      entity_extraction_prompt.txt
+      relationship_extraction_prompt.txt
+      graph_summary_prompt.txt
+
+Use this structure only if it fits the current project style. If the existing project has a different convention, follow the existing convention.
+
+Required database design:
+Use the same PostgreSQL database as the current RAG POC.
+Use separate Graph RAG tables.
+Connect graph records to existing resource/document/chunk IDs.
+
+Do not mix graph data into existing chunk/embedding tables except through foreign keys or shared IDs.
+
+Create SQLAlchemy models for the Graph RAG tables.
+
+Do not use Alembic/migrations. Create PostgreSQL schema SQL files such as:
+
+db/sql/graph_rag_schema.sql
+
+or follow the existing DB schema folder style.
+
+Suggested graph tables:
+
+1. rag_graph_entities
+
+Fields:
+- id or entity_id
+- resource_id
+- chunk_id nullable
+- name
+- normalized_name
+- entity_type
+- description
+- confidence_score
+- metadata_json
+- created_at
+- updated_at if the project uses updated_at
+
+2. rag_graph_relationships
+
+Fields:
+- id or relationship_id
+- resource_id
+- source_entity_id
+- target_entity_id
+- relationship_type
+- description
+- weight or confidence_score
+- chunk_id nullable
+- metadata_json
+- created_at
+- updated_at if the project uses updated_at
+
+3. rag_graph_communities
+
+Fields:
+- id or community_id
+- resource_id
+- name
+- summary
+- metadata_json
+- created_at
+- updated_at if the project uses updated_at
+
+4. rag_graph_entity_communities
+
+Fields:
+- id
+- entity_id
+- community_id
+- created_at
+
+5. rag_graph_summaries
+
+Fields:
+- id
+- resource_id
+- summary_type
+- summary_text
+- metadata_json
+- created_at
+- updated_at if the project uses updated_at
+
+Use UUIDs if the existing project uses UUIDs.
+Use the existing timestamp style.
+Use PostgreSQL-compatible JSON/JSONB if the project already uses JSONB.
+Add useful PostgreSQL indexes, for example:
+- resource_id indexes
+- normalized_name index
+- entity_type index
+- source_entity_id / target_entity_id indexes
+- chunk_id indexes
+
+Graph RAG indexing pipeline:
+After shared ingestion steps and chunking, Graph RAG indexing should:
+
+1. Read chunks for the current resource/job.
+2. Send each chunk to local Ollama/Mistral for entity extraction.
+3. Send each chunk plus that chunk's extracted entities to local Ollama/Mistral for relationship extraction.
+4. Normalize entity names.
+5. Deduplicate and consolidate entities across the resource.
+6. Run resource-level consolidation over compact extracted graph facts, not the full file or all chunk text.
+7. Merge/strengthen repeated relationships across chunks.
+8. Store canonical entities and relationships while preserving chunk traceability.
+9. Create resource-level graph summaries.
+10. Create simple communities/clusters if reasonable for the POC.
+
+Do not send the full source file or all chunk text in one request to local Mistral.
+The existing application chunking service creates chunks.
+Mistral does not create chunks; it extracts structured graph facts from existing chunks.
+
+Keep Graph RAG simple and modular.
+Do not over-engineer graph algorithms.
+Do not add heavy external graph databases.
+Do not add Neo4j for this POC.
+Use PostgreSQL tables only.
+
+Entity extraction and relationship extraction:
+If the existing code already has an LLM/Ollama/Mistral generation client, use it cleanly through an interface.
+
+If the current code only has an embedding client and does not yet have a generation client:
+- Create a clean local Ollama/Mistral generation client.
+- Use POST http://localhost:11434/api/generate by default.
+- Use model mistral:7b-instruct-v0.3-q2_K by default.
+- Send stream=false.
+- Prompt for strict JSON and defensively clean markdown/code-fence output if returned.
+
+Important:
+- Mistral may be used for entity extraction, relationship extraction, and summaries.
+- Mistral must not be used for embeddings.
+- Embedding provider must remain separate.
+
+Repository layer:
+Add GraphRepository with methods such as:
+- upsert_entity(...)
+- create_relationship(...)
+- get_entities_by_resource_id(...)
+- get_relationships_by_resource_id(...)
+- get_graph_summaries_by_resource_id(...)
+- delete_graph_index_by_resource_id(...)
+- search_entities(...)
+- search_relationships(...)
+
+Follow the existing DB/session/repository style.
+
+Service layer:
+Add GraphIndexingService to coordinate:
+- reading chunks for a resource/job
+- entity extraction
+- relationship extraction
+- persistence
+- summary generation
+- progress/error handling
+
+Do not put graph indexing business logic directly in the API/router.
+
+Job/status/progress tracking:
+Update the existing job flow so graph indexing progress can be tracked.
+
+If the current status enum is easy to extend, add stages such as:
+- TEXT_EXTRACTED
+- CHUNKS_CREATED
+- STANDARD_INDEXED
+- GRAPH_ENTITY_EXTRACTION_STARTED
+- GRAPH_ENTITY_EXTRACTION_COMPLETED
+- GRAPH_RELATIONSHIP_EXTRACTION_COMPLETED
+- GRAPH_SUMMARY_COMPLETED
+- COMPLETED
+- FAILED
+
+If changing the enum is risky, store Graph RAG progress in metadata_json/job details instead.
+
+API requirements:
+
+1. Existing upload/ingest API
+
+Update the existing upload/ingest API to accept indexing_mode.
+
+Do not create a separate duplicate upload endpoint unless absolutely necessary.
+
+2. Graph RAG search endpoint
+
+Add a new endpoint:
+
+POST /rag/graph/search
+
+Input:
+- query
+- resource_ids optional
+- top_k optional
+- include_entities true/false
+- include_relationships true/false
+- include_summaries true/false
+
+Output:
+- matched_entities
+- matched_relationships
+- graph_summaries
+- related_chunks if available
+- resource metadata if available
+
+For this POC, implement simple graph search:
+- search entities by normalized_name/name
+- search relationship descriptions
+- optionally join back to chunks/resources
+- return structured results
+
+3. Combined search endpoint
+
+If the current search code is available in the same module, add or prepare this endpoint:
+
+POST /rag/search/combined
+
+Expected behavior:
+- call existing hybrid search
+- call Graph RAG search
+- return both result types separately
+
+Response can be simple:
+
+{
+  "standard_results": [...],
+  "graph_results": [...]
+}
+
+Do not implement complex reranking unless the existing project already has ranking infrastructure.
+
+HTML UI requirements:
+Update the existing FastAPI HTML page to support:
+- indexing mode selection during upload
+- display selected indexing mode in job/status/details page if such a page exists
+- optionally show Graph RAG results in search results page if the existing UI has search
+- keep the UI simple and consistent with existing templates
+- do not introduce any frontend framework
+
+PostgreSQL-only cleanup requirement:
+Inspect the project and remove or clean up:
+- SQLite connection strings
+- SQLite engine creation
+- SQLite-specific config
+- SQLite-specific comments or README instructions
+- SQLite test setup if no longer needed
+- conditional SQLite/PostgreSQL branches that are now dead code
+- Alembic config files
+- Alembic migration folders
+- Alembic startup code
+- Alembic dependencies
+- Alembic README/docs instructions
+- any old AUTO_CREATE_TABLES/AUTO_MIGRATE flags that are no longer meaningful, or simplify them for PostgreSQL-only POC
+
+If table auto-creation is currently used for the POC, keep it PostgreSQL-compatible only.
+If auto-create is not used, provide manual SQL DDL scripts.
+
+Backward compatibility:
+Existing behavior must remain unchanged when indexing_mode is missing or STANDARD.
+
+Existing standard RAG ingest and hybrid search should continue to work.
+
+Testing requirements:
+Add or update tests if the project already has tests.
+
+Test cases:
+1. Missing indexing_mode defaults to STANDARD.
+2. STANDARD mode does not run Graph RAG indexing.
+3. GRAPH mode runs Graph RAG indexing.
+4. GRAPH mode does not save chunk embeddings when GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS=false.
+5. GRAPH mode saves chunk embeddings when GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS=true.
+6. BOTH mode runs standard indexing and Graph RAG indexing.
+7. Graph entities are stored correctly.
+8. Graph relationships are stored correctly.
+9. Graph search returns expected entities.
+10. Existing standard RAG tests continue to pass.
+11. PostgreSQL-only config is used.
+12. No SQLite code path remains active.
+
+If tests are not currently present, add minimal pytest tests where practical or provide manual test steps in a markdown file.
+
+Documentation requirements:
+Update README or create a short document explaining:
+- indexing modes
+- GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS behavior
+- how to use the HTML UI
+- how to call the upload API with indexing_mode
+- Graph RAG tables added
+- PostgreSQL/pgvector-only assumption
+- how Graph RAG shares the existing ingest flow
+- how to manually create Graph RAG tables if no migration framework exists
+- POC limitations
+
+Implementation rules:
+- First inspect the existing codebase.
+- Follow existing naming conventions.
+- Do not rewrite unrelated code.
+- Do not introduce React, Angular, or a separate frontend.
+- Do not introduce SQLite.
+- Do not introduce Neo4j.
+- Do not create a separate duplicate ingest service.
+- Do not break existing APIs.
+- Do not remove current hybrid search.
+- Do not hard-code business-specific entity types unless unavoidable.
+- Keep Graph RAG logic modular and replaceable.
+- Prefer clean interfaces so extraction can later be improved.
+- Make changes incrementally.
+- After implementing, provide a summary of changed files.
+- Also provide manual PostgreSQL SQL migration/schema scripts if Alembic migration was not created.
+
+Expected final response from you:
+1. Summary of design changes
+2. List of files changed/created
+3. New/updated API endpoints
+4. New database tables/models
+5. UI changes made
+6. PostgreSQL/pgvector cleanup performed
+7. SQLite/migration cleanup performed
+8. How to test Standard RAG mode
+9. How to test Graph RAG mode
+10. How to test Both mode
+11. Manual DB SQL scripts if needed
+12. Assumptions made
+13. Follow-up work recommended
+
+Before coding:
+If you find missing critical details that block implementation, ask me only the minimum required questions.
+If implementation can proceed with reasonable assumptions, proceed and clearly list those assumptions.

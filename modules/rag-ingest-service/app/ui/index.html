@@ -383,6 +383,14 @@
             </select>
           </div>
           <div class="field">
+            <label for="indexingMode">Indexing Mode</label>
+            <select id="indexingMode" name="indexingMode">
+              <option value="STANDARD" selected>Standard RAG</option>
+              <option value="GRAPH">Graph RAG</option>
+              <option value="BOTH">Both Standard and Graph RAG</option>
+            </select>
+          </div>
+          <div class="field">
             <label for="chunkSize">Chunk Size</label>
             <input id="chunkSize" name="chunkSize" type="number" min="100" value="1200">
           </div>
@@ -417,12 +425,16 @@
           <dd id="jobId">-</dd>
           <dt>Status</dt>
           <dd id="jobStatus">-</dd>
+          <dt>Indexing Mode</dt>
+          <dd id="indexingModeStatus">-</dd>
           <dt>Parser</dt>
           <dd id="parserName">-</dd>
           <dt>Chunks</dt>
           <dd id="chunks">-</dd>
           <dt>Embeddings</dt>
           <dd id="embeddings">-</dd>
+          <dt>Graph</dt>
+          <dd id="graphCounts">-</dd>
         </dl>
         <div class="field">
           <label for="metadataPreview">Metadata JSON</label>
@@ -459,9 +471,11 @@
     const resourceId = document.getElementById("resourceId");
     const jobId = document.getElementById("jobId");
     const jobStatus = document.getElementById("jobStatus");
+    const indexingModeStatus = document.getElementById("indexingModeStatus");
     const parserName = document.getElementById("parserName");
     const chunks = document.getElementById("chunks");
     const embeddings = document.getElementById("embeddings");
+    const graphCounts = document.getElementById("graphCounts");
     const profilingRows = document.getElementById("profilingRows");
 
     let activeJobId = "";
@@ -493,6 +507,7 @@
         language: optionalValue("language"),
         tags: tags ? tags.split(",").map((tag) => tag.trim()).filter(Boolean) : [],
         custom_metadata: readCustomMetadata(),
+        indexing_mode: document.getElementById("indexingMode").value,
         chunking: {
           strategy: document.getElementById("chunkStrategy").value,
           chunk_size_tokens: Number(document.getElementById("chunkSize").value || 1200),
@@ -545,9 +560,11 @@
       }
 
       jobStatus.textContent = data.status || "-";
+      indexingModeStatus.textContent = data.indexing_mode || "-";
       parserName.textContent = data.parser_name || "-";
       chunks.textContent = `${data.processed_chunks || 0}/${data.total_chunks || 0}`;
       embeddings.textContent = `${data.embedded_chunks || 0}/${data.total_chunks || 0}`;
+      graphCounts.textContent = `${data.graph_entities_count || 0} entities / ${data.graph_relationships_count || 0} relationships`;
       renderProfiling(data.profiling || []);
 
       if (data.status === "COMPLETED") {
@@ -624,9 +641,11 @@
         resourceId.textContent = data.resource_id;
         jobId.textContent = data.job_id;
         jobStatus.textContent = data.status;
+        indexingModeStatus.textContent = metadata.indexing_mode || "STANDARD";
         parserName.textContent = "-";
         chunks.textContent = "-";
         embeddings.textContent = "-";
+        graphCounts.textContent = "-";
         pollButton.disabled = false;
         setMessage(data.message || "Document accepted.", "ready");
 

@@ -18,7 +18,6 @@ class Settings(BaseSettings):
     )
     app_profile: str = Field("local", alias="APP_PROFILE")
     auto_create_tables: bool = Field(False, alias="AUTO_CREATE_TABLES")
-    auto_migrate_on_startup: bool = Field(True, alias="AUTO_MIGRATE_ON_STARTUP")
 
     embedding_provider: EmbeddingProviderName = Field(EmbeddingProviderName.OLLAMA, alias="EMBEDDING_PROVIDER")
     embedding_model: str = Field("nomic-embed-text", alias="EMBEDDING_MODEL")

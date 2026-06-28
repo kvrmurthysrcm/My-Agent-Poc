@@ -8,6 +8,7 @@ from uuid import uuid4
 from app.core.config import get_settings
 from app.db.models import RagDocumentChunk, Resource
 from app.db.session import SessionLocal
+from app.graph_rag.services.graph_indexing_service import GraphIndexingService
 from app.repositories.rag_chunk_repository import RagChunkRepository
 from app.repositories.rag_embedding_repository import RagEmbeddingRepository
 from app.repositories.rag_error_repository import RagErrorRepository
@@ -180,50 +181,68 @@ def process_job(job_id: str) -> None:
                     )
                     job.total_chunks = len(chunk_rows)
                     job.processed_chunks = len(chunk_rows)
-                    jobs.update_progress(job, f"Created {len(chunk_rows)} chunks; generating embeddings")
+                    jobs.update_progress(job, _next_indexing_message(job.indexing_mode, len(chunk_rows)))
                     db.commit()
             if not chunk_rows:
-                raise ValueError("No chunks available for embedding")
+                raise ValueError("No chunks available for indexing")
             if job.total_chunks != len(chunk_rows) or job.processed_chunks != len(chunk_rows):
                 job.total_chunks = len(chunk_rows)
                 job.processed_chunks = len(chunk_rows)
-                jobs.update_progress(job, f"Created {len(chunk_rows)} chunks; generating embeddings")
+                jobs.update_progress(job, _next_indexing_message(job.indexing_mode, len(chunk_rows)))
                 db.commit()
             logger.info("RAG job %s resource %s: created chunks=%s", job.job_id, resource.resource_id, len(chunk_rows))
 
-            with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "embedding_provider_factory"):
-                provider = EmbeddingProviderFactory.build(settings)
-            with profile_step(
-                settings.profiling,
-                logger,
-                job.job_id,
-                resource.resource_id,
-                "embedding_generation",
-                embedding_provider=provider.provider_name,
-                embedding_model=provider.model,
-                embedding_batch_size=settings.embedding_batch_size,
-                embedding_concurrency=settings.embedding_concurrency,
-                chunk_count=len(chunk_rows),
-                embedding_input_context_enabled=True,
-            ):
-                embedded_count = _embed_missing_chunks(
-                    db=db,
-                    settings=settings,
-                    jobs=jobs,
-                    embeddings_repo=embeddings_repo,
-                    job=job,
-                    resource=resource,
-                    chunk_rows=chunk_rows,
-                    provider=provider,
+            should_create_embeddings = _should_create_chunk_embeddings(job.indexing_mode, settings.graph_rag_create_chunk_embeddings)
+            if should_create_embeddings:
+                with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "embedding_provider_factory"):
+                    provider = EmbeddingProviderFactory.build(settings)
+                with profile_step(
+                    settings.profiling,
+                    logger,
+                    job.job_id,
+                    resource.resource_id,
+                    "embedding_generation",
+                    embedding_provider=provider.provider_name,
+                    embedding_model=provider.model,
+                    embedding_batch_size=settings.embedding_batch_size,
+                    embedding_concurrency=settings.embedding_concurrency,
+                    chunk_count=len(chunk_rows),
+                    embedding_input_context_enabled=True,
+                ):
+                    embedded_count = _embed_missing_chunks(
+                        db=db,
+                        settings=settings,
+                        jobs=jobs,
+                        embeddings_repo=embeddings_repo,
+                        job=job,
+                        resource=resource,
+                        chunk_rows=chunk_rows,
+                        provider=provider,
+                    )
+                logger.info(
+                    "RAG job %s resource %s: generated embeddings=%s provider=%s model=%s",
+                    job.job_id,
+                    resource.resource_id,
+                    embedded_count,
+                    provider.provider_name,
+                    provider.model,
                 )
-            logger.info(
-                "RAG job %s resource %s: generated embeddings=%s provider=%s model=%s",
-                job.job_id,
-                resource.resource_id,
-                embedded_count,
-                provider.provider_name,
-                provider.model,
-            )
+            else:
+                job.embedded_chunks = 0
+                jobs.update_progress(job, "Graph-only mode selected; chunk embeddings disabled")
+                db.commit()
+
+            if job.indexing_mode in {"GRAPH", "BOTH"}:
+                with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "graph_indexing", chunk_count=len(chunk_rows)):
+                    graph_result = GraphIndexingService(db, settings).index_resource(job, resource, chunk_rows, jobs)
+                    db.commit()
+                logger.info(
+                    "RAG job %s resource %s: graph entities=%s relationships=%s",
+                    job.job_id,
+                    resource.resource_id,
+                    graph_result.entity_count,
+                    graph_result.relationship_count,
+                )
             if settings.delete_original_file_after_ingestion:
                 with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "file_cleanup"):
                     try:
@@ -375,6 +394,20 @@ def _embed_missing_chunks(
     jobs.update_progress(job, "Finalizing ingestion")
     db.commit()
     return final_existing_count
+
+
+def _next_indexing_message(indexing_mode: str, chunk_count: int) -> str:
+    if indexing_mode == "GRAPH":
+        return f"Created {chunk_count} chunks; extracting graph"
+    if indexing_mode == "BOTH":
+        return f"Created {chunk_count} chunks; generating embeddings and extracting graph"
+    return f"Created {chunk_count} chunks; generating embeddings"
+
+
+def _should_create_chunk_embeddings(indexing_mode: str, graph_rag_create_chunk_embeddings: bool) -> bool:
+    if indexing_mode in {"STANDARD", "BOTH"}:
+        return True
+    return indexing_mode == "GRAPH" and graph_rag_create_chunk_embeddings
 
 
 def process_queued_jobs(limit: int | None = None) -> int:

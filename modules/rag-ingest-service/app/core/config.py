@@ -57,7 +57,11 @@ class Settings(BaseSettings):
     ollama_base_url: str = Field("http://127.0.0.1:11434", alias="OLLAMA_BASE_URL")
     ollama_embedding_timeout_seconds: float = Field(60.0, alias="OLLAMA_EMBEDDING_TIMEOUT_SECONDS")
     llm_provider: str = Field("ollama", alias="LLM_PROVIDER")
-    llm_model: str = Field("mistral:latest", alias="LLM_MODEL")
+    llm_model: str = Field("mistral:7b-instruct-v0.3-q2_K", alias="LLM_MODEL")
+    llm_base_url: str = Field("http://localhost:11434", alias="LLM_BASE_URL")
+    llm_generate_path: str = Field("/api/generate", alias="LLM_GENERATE_PATH")
+    llm_timeout_seconds: float = Field(120.0, alias="LLM_TIMEOUT_SECONDS")
+    graph_rag_create_chunk_embeddings: bool = Field(False, alias="GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS")
 
     async_backend: AsyncBackend = Field(AsyncBackend.FASTAPI_BACKGROUND_TASKS, alias="ASYNC_BACKEND")
     rq_redis_url: str = Field("redis://localhost:6379/0", alias="RQ_REDIS_URL")
@@ -68,7 +72,6 @@ class Settings(BaseSettings):
     recovery_worker_poll_interval_seconds: int = Field(30, alias="RECOVERY_WORKER_POLL_INTERVAL_SECONDS")
     recovery_stale_after_seconds: int = Field(900, alias="RECOVERY_STALE_AFTER_SECONDS")
     auto_create_tables: bool = Field(False, alias="AUTO_CREATE_TABLES")
-    auto_migrate_on_startup: bool = Field(True, alias="AUTO_MIGRATE_ON_STARTUP")
 
     @field_validator("supported_extensions", mode="before")
     @classmethod

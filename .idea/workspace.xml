@@ -5,22 +5,53 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="Added response faithfulness, citation control features added, added teh KB md file to explain the feature.">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/TODO/RAG_TIGHTENING_PLAN.md" beforeDir="false" afterPath="$PROJECT_DIR$/TODO/RAG_TIGHTENING_PLAN.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/.env.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/core/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/core/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/schemas/answer_response.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/schemas/answer_response.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/services/answer_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/services/answer_service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/services/search_client.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/services/search_client.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/ui/answer.html" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/ui/answer.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/tests/test_rag_answer.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/tests/test_rag_answer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/.env" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/.env" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/alembic.ini" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/alembic/env.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/alembic/versions/20260624_0001_rag_ingestion_schema.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/alembic/versions/20260625_0002_ingest_observability.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/alembic/versions/20260625_0003_pgvector_worker_hardening.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/api/rag_ingest_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/api/rag_ingest_routes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/core/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/core/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/db/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/db/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/rag_job_repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/rag_job_repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/schemas/ingest_request.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/schemas/ingest_request.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/schemas/job_response.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/schemas/job_response.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/ingest_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/ingest_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/ui/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/ui/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/workers/rag_ingestion_worker.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/workers/rag_ingestion_worker.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/docs/RAG_Ingestion_service_codex_prompt.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/pyproject.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/sql/schema.sql" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/sql/schema.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/storage/resources/28faef0d-b88f-4a5b-916b-9d6aef48a4d6/zero-chunks.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/storage/resources/2e908410-b9c4-4442-9b73-f1d3176a00ee/zero-chunks.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/storage/resources/756fa4ca-c79e-4460-9add-97c8a384cfa8/zero-chunks.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/storage/resources/81578ece-b45e-4900-b3e6-c18c66c91678/zero-chunks.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/storage/resources/e625413a-5bec-439b-ba2c-b8536368f956/zero-chunks.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/tests/conftest.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/tests/conftest.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_factories.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_factories.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/uv.lock" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/uv.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/alembic.ini" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/alembic/env.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/alembic/versions/20260625_0001_rag_search_indexes.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/api/rag_search_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/api/rag_search_routes.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/core/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/core/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/schemas/search_response.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/schemas/search_response.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/services/search_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/services/search_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/db/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/db/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/ui/search.html" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/ui/search.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/docs/RAG_SEARCH_MODULE.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/docs/RAG_SEARCH_MODULE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/docs/codex_rag_search_module_prompt.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/pyproject.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/tests/conftest.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/tests/conftest.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/weather_ai_agent/.env" beforeDir="false" afterPath="$PROJECT_DIR$/modules/weather_ai_agent/.env" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -28,7 +59,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="10512" />
+    <option name="cachedIndexableFilesCount" value="10532" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
