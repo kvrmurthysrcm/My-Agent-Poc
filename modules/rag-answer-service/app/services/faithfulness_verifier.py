@@ -30,6 +30,27 @@ STOPWORDS = {
     "were",
     "with",
 }
+QUERY_ANCHOR_STOPWORDS = {
+    "How",
+    "Tell",
+    "What",
+    "When",
+    "Where",
+    "Which",
+    "Who",
+    "Why",
+}
+UNSUPPORTED_INFERENCE_PHRASES = (
+    "can be inferred",
+    "could be inferred",
+    "it can be inferred",
+    "might have",
+    "may have",
+    "probably",
+    "likely",
+    "not directly mentioned",
+    "not explicitly mentioned",
+)
 
 
 @dataclass(frozen=True)
@@ -55,12 +76,16 @@ class FaithfulnessResult:
 
 
 class FaithfulnessVerifier:
-    def verify(self, answer: str, selected_sources: list[dict[str, Any]]) -> FaithfulnessResult:
+    def verify(self, answer: str, selected_sources: list[dict[str, Any]], query: str = "") -> FaithfulnessResult:
         normalized_answer = answer.strip()
         if not normalized_answer:
             return FaithfulnessResult(supported=False, missing_citations=True, reason="empty_answer")
         if normalized_answer.lower().startswith("insufficient_context"):
             return FaithfulnessResult(supported=True, reason="model_reported_insufficient_context")
+
+        inference_reason = self._unsupported_inference_reason(normalized_answer)
+        if inference_reason:
+            return FaithfulnessResult(supported=False, missing_citations=False, reason=inference_reason)
 
         citations = self._extract_citations(normalized_answer)
         if not citations:
@@ -71,6 +96,7 @@ class FaithfulnessVerifier:
         unknown_ranks = [rank for rank in cited_ranks if rank not in source_by_rank]
         chunk_mismatches = self._chunk_mismatches(citations, source_by_rank)
         overlap = self._evidence_overlap(normalized_answer, selected_sources)
+        missing_query_anchors = self._missing_query_anchors(query, selected_sources)
 
         if unknown_ranks:
             return FaithfulnessResult(
@@ -88,6 +114,13 @@ class FaithfulnessVerifier:
                 chunk_mismatches=chunk_mismatches,
                 evidence_overlap=overlap,
                 reason="answer_cites_wrong_chunk_for_source_rank",
+            )
+        if missing_query_anchors:
+            return FaithfulnessResult(
+                supported=False,
+                cited_source_ranks=cited_ranks,
+                evidence_overlap=overlap,
+                reason="query_named_anchors_not_found_in_selected_context",
             )
         if overlap < 0.20:
             return FaithfulnessResult(
@@ -143,3 +176,30 @@ class FaithfulnessVerifier:
             for token in TOKEN_RE.findall(text)
             if token.lower().strip("'") not in STOPWORDS
         }
+
+    def _unsupported_inference_reason(self, answer: str) -> str:
+        normalized = answer.lower()
+        if any(phrase in normalized for phrase in UNSUPPORTED_INFERENCE_PHRASES):
+            return "answer_uses_unsupported_inference_language"
+        return ""
+
+    def _missing_query_anchors(self, query: str, selected_sources: list[dict[str, Any]]) -> list[str]:
+        anchors = self._query_anchors(query)
+        if not anchors:
+            return []
+        context_text = " ".join(str(item.get("chunk_text") or item.get("snippet") or "") for item in selected_sources)
+        context_terms = self._terms(context_text)
+        missing = [anchor for anchor in anchors if anchor.lower()[:10] not in context_terms]
+        return missing
+
+    def _query_anchors(self, query: str) -> list[str]:
+        anchors = []
+        seen = set()
+        for token in re.findall(r"\b[A-Z][A-Za-z']{2,}\b", query):
+            if token in QUERY_ANCHOR_STOPWORDS:
+                continue
+            normalized = token.lower().strip("'")
+            if normalized not in seen:
+                seen.add(normalized)
+                anchors.append(token)
+        return anchors

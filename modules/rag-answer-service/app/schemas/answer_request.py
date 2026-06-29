@@ -24,6 +24,7 @@ class AnswerRequest(BaseModel):
     answer_mode: AnswerMode = "concise"
     include_raw_prompt: bool = False
     system_instruction: str | None = Field(None, max_length=2000)
+    compare_models: list[str] = Field(default_factory=list, max_length=8)
 
     @field_validator("query")
     @classmethod
@@ -32,3 +33,15 @@ class AnswerRequest(BaseModel):
         if not normalized:
             raise ValueError("query must not be blank")
         return normalized
+
+    @field_validator("compare_models")
+    @classmethod
+    def normalize_compare_models(cls, value: list[str]) -> list[str]:
+        models = []
+        seen = set()
+        for item in value:
+            model = item.strip()
+            if model and model not in seen:
+                seen.add(model)
+                models.append(model)
+        return models

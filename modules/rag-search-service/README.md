@@ -20,6 +20,13 @@ Copy-Item .env.example .env
 uvicorn app.main:app --reload --port 8001
 ```
 
+Find the process ID listening on the search port when you need to stop or inspect it:
+
+```powershell
+Get-NetTCPConnection -LocalPort 8001 -State Listen -ErrorAction SilentlyContinue | Select-Object `
+  -ExpandProperty OwningProcess -Unique
+```
+
 The service reads the same RAG ingestion tables. Use the same `DATABASE_URL`, `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSION`, and `EMBEDDING_VERSION` values as the ingest service so vector queries match stored embeddings.
 
 PostgreSQL is the intended runtime database for this service:

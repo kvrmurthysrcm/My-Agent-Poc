@@ -19,7 +19,7 @@ class AnswerSource(BaseModel):
 class AnswerResponse(BaseModel):
     query: str
     answer: str
-    answer_status: Literal["answered", "insufficient_context"] = "answered"
+    answer_status: Literal["answered", "insufficient_context", "failed"] = "answered"
     answer_mode: str = "concise"
     llm_provider: str
     llm_model: str
@@ -31,4 +31,16 @@ class AnswerResponse(BaseModel):
     sources: list[AnswerSource] = Field(default_factory=list)
     raw_search: dict[str, Any] | None = None
     raw_prompt: str | None = None
+    observability: dict[str, Any] | None = None
+
+
+class AnswerComparisonResponse(BaseModel):
+    query: str
+    search_mode: str
+    search_total_results: int
+    context_source_count: int
+    models: list[str] = Field(default_factory=list)
+    results: list[AnswerResponse] = Field(default_factory=list)
+    sources: list[AnswerSource] = Field(default_factory=list)
+    raw_search: dict[str, Any] | None = None
     observability: dict[str, Any] | None = None

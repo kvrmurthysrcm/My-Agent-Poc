@@ -1,5 +1,6 @@
 from app.core.config import Settings
 from app.services.llm_providers.base import LlmProvider
+from app.services.llm_providers.gemini_provider import GeminiLlmProvider
 from app.services.llm_providers.ollama_provider import OllamaLlmProvider
 from app.services.llm_providers.openai_provider import OpenAiLlmProvider
 
@@ -20,6 +21,16 @@ class LlmProviderFactory:
             return OpenAiLlmProvider(
                 api_key=settings.openai_api_key,
                 model=settings.openai_model,
+                temperature=settings.llm_temperature,
+                timeout_seconds=settings.llm_timeout_seconds,
+            )
+        if settings.llm_provider == "gemini":
+            if not settings.gemini_api_key:
+                raise ValueError("GEMINI_API_KEY is required when LLM_PROVIDER=gemini")
+            return GeminiLlmProvider(
+                api_key=settings.gemini_api_key,
+                base_url=settings.gemini_base_url,
+                model=settings.gemini_model,
                 temperature=settings.llm_temperature,
                 timeout_seconds=settings.llm_timeout_seconds,
             )

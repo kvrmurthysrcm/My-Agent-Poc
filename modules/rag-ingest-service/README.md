@@ -63,6 +63,13 @@ Copy-Item .env.example .env
 uvicorn app.main:app --reload
 ```
 
+Find the process ID listening on the ingest port when you need to stop or inspect it:
+
+```powershell
+Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | Select-Object `
+  -ExpandProperty OwningProcess -Unique
+```
+
 By default, this module uses the same local PostgreSQL settings as `online_library`:
 
 ```text

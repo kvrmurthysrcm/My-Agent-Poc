@@ -14,6 +14,9 @@
       --muted: #667085;
       --accent: #2563eb;
       --accent-strong: #1d4ed8;
+      --ok: #047857;
+      --warn: #b45309;
+      --bad: #b91c1c;
     }
     * { box-sizing: border-box; }
     body {
@@ -66,6 +69,9 @@
     }
     button:hover { background: var(--accent-strong); }
     button:disabled { opacity: .55; cursor: wait; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .secondary { background: #475467; }
+    .secondary:hover { background: #344054; }
     .panel {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -96,6 +102,49 @@
       color: #344054;
       line-height: 1.45;
     }
+    .compare-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .model-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      min-height: 220px;
+      overflow: hidden;
+    }
+    .model-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      background: #eaf3ff;
+      border-bottom: 1px solid #c7ddff;
+      font-weight: 700;
+    }
+    .model-body { padding: 12px; }
+    .model-status {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+    .model-card.loading .model-head { background: #dbeafe; }
+    .model-card.answered .model-head { background: #e7f8f0; border-bottom-color: #b7e4cc; }
+    .model-card.insufficient_context .model-head { background: #fff7e6; border-bottom-color: #f6d28b; }
+    .model-card.failed .model-head { background: #feecec; border-bottom-color: #f5b5b5; }
+    .badge {
+      font-size: 11px;
+      padding: 3px 6px;
+      border-radius: 999px;
+      color: #fff;
+      white-space: nowrap;
+    }
+    .badge.answered { background: var(--ok); }
+    .badge.insufficient_context { background: var(--warn); }
+    .badge.failed { background: var(--bad); }
     pre { white-space: pre-wrap; word-break: break-word; background: #111827; color: #f9fafb; border-radius: 8px; padding: 12px; }
     @media (max-width: 800px) {
       .toolbar { grid-template-columns: 1fr 1fr; }
@@ -128,11 +177,20 @@
         <input id="contextTopK" type="number" min="1" max="20" value="10">
       </div>
     </div>
-    <button id="ask">Generate Answer</button>
+    <div class="panel">
+      <label for="compareModels">Compare Models</label>
+      <input id="compareModels" value="mistral:latest,gemma4,llama3:8b,gemma:7b,gemini:gemini-2.5-flash">
+      <div class="meta">Comma-separated models. Plain names use the configured provider; use prefixes like gemini:gemini-2.5-flash for other providers.</div>
+    </div>
+    <div class="actions">
+      <button id="ask">Generate Answer</button>
+      <button id="compare" class="secondary">Compare Models</button>
+    </div>
 
     <section class="panel">
       <div id="answer" class="answer">No answer yet.</div>
       <div id="meta" class="meta"></div>
+      <div id="compareResults" class="compare-grid"></div>
     </section>
     <section class="panel">
       <strong>Sources</strong>
@@ -145,26 +203,96 @@
   </main>
   <script>
     const askButton = document.getElementById('ask');
+    const compareButton = document.getElementById('compare');
     const answerEl = document.getElementById('answer');
     const metaEl = document.getElementById('meta');
+    const compareResultsEl = document.getElementById('compareResults');
     const sourcesEl = document.getElementById('sources');
     const observabilityPanel = document.getElementById('observability-panel');
     const observabilityEl = document.getElementById('observability');
 
-    askButton.addEventListener('click', async () => {
-      askButton.disabled = true;
-      answerEl.textContent = 'Generating...';
-      metaEl.textContent = '';
-      sourcesEl.innerHTML = '';
-      observabilityPanel.style.display = 'none';
-      observabilityEl.textContent = '';
-      const payload = {
+    function buildPayload() {
+      return {
         query: document.getElementById('query').value,
         search_mode: document.getElementById('mode').value,
         top_k: Number(document.getElementById('topK').value || 10),
         context_top_k: Number(document.getElementById('contextTopK').value || 10),
         include_sources: true
       };
+    }
+
+    function resetOutput(message) {
+      answerEl.textContent = message;
+      metaEl.textContent = '';
+      compareResultsEl.innerHTML = '';
+      sourcesEl.innerHTML = '';
+      observabilityPanel.style.display = 'none';
+      observabilityEl.textContent = '';
+    }
+
+    function renderSources(sources) {
+      sourcesEl.innerHTML = '';
+      for (const source of sources || []) {
+        const div = document.createElement('div');
+        div.className = 'source';
+        const page = source.page_start ? ` | page ${source.page_start}${source.page_end && source.page_end !== source.page_start ? '-' + source.page_end : ''}` : '';
+        div.innerHTML = `<div class="source-title">${source.rank}. ${source.title} | chunk ${source.chunk_index}${page}</div><div class="snippet"></div>`;
+        div.querySelector('.snippet').textContent = source.snippet || '';
+        sourcesEl.appendChild(div);
+      }
+    }
+
+    function displayModelName(name) {
+      return name.startsWith('ollama:') ? name.slice('ollama:'.length) : name;
+    }
+
+    function ensureModelCard(modelName, status = 'waiting') {
+      const id = `model-${modelName}`;
+      let card = document.getElementById(id);
+      if (card) return card;
+      card = document.createElement('div');
+      card.id = id;
+      card.className = `model-card ${status}`;
+      card.innerHTML = `
+        <div class="model-head">
+          <span class="model-name"></span>
+          <span class="badge ${status}"></span>
+        </div>
+        <div class="model-body">
+          <div class="model-status">Waiting for response.</div>
+          <div class="answer"></div>
+          <div class="meta"></div>
+        </div>
+      `;
+      card.querySelector('.model-name').textContent = displayModelName(modelName);
+      card.querySelector('.badge').textContent = status === 'waiting' ? 'waiting' : status;
+      compareResultsEl.appendChild(card);
+      return card;
+    }
+
+    function setModelCardStatus(modelName, status, message) {
+      const card = ensureModelCard(modelName, status);
+      card.className = `model-card ${status}`;
+      const badge = card.querySelector('.badge');
+      badge.className = `badge ${status}`;
+      badge.textContent = status;
+      card.querySelector('.model-status').textContent = message;
+      return card;
+    }
+
+    function renderModelCard(result) {
+      const modelName = `${result.llm_provider}:${result.llm_model}`;
+      const status = result.answer_status || 'answered';
+      const card = setModelCardStatus(modelName, status, status === 'answered' ? 'Response received.' : 'Completed.');
+      card.querySelector('.answer').textContent = result.answer || '';
+      card.querySelector('.meta').textContent = `${result.llm_provider} | cited sources ${(result.cited_source_ranks || []).join(', ') || 'none'}`;
+    }
+
+    askButton.addEventListener('click', async () => {
+      askButton.disabled = true;
+      compareButton.disabled = true;
+      resetOutput('Generating...');
+      const payload = buildPayload();
       try {
         const response = await fetch('/rag/answer', {
           method: 'POST',
@@ -177,15 +305,7 @@
         }
         answerEl.textContent = body.answer || '';
         metaEl.textContent = `${body.llm_provider} / ${body.llm_model} | search results ${body.search_total_results} | context sources ${body.context_source_count}`;
-        sourcesEl.innerHTML = '';
-        for (const source of body.sources || []) {
-          const div = document.createElement('div');
-          div.className = 'source';
-          const page = source.page_start ? ` | page ${source.page_start}${source.page_end && source.page_end !== source.page_start ? '-' + source.page_end : ''}` : '';
-          div.innerHTML = `<div class="source-title">${source.rank}. ${source.title} | chunk ${source.chunk_index}${page}</div><div class="snippet"></div>`;
-          div.querySelector('.snippet').textContent = source.snippet || '';
-          sourcesEl.appendChild(div);
-        }
+        renderSources(body.sources || []);
         if (body.observability) {
           observabilityPanel.style.display = 'block';
           observabilityEl.textContent = JSON.stringify(body.observability, null, 2);
@@ -194,8 +314,89 @@
         answerEl.textContent = String(error.message || error);
       } finally {
         askButton.disabled = false;
+        compareButton.disabled = false;
       }
     });
+
+    compareButton.addEventListener('click', async () => {
+      askButton.disabled = true;
+      compareButton.disabled = true;
+      resetOutput('Comparing models...');
+      const payload = buildPayload();
+      payload.compare_models = document.getElementById('compareModels').value
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean);
+      try {
+        const response = await fetch('/rag/answer/compare/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          const body = await response.json();
+          throw new Error(body.detail || response.statusText);
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const events = buffer.split('\n\n');
+          buffer = events.pop() || '';
+          for (const rawEvent of events) {
+            const event = parseSseEvent(rawEvent);
+            if (event) {
+              handleCompareEvent(event);
+            }
+          }
+        }
+        if (buffer.trim()) {
+          const event = parseSseEvent(buffer);
+          if (event) {
+            handleCompareEvent(event);
+          }
+        }
+      } catch (error) {
+        answerEl.textContent = String(error.message || error);
+      } finally {
+        askButton.disabled = false;
+        compareButton.disabled = false;
+      }
+    });
+
+    function parseSseEvent(rawEvent) {
+      const dataLines = rawEvent
+        .split('\n')
+        .filter(line => line.startsWith('data:'))
+        .map(line => line.slice(5).trimStart());
+      if (!dataLines.length) return null;
+      return JSON.parse(dataLines.join('\n'));
+    }
+
+    function handleCompareEvent(event) {
+      if (event.event === 'search_complete') {
+        answerEl.textContent = '';
+        metaEl.textContent = `search results ${event.search_total_results} | context sources ${event.context_source_count} | models ${event.models.length} | running 0/${event.models.length}`;
+        compareResultsEl.innerHTML = '';
+        for (const model of event.models || []) {
+          ensureModelCard(model, 'waiting');
+        }
+        renderSources(event.sources || []);
+      } else if (event.event === 'model_started') {
+        setModelCardStatus(event.model, 'loading', 'Loading response...');
+        metaEl.textContent = `running ${event.model} | completed ${event.completed}/${event.total}`;
+      } else if (event.event === 'model_result') {
+        renderModelCard(event.result);
+        metaEl.textContent = `models completed ${event.completed}/${event.total}`;
+      } else if (event.event === 'complete') {
+        metaEl.textContent = `models completed ${event.completed}/${event.total} | total ${Math.round(event.total_ms)} ms`;
+      } else if (event.event === 'error') {
+        throw new Error(`${event.error_type}: ${event.message}`);
+      }
+    }
   </script>
 </body>
 </html>

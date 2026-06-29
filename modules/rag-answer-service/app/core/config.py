@@ -5,7 +5,7 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-LlmProviderName = Literal["ollama", "openai"]
+LlmProviderName = Literal["ollama", "openai", "gemini"]
 
 
 class Settings(BaseSettings):
@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     answer_include_sources: bool = Field(True, alias="ANSWER_INCLUDE_SOURCES")
     answer_require_context: bool = Field(True, alias="ANSWER_REQUIRE_CONTEXT")
     answer_observability_enabled: bool = Field(False, alias="ANSWER_OBSERVABILITY_ENABLED")
+    answer_compare_models: str = Field(
+        "mistral:latest,gemma4,llama3:8b,gemma:7b,gemini:gemini-2.5-flash",
+        alias="ANSWER_COMPARE_MODELS",
+    )
+    answer_system_instruction: str | None = Field(None, alias="ANSWER_SYSTEM_INSTRUCTION")
+    answer_synthesis_instruction: str | None = Field(None, alias="ANSWER_SYNTHESIS_INSTRUCTION")
+    answer_guardrail_instruction: str | None = Field(None, alias="ANSWER_GUARDRAIL_INSTRUCTION")
 
     llm_provider: LlmProviderName = Field("ollama", alias="LLM_PROVIDER")
     llm_model: str = Field("mistral:latest", alias="LLM_MODEL")
@@ -29,8 +36,14 @@ class Settings(BaseSettings):
     ollama_base_url: str = Field("http://127.0.0.1:11434", alias="OLLAMA_BASE_URL")
     openai_api_key: str | None = Field(None, alias="OPENAI_API_KEY")
     openai_model: str = Field("gpt-4.1-mini", alias="OPENAI_MODEL")
+    gemini_api_key: str | None = Field(None, alias="GEMINI_API_KEY")
+    gemini_model: str = Field("gemini-2.5-flash", alias="GEMINI_MODEL")
+    gemini_base_url: str = Field(
+        "https://generativelanguage.googleapis.com/v1beta",
+        alias="GEMINI_BASE_URL",
+    )
 
-    @field_validator("rag_search_base_url", "ollama_base_url")
+    @field_validator("rag_search_base_url", "ollama_base_url", "gemini_base_url")
     @classmethod
     def strip_url(cls, value: str) -> str:
         return value.strip().rstrip("/")
@@ -82,6 +95,8 @@ class Settings(BaseSettings):
     def validate_provider_config(self) -> "Settings":
         if self.llm_provider == "openai" and not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY is required when LLM_PROVIDER=openai")
+        if self.llm_provider == "gemini" and not self.gemini_api_key:
+            raise ValueError("GEMINI_API_KEY is required when LLM_PROVIDER=gemini")
         return self
 
 
