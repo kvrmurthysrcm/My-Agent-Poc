@@ -25,9 +25,11 @@ Graph RAG should use the same PostgreSQL database and connect graph records back
 - The implementation should include both per-chunk extraction and resource-level consolidation in this pass.
 - Local Ollama is available at `http://localhost:11434`.
 - Preferred tested generation endpoint: `POST http://localhost:11434/api/generate`.
-- Preferred tested model: `mistral:7b-instruct-v0.3-q2_K`.
+- Configured local default model: `mistral:latest`.
+- Earlier tested model: `mistral:7b-instruct-v0.3-q2_K`.
 - Also available but less preferred for strict JSON extraction: `POST http://localhost:11434/api/chat` and `POST http://localhost:11434/v1/chat/completions`.
 - `GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS=false` is the default. In `GRAPH` mode, this means no rows are saved to `rag_chunk_embeddings`; set it to `true` only when graph-only uploads should also create chunk embeddings for vector search.
+- `GRAPH_RAG_ENTITY_BATCH_SIZE=1` and `GRAPH_RAG_RELATIONSHIP_BATCH_SIZE=1` are the current safe local LLM batch sizes for Graph RAG extraction. Increase to `2` after validating stable JSON output.
 
 ## Implementation Phases
 
@@ -92,7 +94,7 @@ Graph RAG should use the same PostgreSQL database and connect graph records back
 - Add a local Mistral/Ollama generation client configured with:
   - base URL default `http://localhost:11434`
   - endpoint default `/api/generate`
-  - model default `mistral:7b-instruct-v0.3-q2_K`
+  - model default `mistral:latest`
   - `stream=false`
   - strict JSON response parsing with defensive cleanup for occasional markdown/code-fence output.
 
@@ -105,9 +107,9 @@ Graph RAG should use the same PostgreSQL database and connect graph records back
   - `BOTH`: current indexing and graph indexing.
 - Implement graph indexing steps:
   - read chunks for the resource/job
-  - send chunk text, not the full source file, to local Mistral for entity extraction
+  - send chunk text batches, not the full source file, to local Mistral for entity extraction
   - normalize and deduplicate names per resource
-  - send chunk text plus extracted entities to local Mistral for relationship extraction
+  - send chunk text batches plus extracted entities to local Mistral for relationship extraction
   - consolidate compact extracted graph facts at resource level using deterministic normalization and Mistral-assisted summary/consolidation where useful
   - merge/strengthen repeated relationships across chunks
   - store canonical entities and relationships while preserving chunk traceability in fields/metadata
@@ -183,6 +185,7 @@ Chunking ownership:
 - Update service README files or create a concise Graph RAG doc covering:
   - indexing modes
   - `GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS` behavior
+  - `GRAPH_RAG_ENTITY_BATCH_SIZE` and `GRAPH_RAG_RELATIONSHIP_BATCH_SIZE`
   - HTML UI usage
   - upload API usage with `indexing_mode`
   - graph tables
@@ -218,9 +221,10 @@ Chunking ownership:
 
 - Use local Mistral through Ollama.
 - Use tested endpoint `POST http://localhost:11434/api/generate`.
-- Use tested model `mistral:7b-instruct-v0.3-q2_K`.
+- Use `mistral:latest` as the local Graph RAG generation model.
 - `GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS=false` by default.
 - `GRAPH` mode skips embeddings and vector indexing when `GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS=false`; it may create chunk embeddings when that flag is `true`.
+- Graph RAG entity extraction and relationship extraction are batched independently, currently defaulting to one chunk per LLM call for JSON reliability.
 - Implement both per-chunk extraction and resource-level consolidation now.
 - Remove Alembic entirely; use PostgreSQL/pgvector SQL schema scripts only.
 - No further critical details are required before implementation.

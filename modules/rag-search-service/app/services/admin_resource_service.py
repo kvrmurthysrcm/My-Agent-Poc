@@ -32,12 +32,17 @@ class AdminResourceService:
         chunk_counts = self._count_by_resource(RagDocumentChunk.resource_id, resource_ids)
         job_counts = self._count_by_resource(RagIngestionJob.resource_id, resource_ids)
         embedding_counts = self._embedding_counts(resource_ids)
-        latest_jobs = self._latest_job_statuses(resource_ids)
+        latest_jobs = self._latest_jobs(resource_ids)
+        latest_errors = self._latest_errors(resource_ids)
         categories = self._categories(resource_ids)
         tags = self._tags(resource_ids)
         authors = self._authors(resource_ids)
 
-        return [
+        items = []
+        for resource in resources:
+            latest_job = latest_jobs.get(resource.resource_id, {})
+            latest_error = latest_errors.get(resource.resource_id, {})
+            items.append(
             AdminResourceItem(
                 resource_id=resource.resource_id,
                 title=resource.title,
@@ -51,12 +56,23 @@ class AdminResourceService:
                 chunk_count=chunk_counts.get(resource.resource_id, 0),
                 embedding_count=embedding_counts.get(resource.resource_id, 0),
                 job_count=job_counts.get(resource.resource_id, 0),
-                latest_job_status=latest_jobs.get(resource.resource_id),
+                latest_job_id=latest_job.get("job_id"),
+                latest_job_status=latest_job.get("status"),
+                latest_job_indexing_mode=latest_job.get("indexing_mode"),
+                latest_job_progress_message=latest_job.get("progress_message"),
+                latest_job_total_chunks=latest_job.get("total_chunks") or 0,
+                latest_job_processed_chunks=latest_job.get("processed_chunks") or 0,
+                latest_job_embedded_chunks=latest_job.get("embedded_chunks") or 0,
+                latest_job_graph_entities_count=latest_job.get("graph_entities_count") or 0,
+                latest_job_graph_relationships_count=latest_job.get("graph_relationships_count") or 0,
+                latest_error_message=latest_error.get("message") or latest_job.get("error_message"),
+                latest_error_stage=latest_error.get("stage"),
+                latest_error_type=latest_error.get("type"),
                 created_at=resource.created_at,
                 metadata=resource.resource_metadata or {},
             )
-            for resource in resources
-        ]
+            )
+        return items
 
     def delete_resource(self, resource_id: str, force: bool = False) -> tuple[bool, dict[str, int], str | None]:
         resource = self.db.get(Resource, resource_id)
@@ -105,15 +121,79 @@ class AdminResourceService:
         )
         return {resource_id: int(count) for resource_id, count in rows}
 
-    def _latest_job_statuses(self, resource_ids: list[str]) -> dict[str, str]:
+    def _latest_jobs(self, resource_ids: list[str]) -> dict[str, dict[str, str]]:
         rows = self.db.execute(
-            select(RagIngestionJob.resource_id, RagIngestionJob.status, RagIngestionJob.created_at)
+            select(
+                RagIngestionJob.resource_id,
+                RagIngestionJob.job_id,
+                RagIngestionJob.status,
+                RagIngestionJob.indexing_mode,
+                RagIngestionJob.progress_message,
+                RagIngestionJob.total_chunks,
+                RagIngestionJob.processed_chunks,
+                RagIngestionJob.embedded_chunks,
+                RagIngestionJob.graph_entities_count,
+                RagIngestionJob.graph_relationships_count,
+                RagIngestionJob.error_message,
+                RagIngestionJob.created_at,
+            )
             .where(RagIngestionJob.resource_id.in_(resource_ids))
             .order_by(RagIngestionJob.resource_id, RagIngestionJob.created_at.desc())
         )
-        latest: dict[str, str] = {}
-        for resource_id, status, _created_at in rows:
-            latest.setdefault(resource_id, status)
+        latest: dict[str, dict[str, str]] = {}
+        for (
+            resource_id,
+            job_id,
+            status,
+            indexing_mode,
+            progress_message,
+            total_chunks,
+            processed_chunks,
+            embedded_chunks,
+            graph_entities_count,
+            graph_relationships_count,
+            error_message,
+            _created_at,
+        ) in rows:
+            latest.setdefault(
+                resource_id,
+                {
+                    "job_id": job_id,
+                    "status": status,
+                    "indexing_mode": indexing_mode,
+                    "progress_message": progress_message,
+                    "total_chunks": total_chunks,
+                    "processed_chunks": processed_chunks,
+                    "embedded_chunks": embedded_chunks,
+                    "graph_entities_count": graph_entities_count,
+                    "graph_relationships_count": graph_relationships_count,
+                    "error_message": error_message,
+                },
+            )
+        return latest
+
+    def _latest_errors(self, resource_ids: list[str]) -> dict[str, dict[str, str]]:
+        rows = self.db.execute(
+            select(
+                RagProcessingError.resource_id,
+                RagProcessingError.stage,
+                RagProcessingError.error_type,
+                RagProcessingError.error_message,
+                RagProcessingError.created_at,
+            )
+            .where(RagProcessingError.resource_id.in_(resource_ids))
+            .order_by(RagProcessingError.resource_id, RagProcessingError.created_at.desc())
+        )
+        latest: dict[str, dict[str, str]] = {}
+        for resource_id, stage, error_type, error_message, _created_at in rows:
+            latest.setdefault(
+                resource_id,
+                {
+                    "stage": stage,
+                    "type": error_type,
+                    "message": error_message,
+                },
+            )
         return latest
 
     def _categories(self, resource_ids: list[str]) -> dict[str, str]:

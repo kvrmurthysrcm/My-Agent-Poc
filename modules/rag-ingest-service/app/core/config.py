@@ -33,7 +33,16 @@ class Settings(BaseSettings):
     minimum_chunk_tokens: int = Field(80, alias="MINIMUM_CHUNK_TOKENS")
     chunk_quality_keep_numeric_table_chunks: bool = Field(True, alias="CHUNK_QUALITY_KEEP_NUMERIC_TABLE_CHUNKS")
     chunk_quality_min_alpha_ratio: float = Field(0.45, alias="CHUNK_QUALITY_MIN_ALPHA_RATIO")
+    chunk_heading_allow_single_letter: bool = Field(False, alias="CHUNK_HEADING_ALLOW_SINGLE_LETTER")
     pdf_parser: str = Field("pymupdf", alias="PDF_PARSER")
+    pdf_repair_drop_caps: bool = Field(True, alias="PDF_REPAIR_DROP_CAPS")
+    pdf_remove_repeated_headers_footers: bool = Field(True, alias="PDF_REMOVE_REPEATED_HEADERS_FOOTERS")
+    pdf_dehyphenate_line_breaks: bool = Field(True, alias="PDF_DEHYPHENATE_LINE_BREAKS")
+    pdf_remove_private_use_glyphs: bool = Field(True, alias="PDF_REMOVE_PRIVATE_USE_GLYPHS")
+    pdf_normalize_unicode: bool = Field(True, alias="PDF_NORMALIZE_UNICODE")
+    pdf_remove_boilerplate_lines: bool = Field(True, alias="PDF_REMOVE_BOILERPLATE_LINES")
+    pdf_remove_page_number_lines: bool = Field(True, alias="PDF_REMOVE_PAGE_NUMBER_LINES")
+    pdf_repair_joined_words: bool = Field(True, alias="PDF_REPAIR_JOINED_WORDS")
 
     embedding_provider: EmbeddingProviderName = Field(EmbeddingProviderName.OLLAMA, alias="EMBEDDING_PROVIDER")
     embedding_model: str = Field("nomic-embed-text", alias="EMBEDDING_MODEL")
@@ -57,11 +66,18 @@ class Settings(BaseSettings):
     ollama_base_url: str = Field("http://127.0.0.1:11434", alias="OLLAMA_BASE_URL")
     ollama_embedding_timeout_seconds: float = Field(60.0, alias="OLLAMA_EMBEDDING_TIMEOUT_SECONDS")
     llm_provider: str = Field("ollama", alias="LLM_PROVIDER")
-    llm_model: str = Field("mistral:7b-instruct-v0.3-q2_K", alias="LLM_MODEL")
+    llm_model: str = Field("mistral:latest", alias="LLM_MODEL")
     llm_base_url: str = Field("http://localhost:11434", alias="LLM_BASE_URL")
     llm_generate_path: str = Field("/api/generate", alias="LLM_GENERATE_PATH")
-    llm_timeout_seconds: float = Field(120.0, alias="LLM_TIMEOUT_SECONDS")
+    llm_timeout_seconds: float = Field(240.0, alias="LLM_TIMEOUT_SECONDS")
+    graph_rag_llm_max_retries: int = Field(2, alias="GRAPH_RAG_LLM_MAX_RETRIES")
+    graph_rag_llm_retry_backoff_seconds: float = Field(2.0, alias="GRAPH_RAG_LLM_RETRY_BACKOFF_SECONDS")
     graph_rag_create_chunk_embeddings: bool = Field(False, alias="GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS")
+    graph_rag_entity_batch_size: int = Field(1, alias="GRAPH_RAG_ENTITY_BATCH_SIZE")
+    graph_rag_relationship_batch_size: int = Field(1, alias="GRAPH_RAG_RELATIONSHIP_BATCH_SIZE")
+    recover_processing_jobs_on_startup: bool = Field(True, alias="RECOVER_PROCESSING_JOBS_ON_STARTUP")
+    startup_recovery_stale_after_seconds: int = Field(0, alias="STARTUP_RECOVERY_STALE_AFTER_SECONDS")
+    process_queued_jobs_on_startup: bool = Field(True, alias="PROCESS_QUEUED_JOBS_ON_STARTUP")
 
     async_backend: AsyncBackend = Field(AsyncBackend.FASTAPI_BACKGROUND_TASKS, alias="ASYNC_BACKEND")
     rq_redis_url: str = Field("redis://localhost:6379/0", alias="RQ_REDIS_URL")
@@ -163,6 +179,42 @@ class Settings(BaseSettings):
             raise ValueError("OLLAMA_EMBEDDING_TIMEOUT_SECONDS must be greater than 0")
         if value > 3600:
             raise ValueError("OLLAMA_EMBEDDING_TIMEOUT_SECONDS must be 3600 or lower")
+        return value
+
+    @field_validator("graph_rag_entity_batch_size", "graph_rag_relationship_batch_size")
+    @classmethod
+    def validate_graph_rag_batch_size(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("Graph RAG batch sizes must be at least 1")
+        if value > 10:
+            raise ValueError("Graph RAG batch sizes must be 10 or lower")
+        return value
+
+    @field_validator("graph_rag_llm_max_retries")
+    @classmethod
+    def validate_graph_rag_llm_max_retries(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("GRAPH_RAG_LLM_MAX_RETRIES must be 0 or greater")
+        if value > 5:
+            raise ValueError("GRAPH_RAG_LLM_MAX_RETRIES must be 5 or lower")
+        return value
+
+    @field_validator("graph_rag_llm_retry_backoff_seconds")
+    @classmethod
+    def validate_graph_rag_llm_retry_backoff_seconds(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("GRAPH_RAG_LLM_RETRY_BACKOFF_SECONDS must be 0 or greater")
+        if value > 60:
+            raise ValueError("GRAPH_RAG_LLM_RETRY_BACKOFF_SECONDS must be 60 or lower")
+        return value
+
+    @field_validator("startup_recovery_stale_after_seconds")
+    @classmethod
+    def validate_startup_recovery_stale_after_seconds(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("STARTUP_RECOVERY_STALE_AFTER_SECONDS must be 0 or greater")
+        if value > 86400:
+            raise ValueError("STARTUP_RECOVERY_STALE_AFTER_SECONDS must be 86400 or lower")
         return value
 
     @field_validator("recovery_worker_poll_interval_seconds")

@@ -8,10 +8,11 @@ from app.services.embedding_providers.openai_provider import OpenAIEmbeddingProv
 from app.services.embedding_model_registry import get_embedding_model_spec
 from app.services.embedding_service import EmbeddingService
 from app.schemas.ingest_request import IndexingMode, IngestMetadata
+from app.graph_rag.services.ollama_generation_client import OllamaGenerationClient
 from app.services.pdf_parsers.factory import PdfParserFactory
 from app.services.pdf_parsers.pymupdf_parser import PyMuPdfParser
 from app.services.pdf_parsers.pypdf_parser import PyPdfParser
-from app.workers.rag_ingestion_worker import _should_create_chunk_embeddings
+from app.workers.rag_ingestion_worker import _next_indexing_message, _should_create_chunk_embeddings
 
 
 def test_embedding_provider_factory_selects_openai():
@@ -128,6 +129,26 @@ def test_graph_rag_create_chunk_embeddings_defaults_false():
     assert settings.graph_rag_create_chunk_embeddings is False
 
 
+def test_graph_rag_batch_sizes_default_to_one():
+    settings = Settings()
+    assert settings.graph_rag_entity_batch_size == 1
+    assert settings.graph_rag_relationship_batch_size == 1
+
+
+def test_graph_rag_llm_retry_defaults():
+    settings = Settings()
+    assert settings.llm_timeout_seconds == 240
+    assert settings.graph_rag_llm_max_retries == 2
+    assert settings.graph_rag_llm_retry_backoff_seconds == 2.0
+
+
+def test_startup_recovery_defaults_enabled():
+    settings = Settings()
+    assert settings.recover_processing_jobs_on_startup is True
+    assert settings.startup_recovery_stale_after_seconds == 0
+    assert settings.process_queued_jobs_on_startup is True
+
+
 def test_ingest_metadata_indexing_mode_defaults_standard():
     metadata = IngestMetadata()
     assert metadata.indexing_mode == IndexingMode.STANDARD
@@ -138,9 +159,34 @@ def test_graph_mode_embedding_creation_is_flag_controlled():
     assert _should_create_chunk_embeddings("GRAPH", graph_rag_create_chunk_embeddings=True) is True
 
 
+def test_none_mode_skips_embedding_creation():
+    assert _should_create_chunk_embeddings("NONE", graph_rag_create_chunk_embeddings=False) is False
+    assert _should_create_chunk_embeddings("NONE", graph_rag_create_chunk_embeddings=True) is False
+
+
 def test_standard_and_both_modes_always_create_embeddings():
     assert _should_create_chunk_embeddings("STANDARD", graph_rag_create_chunk_embeddings=False) is True
     assert _should_create_chunk_embeddings("BOTH", graph_rag_create_chunk_embeddings=False) is True
+
+
+def test_none_mode_indexing_message_is_chunk_only():
+    assert _next_indexing_message("NONE", 12) == "Created 12 chunks; indexing disabled"
+
+
+def test_ollama_generation_client_wraps_top_level_array_with_root_key():
+    client = OllamaGenerationClient(Settings())
+
+    parsed = client._parse_json('[{"name": "Scrooge", "entity_type": "PERSON"}]', root_key="entities")
+
+    assert parsed == {"entities": [{"name": "Scrooge", "entity_type": "PERSON"}]}
+
+
+def test_ollama_generation_client_parses_fenced_json_object():
+    client = OllamaGenerationClient(Settings())
+
+    parsed = client._parse_json('```json\n{"summary": "A compact graph summary."}\n```', root_key="summary")
+
+    assert parsed == {"summary": "A compact graph summary."}
 
 
 def test_settings_accepts_postgresql_only_poc_config():

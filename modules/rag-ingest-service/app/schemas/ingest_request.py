@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class IndexingMode(StrEnum):
+    NONE = "NONE"
     STANDARD = "STANDARD"
     GRAPH = "GRAPH"
     BOTH = "BOTH"

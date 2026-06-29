@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 from app.db import models  # noqa: F401
 from app.db.models import RagChunkEmbedding, RagDocumentChunk, RagDocumentExtraction, Resource
@@ -153,7 +154,7 @@ def test_process_job_resumes_from_existing_chunks_and_embeddings(monkeypatch):
         chunks = []
         for index in range(4):
             chunk = RagDocumentChunk(
-                chunk_id=f"chunk-{index}",
+                chunk_id=str(uuid4()),
                 resource_id=resource.resource_id,
                 job_id=job.job_id,
                 chunk_index=index,
@@ -164,6 +165,7 @@ def test_process_job_resumes_from_existing_chunks_and_embeddings(monkeypatch):
             )
             chunks.append(chunk)
             db.add(chunk)
+        db.flush()
         for chunk in chunks[:2]:
             db.add(
                 RagChunkEmbedding(

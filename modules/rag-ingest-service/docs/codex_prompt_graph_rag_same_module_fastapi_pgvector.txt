@@ -69,6 +69,13 @@ Graph RAG chunk embedding flag:
 - When indexing_mode=GRAPH and GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS=true, create chunk embeddings using the existing embedding provider in addition to Graph RAG indexing.
 - BOTH mode always creates standard chunk embeddings regardless of this flag.
 
+Graph RAG LLM batching:
+- Add GRAPH_RAG_ENTITY_BATCH_SIZE with default 1 until batched JSON reliability is validated.
+- Add GRAPH_RAG_RELATIONSHIP_BATCH_SIZE with default 1 until batched JSON reliability is validated.
+- Entity extraction should send small batches of chunks to the local LLM while preserving chunk_id and chunk_index in the output.
+- Relationship extraction should send small batches of chunks plus the extracted entities for each chunk to the local LLM while preserving chunk_id and chunk_index in the output.
+- If a batched response is invalid, retry the affected chunks individually.
+
 High-level architecture:
 Use this structure conceptually:
 
@@ -228,7 +235,7 @@ If the existing code already has an LLM/Ollama/Mistral generation client, use it
 If the current code only has an embedding client and does not yet have a generation client:
 - Create a clean local Ollama/Mistral generation client.
 - Use POST http://localhost:11434/api/generate by default.
-- Use model mistral:7b-instruct-v0.3-q2_K by default.
+- Use model mistral:latest by default.
 - Send stream=false.
 - Prompt for strict JSON and defensively clean markdown/code-fence output if returned.
 
@@ -386,6 +393,7 @@ Documentation requirements:
 Update README or create a short document explaining:
 - indexing modes
 - GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS behavior
+- GRAPH_RAG_ENTITY_BATCH_SIZE and GRAPH_RAG_RELATIONSHIP_BATCH_SIZE behavior
 - how to use the HTML UI
 - how to call the upload API with indexing_mode
 - Graph RAG tables added

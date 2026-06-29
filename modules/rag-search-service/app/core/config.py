@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     search_include_chunk_text_default: bool = Field(True, alias="SEARCH_INCLUDE_CHUNK_TEXT_DEFAULT")
     search_admin_enabled: bool = Field(True, alias="SEARCH_ADMIN_ENABLED")
     search_observability_enabled: bool = Field(False, alias="SEARCH_OBSERVABILITY_ENABLED")
+    rag_ingest_base_url: str = Field("http://127.0.0.1:8000", alias="RAG_INGEST_BASE_URL")
     query_aliases: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_TOKEN_ALIASES), alias="QUERY_ALIASES")
     query_aliases_file: str | None = Field(None, alias="QUERY_ALIASES_FILE")
 

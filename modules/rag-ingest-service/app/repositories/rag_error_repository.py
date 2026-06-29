@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+import traceback
 
 from app.db.models import RagProcessingError
 
@@ -16,7 +17,10 @@ class RagErrorRepository:
                 stage=stage,
                 error_type=type(error).__name__,
                 error_message=str(error),
-                error_details={},
+                error_details={
+                    "exception_module": type(error).__module__,
+                    "traceback": "".join(traceback.format_exception(type(error), error, error.__traceback__))[-12000:],
+                },
             )
         )
         self.db.flush()

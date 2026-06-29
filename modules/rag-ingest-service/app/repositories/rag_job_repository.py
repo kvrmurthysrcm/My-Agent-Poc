@@ -35,6 +35,14 @@ class RagJobRepository:
     def get(self, job_id: str) -> RagIngestionJob | None:
         return self.db.get(RagIngestionJob, job_id)
 
+    def latest_for_resource(self, resource_id: str) -> RagIngestionJob | None:
+        return self.db.scalar(
+            select(RagIngestionJob)
+            .where(RagIngestionJob.resource_id == resource_id)
+            .order_by(RagIngestionJob.created_at.desc())
+            .limit(1)
+        )
+
     def get_queued_jobs(self, limit: int) -> list[RagIngestionJob]:
         now = datetime.now(UTC).replace(tzinfo=None)
         statement = (
@@ -63,10 +71,12 @@ class RagJobRepository:
         job.worker_id = worker_id
         job.locked_at = now
         job.heartbeat_at = now
+        job.error_message = None
         self.db.flush()
 
     def update_progress(self, job: RagIngestionJob, message: str) -> None:
         job.progress_message = message[:4000]
+        job.heartbeat_at = datetime.now(UTC).replace(tzinfo=None)
         self.db.flush()
 
     def mark_completed(self, job: RagIngestionJob) -> None:
@@ -104,11 +114,23 @@ class RagJobRepository:
         job.next_retry_at = datetime.now(UTC).replace(tzinfo=None) + timedelta(seconds=retry_delay_seconds * job.retry_count)
         self.db.flush()
 
+    def queue_admin_retry(self, job: RagIngestionJob) -> None:
+        job.status = "QUEUED"
+        job.progress_message = "Retry queued by admin"
+        job.error_message = None
+        job.retry_count = 0
+        job.worker_id = None
+        job.locked_at = None
+        job.heartbeat_at = None
+        job.next_retry_at = None
+        job.completed_at = None
+        self.db.flush()
+
     def heartbeat(self, job: RagIngestionJob) -> None:
         job.heartbeat_at = datetime.now(UTC).replace(tzinfo=None)
         self.db.flush()
 
-    def recover_stale_processing_jobs(self, stale_after_seconds: int = 900) -> int:
+    def recover_stale_processing_jobs(self, stale_after_seconds: int = 900, retry_delay_seconds: int = 60) -> int:
         stale_before = datetime.now(UTC).replace(tzinfo=None) - timedelta(seconds=stale_after_seconds)
         jobs = list(
             self.db.scalars(
@@ -118,7 +140,7 @@ class RagJobRepository:
             )
         )
         for job in jobs:
-            self.mark_retry_or_failed(job, "Recovered stale PROCESSING job")
+            self.mark_retry_or_failed(job, "Recovered stale PROCESSING job", retry_delay_seconds=retry_delay_seconds)
             resource = self.db.get(Resource, job.resource_id)
             if resource:
                 resource.ingestion_status = "QUEUED" if job.status == "QUEUED" else "FAILED"

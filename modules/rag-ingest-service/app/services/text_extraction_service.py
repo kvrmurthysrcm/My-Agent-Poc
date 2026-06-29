@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 
 from app.core.config import Settings, get_settings
 from app.services.pdf_parsers.factory import PdfParserFactory
+from app.services.pdf_text_cleanup import PdfTextCleanupService
 from app.services.text_extraction_types import ExtractionResult
 
 
@@ -30,11 +31,37 @@ class TextExtractionService:
     def _extract_pdf(self, path: Path) -> ExtractionResult:
         parser = PdfParserFactory.build(self.settings)
         try:
-            return parser.extract(path)
+            return self._clean_pdf_result(parser.extract(path))
         except RuntimeError:
             if self.settings.pdf_parser == "pymupdf":
-                return PdfParserFactory.build(self.settings.model_copy(update={"pdf_parser": "pypdf"})).extract(path)
+                result = PdfParserFactory.build(self.settings.model_copy(update={"pdf_parser": "pypdf"})).extract(path)
+                return self._clean_pdf_result(result)
             raise
+
+    def _clean_pdf_result(self, result: ExtractionResult) -> ExtractionResult:
+        cleaned_text, stats = PdfTextCleanupService(self.settings).clean(result.text)
+        return ExtractionResult(
+            text=cleaned_text,
+            parser_name=result.parser_name,
+            page_count=result.page_count,
+            metadata={
+                **result.metadata,
+                "pdf_text_cleanup": {
+                    "drop_caps_repaired": self.settings.pdf_repair_drop_caps,
+                    "repeated_headers_footers_removed": self.settings.pdf_remove_repeated_headers_footers,
+                    "dehyphenated_line_breaks": self.settings.pdf_dehyphenate_line_breaks,
+                    "private_use_glyphs_removed": self.settings.pdf_remove_private_use_glyphs,
+                    "unicode_normalized": self.settings.pdf_normalize_unicode,
+                    "boilerplate_lines_removed": self.settings.pdf_remove_boilerplate_lines,
+                    "page_number_lines_removed": self.settings.pdf_remove_page_number_lines,
+                    "joined_words_repaired": self.settings.pdf_repair_joined_words,
+                    "repeated_line_count": stats.repeated_lines_removed,
+                    "boilerplate_line_count": stats.boilerplate_lines_removed,
+                    "page_number_line_count": stats.page_number_lines_removed,
+                    "joined_word_repair_count": stats.joined_word_repairs,
+                },
+            },
+        )
 
     def _extract_docx(self, path: Path) -> ExtractionResult:
         try:

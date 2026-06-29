@@ -229,7 +229,7 @@ def process_job(job_id: str) -> None:
                 )
             else:
                 job.embedded_chunks = 0
-                jobs.update_progress(job, "Graph-only mode selected; chunk embeddings disabled")
+                jobs.update_progress(job, _skip_embedding_message(job.indexing_mode))
                 db.commit()
 
             if job.indexing_mode in {"GRAPH", "BOTH"}:
@@ -397,6 +397,8 @@ def _embed_missing_chunks(
 
 
 def _next_indexing_message(indexing_mode: str, chunk_count: int) -> str:
+    if indexing_mode == "NONE":
+        return f"Created {chunk_count} chunks; indexing disabled"
     if indexing_mode == "GRAPH":
         return f"Created {chunk_count} chunks; extracting graph"
     if indexing_mode == "BOTH":
@@ -405,27 +407,39 @@ def _next_indexing_message(indexing_mode: str, chunk_count: int) -> str:
 
 
 def _should_create_chunk_embeddings(indexing_mode: str, graph_rag_create_chunk_embeddings: bool) -> bool:
+    if indexing_mode == "NONE":
+        return False
     if indexing_mode in {"STANDARD", "BOTH"}:
         return True
     return indexing_mode == "GRAPH" and graph_rag_create_chunk_embeddings
 
 
+def _skip_embedding_message(indexing_mode: str) -> str:
+    if indexing_mode == "NONE":
+        return "Indexing disabled; chunks saved without embeddings or graph"
+    return "Graph-only mode selected; chunk embeddings disabled"
+
+
 def process_queued_jobs(limit: int | None = None) -> int:
     settings = get_settings()
     worker_id = f"{socket.gethostname()}-{uuid4()}"
-    db = SessionLocal()
-    try:
-        jobs = RagJobRepository(db)
-        jobs.recover_stale_processing_jobs(stale_after_seconds=settings.recovery_stale_after_seconds)
-        queued = jobs.claim_queued_jobs(limit or settings.db_worker_batch_size, worker_id=worker_id)
-        ids = [job.job_id for job in queued]
-        db.commit()
-    finally:
-        db.close()
-
-    for job_id in ids:
-        process_job(job_id)
-    return len(ids)
+    max_jobs = limit or settings.db_worker_batch_size
+    processed = 0
+    for _ in range(max_jobs):
+        db = SessionLocal()
+        try:
+            jobs = RagJobRepository(db)
+            jobs.recover_stale_processing_jobs(stale_after_seconds=settings.recovery_stale_after_seconds)
+            queued = jobs.claim_queued_jobs(1, worker_id=worker_id)
+            ids = [job.job_id for job in queued]
+            db.commit()
+        finally:
+            db.close()
+        if not ids:
+            break
+        process_job(ids[0])
+        processed += 1
+    return processed
 
 
 def run_worker(once: bool = False) -> None:

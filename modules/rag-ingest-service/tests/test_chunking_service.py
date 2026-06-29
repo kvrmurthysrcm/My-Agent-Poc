@@ -36,6 +36,34 @@ def test_semantic_recursive_groups_paragraphs_before_fixed_windows():
     assert "This paragraph introduces" in chunks[0].chunk_text
 
 
+def test_single_letter_pdf_drop_cap_is_not_promoted_to_heading():
+    chunks = ChunkingService().chunk(
+        "M\n\narley was dead: to begin with.",
+        40,
+        5,
+        strategy="SEMANTIC_RECURSIVE",
+    )
+
+    assert chunks
+    assert chunks[0].section_title is None
+
+
+def test_prose_line_ending_with_colon_is_not_promoted_to_heading():
+    chunks = ChunkingService().chunk(
+        (
+            "Scrooge cried in great excitement:\n"
+            "This is ordinary story text that continues the sentence after a colon."
+        ),
+        40,
+        5,
+        strategy="SEMANTIC_RECURSIVE",
+    )
+
+    assert chunks
+    assert chunks[0].section_title is None
+    assert "Scrooge cried in great excitement" in chunks[0].chunk_text
+
+
 def test_semantic_recursive_falls_back_for_oversized_paragraphs():
     text = "LONG:\n" + " ".join(f"word{i}" for i in range(30))
 

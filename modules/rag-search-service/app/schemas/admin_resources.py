@@ -16,7 +16,18 @@ class AdminResourceItem(BaseModel):
     chunk_count: int = 0
     embedding_count: int = 0
     job_count: int = 0
+    latest_job_id: str | None = None
     latest_job_status: str | None = None
+    latest_job_indexing_mode: str | None = None
+    latest_job_progress_message: str | None = None
+    latest_job_total_chunks: int = 0
+    latest_job_processed_chunks: int = 0
+    latest_job_embedded_chunks: int = 0
+    latest_job_graph_entities_count: int = 0
+    latest_job_graph_relationships_count: int = 0
+    latest_error_message: str | None = None
+    latest_error_stage: str | None = None
+    latest_error_type: str | None = None
     created_at: datetime | None = None
     metadata: dict = Field(default_factory=dict)
 
@@ -43,3 +54,23 @@ class AdminDeleteResourcesResponse(BaseModel):
     requested: int
     deleted: int
     results: list[AdminDeleteResourceResult]
+
+
+class AdminRetryResourceResponse(BaseModel):
+    resource_id: str
+    job_id: str | None = None
+    status: str
+    indexing_mode: str | None = None
+    message: str
+
+
+class AdminGraphRagSettingsRequest(BaseModel):
+    entity_batch_size: int = Field(ge=1, le=10)
+    relationship_batch_size: int = Field(ge=1, le=10)
+
+
+class AdminGraphRagSettingsResponse(BaseModel):
+    entity_batch_size: int
+    relationship_batch_size: int
+    updated_at: datetime | None = None
+    message: str

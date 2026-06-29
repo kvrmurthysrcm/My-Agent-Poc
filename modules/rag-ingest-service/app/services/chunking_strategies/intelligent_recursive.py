@@ -1,3 +1,4 @@
+from app.core.config import get_settings
 from app.services.chunking_strategies.base import ChunkingStrategy
 from app.services.chunking_types import TextChunk
 from app.services.page_markers import page_range_for_text
@@ -52,6 +53,7 @@ class IntelligentRecursiveChunkingStrategy(ChunkingStrategy):
 def split_sections(text: str) -> list[tuple[str | None, str]]:
     sections: list[tuple[str | None, list[str]]] = [(None, [])]
     current_title: str | None = None
+    allow_single_letter_heading = get_settings().chunk_heading_allow_single_letter
 
     for raw_line in text.splitlines():
         line = raw_line.strip()
@@ -59,7 +61,11 @@ def split_sections(text: str) -> list[tuple[str | None, str]]:
             if sections[-1][1] and sections[-1][1][-1] != "":
                 sections[-1][1].append("")
             continue
-        is_heading = len(line) <= 120 and (line.isupper() or line.startswith("#") or line.endswith(":"))
+        # A single uppercase line is often a PDF drop cap, for example:
+        # "M" followed by "arley was dead". Treating it as a heading makes the
+        # next chunk lose its first letter and can create bad graph entities.
+        is_single_letter = not allow_single_letter_heading and len(line) == 1 and line.isalpha()
+        is_heading = not is_single_letter and _looks_like_heading(line)
         if is_heading:
             current_title = line.strip("#: ")
             sections.append((current_title, []))
@@ -67,3 +73,29 @@ def split_sections(text: str) -> list[tuple[str | None, str]]:
             sections[-1][1].append(line)
 
     return [(title, "\n".join(lines).strip()) for title, lines in sections if "\n".join(lines).strip()]
+
+
+def _looks_like_heading(line: str) -> bool:
+    if len(line) > 120:
+        return False
+    if line.startswith("#"):
+        return True
+    if line.isupper():
+        return True
+    if not line.endswith(":"):
+        return False
+
+    candidate = line.strip("#: ")
+    words = candidate.split()
+    if not words or len(words) > 4:
+        return False
+
+    # A prose line can end with a colon before dialogue or explanation:
+    # "Scrooge cried in great excitement:" should stay in the body text.
+    # Real section labels are compact and punctuation-light, such as
+    # "CLAIMS:" or "Introduction:".
+    if any(mark in candidate for mark in (",", ";", "?", "!", "\u2014")):
+        return False
+    if candidate[:1].islower():
+        return False
+    return True

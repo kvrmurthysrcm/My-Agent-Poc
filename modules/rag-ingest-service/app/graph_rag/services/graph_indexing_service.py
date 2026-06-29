@@ -1,6 +1,9 @@
+import logging
 import re
 from collections import defaultdict, deque
+from time import perf_counter
 
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -12,6 +15,12 @@ from app.graph_rag.services.graph_summary_service import GraphSummaryService
 from app.graph_rag.services.ollama_generation_client import OllamaGenerationClient
 from app.graph_rag.services.relationship_extraction_service import RelationshipExtractionService
 from app.repositories.rag_job_repository import RagJobRepository
+from app.repositories.runtime_settings_repository import RuntimeSettingsRepository
+from app.utils.profiling import record_profile_event
+
+logger = logging.getLogger("rag_ingestion_worker.graph_rag")
+GRAPH_EXTRACTION_METADATA_KEY = "graph_rag_extraction"
+GRAPH_EXTRACTION_VERSION = "v1"
 
 
 class GraphIndexingService:
@@ -35,23 +44,141 @@ class GraphIndexingService:
         jobs.update_progress(job, "Graph entity extraction started")
         self.db.commit()
 
-        extracted: list[ChunkGraphExtraction] = []
-        for index, chunk in enumerate(chunks, start=1):
-            jobs.update_progress(job, f"Graph extraction chunk {index}/{len(chunks)}")
+        extracted_by_chunk_id: dict[str, ChunkGraphExtraction] = {
+            chunk.chunk_id: ChunkGraphExtraction(chunk_id=chunk.chunk_id, chunk_index=chunk.chunk_index)
+            for chunk in chunks
+        }
+        for chunk in chunks:
+            cached = _load_cached_graph_extraction(chunk)
+            if cached:
+                extracted_by_chunk_id[chunk.chunk_id] = cached
+
+        entity_batch_index = 0
+        while True:
+            entity_batch_size, _relationship_batch_size = RuntimeSettingsRepository(self.db).get_graph_rag_batch_sizes(
+                self.settings.graph_rag_entity_batch_size,
+                self.settings.graph_rag_relationship_batch_size,
+            )
+            pending_batch = _next_entity_batch(chunks, extracted_by_chunk_id, entity_batch_size)
+            if not pending_batch:
+                break
+            entity_batch_index += 1
+            completed_chunks = _count_chunks_with_entities(extracted_by_chunk_id)
+            jobs.update_progress(
+                job,
+                f"Graph entities {completed_chunks}/{len(chunks)} chunks; batch {entity_batch_index}; batch_size={entity_batch_size}",
+            )
             jobs.heartbeat(job)
             self.db.commit()
-            entities = self.entities.extract(chunk.chunk_text)
-            relationships = self.relationships.extract(chunk.chunk_text, entities)
-            extracted.append(
-                ChunkGraphExtraction(
-                    chunk_id=chunk.chunk_id,
-                    chunk_index=chunk.chunk_index,
-                    entities=entities,
-                    relationships=relationships,
-                )
+            batch_started = perf_counter()
+            payload = [_chunk_payload(chunk) for chunk in pending_batch]
+            try:
+                entities_by_chunk_id = self.entities.extract_batch(payload)
+            except Exception as exc:
+                logger.warning("Graph entity batch %s failed; falling back to single chunk extraction: %s", entity_batch_index, exc)
+                entities_by_chunk_id = {item["chunk_id"]: self.entities.extract(item["chunk_text"]) for item in payload}
+            entity_count = 0
+            for chunk in pending_batch:
+                entities = entities_by_chunk_id.get(chunk.chunk_id, [])
+                extracted_by_chunk_id[chunk.chunk_id].entities = entities
+                _store_cached_graph_extraction(chunk, extracted_by_chunk_id[chunk.chunk_id])
+                entity_count += len(entities)
+            completed_chunks = _count_chunks_with_entities(extracted_by_chunk_id)
+            jobs.update_progress(
+                job,
+                f"Graph entities {completed_chunks}/{len(chunks)} chunks; batch {entity_batch_index} done; batch_size={entity_batch_size}",
+            )
+            self.db.commit()
+            record_profile_event(
+                self.settings.profiling,
+                logger,
+                job.job_id,
+                resource.resource_id,
+                f"graph_entity_batch_{entity_batch_index}",
+                "DONE",
+                (perf_counter() - batch_started) * 1000,
+                batch_size=len(pending_batch),
+                configured_batch_size=entity_batch_size,
+                entity_count=entity_count,
             )
 
-        jobs.update_progress(job, "Graph resource consolidation started")
+        relationship_batch_index = 0
+        while True:
+            _entity_batch_size, relationship_batch_size = RuntimeSettingsRepository(self.db).get_graph_rag_batch_sizes(
+                self.settings.graph_rag_entity_batch_size,
+                self.settings.graph_rag_relationship_batch_size,
+            )
+            pending_batch = _next_relationship_batch(chunks, extracted_by_chunk_id, relationship_batch_size)
+            if not pending_batch:
+                break
+            relationship_batch_index += 1
+            completed_chunks = _count_chunks_with_relationships(extracted_by_chunk_id)
+            jobs.update_progress(
+                job,
+                f"Graph relationships {completed_chunks}/{len(chunks)} chunks; batch {relationship_batch_index}; batch_size={relationship_batch_size}",
+            )
+            jobs.heartbeat(job)
+            self.db.commit()
+            batch_started = perf_counter()
+            payload = [
+                {
+                    **_chunk_payload(chunk),
+                    "entities": extracted_by_chunk_id[chunk.chunk_id].entities,
+                }
+                for chunk in pending_batch
+            ]
+            try:
+                relationships_by_chunk_id = self.relationships.extract_batch(payload)
+            except Exception as exc:
+                logger.warning("Graph relationship batch %s failed; falling back to single chunk extraction: %s", relationship_batch_index, exc)
+                relationships_by_chunk_id = {
+                    item["chunk_id"]: self.relationships.extract(item["chunk_text"], item["entities"])
+                    for item in payload
+                }
+            relationship_count = 0
+            for chunk in pending_batch:
+                relationships = relationships_by_chunk_id.get(chunk.chunk_id, [])
+                extracted_by_chunk_id[chunk.chunk_id].relationships = relationships
+                _store_cached_graph_extraction(chunk, extracted_by_chunk_id[chunk.chunk_id])
+                relationship_count += len(relationships)
+            completed_chunks = _count_chunks_with_relationships(extracted_by_chunk_id)
+            jobs.update_progress(
+                job,
+                f"Graph relationships {completed_chunks}/{len(chunks)} chunks; batch {relationship_batch_index} done; batch_size={relationship_batch_size}",
+            )
+            self.db.commit()
+            record_profile_event(
+                self.settings.profiling,
+                logger,
+                job.job_id,
+                resource.resource_id,
+                f"graph_relationship_batch_{relationship_batch_index}",
+                "DONE",
+                (perf_counter() - batch_started) * 1000,
+                batch_size=len(pending_batch),
+                configured_batch_size=relationship_batch_size,
+                relationship_count=relationship_count,
+            )
+
+        extracted = [extracted_by_chunk_id[chunk.chunk_id] for chunk in chunks]
+        for index, chunk in enumerate(extracted, start=1):
+            record_profile_event(
+                self.settings.profiling,
+                logger,
+                job.job_id,
+                resource.resource_id,
+                f"graph_chunk_{index}",
+                "DONE",
+                0,
+                chunk_index=chunk.chunk_index,
+                chunk_id=chunk.chunk_id,
+                entity_count=len(chunk.entities),
+                relationship_count=len(chunk.relationships),
+                entities=", ".join(entity.name for entity in chunk.entities[:8]),
+                relationship_types=", ".join(relationship.relationship_type for relationship in chunk.relationships[:8]),
+            )
+
+        jobs.update_progress(job, "Graph consolidation and summary started")
         self.db.commit()
         canonical_entities = self._consolidate_entities(extracted)
         entity_rows = {}
@@ -97,6 +224,8 @@ class GraphIndexingService:
             )
 
         facts = self._compact_facts(canonical_entities, relationship_payloads)
+        jobs.update_progress(job, "Graph summary generation started")
+        self.db.commit()
         summary_text = self.summaries.summarize_resource(facts) if canonical_entities else "No graph entities were extracted."
         self.repository.create_summary(
             resource_id=resource.resource_id,
@@ -246,3 +375,78 @@ def normalize_type(value: str | None, default: str) -> str:
         return default
     normalized = re.sub(r"[^A-Za-z0-9_]+", "_", value.strip().upper()).strip("_")
     return normalized or default
+
+
+def _chunk_batches(chunks: list[RagDocumentChunk], batch_size: int):
+    safe_batch_size = max(1, batch_size)
+    for start in range(0, len(chunks), safe_batch_size):
+        yield chunks[start : start + safe_batch_size]
+
+
+def _next_entity_batch(
+    chunks: list[RagDocumentChunk],
+    extracted_by_chunk_id: dict[str, ChunkGraphExtraction],
+    batch_size: int,
+) -> list[RagDocumentChunk]:
+    pending = [chunk for chunk in chunks if not extracted_by_chunk_id[chunk.chunk_id].entities]
+    return pending[: max(1, batch_size)]
+
+
+def _next_relationship_batch(
+    chunks: list[RagDocumentChunk],
+    extracted_by_chunk_id: dict[str, ChunkGraphExtraction],
+    batch_size: int,
+) -> list[RagDocumentChunk]:
+    pending = [
+        chunk
+        for chunk in chunks
+        if extracted_by_chunk_id[chunk.chunk_id].entities
+        and not extracted_by_chunk_id[chunk.chunk_id].relationships
+    ]
+    return pending[: max(1, batch_size)]
+
+
+def _count_chunks_with_entities(extracted_by_chunk_id: dict[str, ChunkGraphExtraction]) -> int:
+    return sum(1 for extraction in extracted_by_chunk_id.values() if extraction.entities)
+
+
+def _count_chunks_with_relationships(extracted_by_chunk_id: dict[str, ChunkGraphExtraction]) -> int:
+    return sum(1 for extraction in extracted_by_chunk_id.values() if extraction.relationships)
+
+
+def _chunk_payload(chunk: RagDocumentChunk) -> dict[str, str | int]:
+    return {
+        "chunk_id": chunk.chunk_id,
+        "chunk_index": chunk.chunk_index,
+        "chunk_text": chunk.chunk_text,
+    }
+
+
+def _load_cached_graph_extraction(chunk: RagDocumentChunk) -> ChunkGraphExtraction | None:
+    payload = (chunk.chunk_metadata or {}).get(GRAPH_EXTRACTION_METADATA_KEY)
+    if not isinstance(payload, dict) or payload.get("version") != GRAPH_EXTRACTION_VERSION:
+        return None
+    try:
+        return ChunkGraphExtraction(
+            chunk_id=chunk.chunk_id,
+            chunk_index=chunk.chunk_index,
+            entities=[ExtractedEntity.model_validate(item) for item in payload.get("entities", []) if isinstance(item, dict)],
+            relationships=[
+                ExtractedRelationship.model_validate(item)
+                for item in payload.get("relationships", [])
+                if isinstance(item, dict)
+            ],
+        )
+    except Exception:
+        return None
+
+
+def _store_cached_graph_extraction(chunk: RagDocumentChunk, extraction: ChunkGraphExtraction) -> None:
+    metadata = dict(chunk.chunk_metadata or {})
+    metadata[GRAPH_EXTRACTION_METADATA_KEY] = {
+        "version": GRAPH_EXTRACTION_VERSION,
+        "entities": [entity.model_dump() for entity in extraction.entities],
+        "relationships": [relationship.model_dump() for relationship in extraction.relationships],
+    }
+    chunk.chunk_metadata = metadata
+    flag_modified(chunk, "chunk_metadata")

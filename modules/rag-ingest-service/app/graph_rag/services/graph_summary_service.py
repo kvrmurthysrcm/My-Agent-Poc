@@ -24,7 +24,7 @@ JSON schema:
 Graph facts:
 {compact}
 """
-        data = self.llm.generate_json(prompt)
+        data = self.llm.generate_json(prompt, root_key="summary")
         summary = data.get("summary")
         if not isinstance(summary, str) or not summary.strip():
             raise ValueError("Mistral graph summary response must contain summary")

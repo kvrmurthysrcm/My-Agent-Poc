@@ -11,11 +11,16 @@
     h1 { font-size: 24px; margin: 0; }
     .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
     input[type="search"] { min-width: 280px; border: 1px solid #c9d0da; border-radius: 6px; padding: 9px 10px; background: #fff; }
+    select { border: 1px solid #c9d0da; border-radius: 6px; padding: 7px 8px; background: #fff; }
     button { border: 0; border-radius: 6px; padding: 9px 14px; background: #1f6feb; color: #fff; cursor: pointer; }
+    button.small { padding: 6px 10px; font-size: 12px; }
     button.danger { background: #b42318; }
     button.secondary { background: #4b5563; }
     button:disabled { cursor: not-allowed; opacity: 0.55; }
     .status { color: #5d6673; font-size: 13px; }
+    .settings-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; padding: 10px; border: 1px solid #d9dee7; border-radius: 8px; background: #fff; }
+    .settings-strip strong { font-size: 13px; }
+    .settings-strip label { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: #3f4652; }
     .table-wrap { overflow: auto; border: 1px solid #d9dee7; background: #fff; border-radius: 8px; }
     table { width: 100%; border-collapse: collapse; min-width: 1120px; }
     th, td { border-bottom: 1px solid #edf0f4; padding: 10px; text-align: left; vertical-align: top; font-size: 13px; }
@@ -24,7 +29,36 @@
     .title { font-weight: 700; font-size: 14px; }
     .muted { color: #687180; }
     .badge { display: inline-block; border: 1px solid #cdd5df; border-radius: 999px; padding: 2px 7px; margin: 1px 2px 1px 0; background: #fafbfc; }
+    .mode-badge { display: inline-block; border-radius: 999px; padding: 2px 7px; margin-top: 4px; font-size: 12px; font-weight: 700; }
+    .mode-standard { border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+    .mode-graph { border: 1px solid #bbf7d0; background: #f0fdf4; color: #15803d; }
+    .mode-both { border: 1px solid #ddd6fe; background: #f5f3ff; color: #6d28d9; }
     .danger-text { color: #b42318; }
+    .status-value { display: inline-block; font-weight: 700; }
+    .status-failed { color: #b42318; }
+    .status-processing { color: #a16207; }
+    .status-queued { color: #1d4ed8; }
+    .status-hover { cursor: help; position: relative; }
+    .status-hover .status-tooltip {
+      display: none;
+      position: absolute;
+      left: 0;
+      top: 22px;
+      z-index: 5;
+      width: min(420px, 70vw);
+      max-height: 220px;
+      overflow: auto;
+      border: 1px solid #d8b4a8;
+      border-radius: 6px;
+      padding: 10px;
+      background: #fff7ed;
+      color: #7c2d12;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-weight: 400;
+    }
+    .status-hover:hover .status-tooltip { display: block; }
     .empty { padding: 28px; text-align: center; color: #687180; }
     pre { white-space: pre-wrap; word-break: break-word; background: #111827; color: #f9fafb; border-radius: 8px; padding: 12px; max-height: 260px; overflow: auto; }
   </style>
@@ -42,6 +76,13 @@
       <label><input id="force" type="checkbox"> Force processing deletes</label>
       <span id="summary" class="status"></span>
     </div>
+    <div class="settings-strip">
+      <strong>Graph RAG</strong>
+      <label>Entity batch <select id="entity-batch-size"></select></label>
+      <label>Relation batch <select id="relationship-batch-size"></select></label>
+      <button id="save-graph-settings" class="secondary small" type="button">Save</button>
+      <span id="graph-settings-status" class="status"></span>
+    </div>
     <form id="resource-form">
       <div class="table-wrap">
         <table>
@@ -56,6 +97,7 @@
               <th>Jobs</th>
               <th>File</th>
               <th>Created</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody id="rows"></tbody>
@@ -72,8 +114,15 @@
     const selectAll = document.getElementById("select-all");
     const deleteSelected = document.getElementById("delete-selected");
     const force = document.getElementById("force");
+    const entityBatchSize = document.getElementById("entity-batch-size");
+    const relationshipBatchSize = document.getElementById("relationship-batch-size");
+    const saveGraphSettings = document.getElementById("save-graph-settings");
+    const graphSettingsStatus = document.getElementById("graph-settings-status");
     let resources = [];
+    let refreshTimer = null;
 
+    populateBatchSizeOptions(entityBatchSize);
+    populateBatchSizeOptions(relationshipBatchSize);
     document.getElementById("refresh").addEventListener("click", loadResources);
     filter.addEventListener("input", renderRows);
     selectAll.addEventListener("change", () => {
@@ -81,7 +130,12 @@
       updateSelectedState();
     });
     deleteSelected.addEventListener("click", deleteResources);
+    saveGraphSettings.addEventListener("click", saveGraphRagSettings);
     rows.addEventListener("change", updateSelectedState);
+    rows.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-action='retry']");
+      if (button) retryResource(button);
+    });
 
     async function loadResources() {
       result.hidden = true;
@@ -95,6 +149,47 @@
       }
       resources = body.resources || [];
       renderRows();
+      scheduleRefresh();
+    }
+
+    async function loadGraphRagSettings() {
+      graphSettingsStatus.textContent = "Loading...";
+      const response = await fetch("/rag/admin/settings/graph-rag");
+      const body = await readResponseBody(response);
+      if (!response.ok) {
+        graphSettingsStatus.textContent = body.detail || "Unable to load Graph RAG settings";
+        return;
+      }
+      entityBatchSize.value = body.entity_batch_size;
+      relationshipBatchSize.value = body.relationship_batch_size;
+      graphSettingsStatus.textContent = "Saved values loaded";
+    }
+
+    async function saveGraphRagSettings() {
+      const payload = {
+        entity_batch_size: Number(entityBatchSize.value),
+        relationship_batch_size: Number(relationshipBatchSize.value)
+      };
+      if (!isValidBatchSize(payload.entity_batch_size) || !isValidBatchSize(payload.relationship_batch_size)) {
+        graphSettingsStatus.textContent = "Batch sizes must be 1-10";
+        return;
+      }
+      saveGraphSettings.disabled = true;
+      graphSettingsStatus.textContent = "Saving...";
+      const response = await fetch("/rag/admin/settings/graph-rag", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const body = await readResponseBody(response);
+      saveGraphSettings.disabled = false;
+      if (!response.ok) {
+        graphSettingsStatus.textContent = body.detail || "Save failed";
+        return;
+      }
+      entityBatchSize.value = body.entity_batch_size;
+      relationshipBatchSize.value = body.relationship_batch_size;
+      graphSettingsStatus.textContent = body.message || "Graph RAG settings saved";
     }
 
     function renderRows() {
@@ -109,7 +204,7 @@
       summary.textContent = `${visible.length} of ${resources.length} resources`;
       selectAll.checked = false;
       if (!visible.length) {
-        rows.innerHTML = `<tr><td colspan="9" class="empty">No resources found.</td></tr>`;
+        rows.innerHTML = `<tr><td colspan="10" class="empty">No resources found.</td></tr>`;
         updateSelectedState();
         return;
       }
@@ -126,17 +221,96 @@
             <div>${(item.tags || []).map((tag) => `<span class="badge">${escapeHtml(tag)}</span>`).join("")}</div>
           </td>
           <td>
-            <div>${escapeHtml(item.ingestion_status)}</div>
+            ${renderStatus(item)}
             <div class="muted">RAG ${item.rag_enabled ? "enabled" : "disabled"}</div>
+            ${renderModeBadge(item)}
           </td>
           <td>${item.chunk_count}</td>
           <td>${item.embedding_count}</td>
-          <td>${item.job_count}<div class="muted">${escapeHtml(item.latest_job_status || "")}</div></td>
+          <td>
+            ${item.job_count}
+            <div class="muted">${escapeHtml(item.latest_job_status || "")}</div>
+            <div class="muted">${escapeHtml(item.latest_job_indexing_mode || "")}</div>
+          </td>
           <td>${escapeHtml(item.file_name || "")}<div class="muted">${formatBytes(item.file_size_bytes)}</div></td>
           <td>${formatDate(item.created_at)}</td>
+          <td>${renderActions(item)}</td>
         </tr>
       `).join("");
       updateSelectedState();
+    }
+
+    function renderStatus(item) {
+      const status = effectiveStatus(item);
+      const latestError = formatError(item);
+      if (status === "FAILED" && latestError) {
+        return `
+          <div class="status-value status-failed status-hover">
+            FAILED
+            <span class="status-tooltip">${escapeHtml(latestError)}</span>
+          </div>
+        `;
+      }
+      if (status === "PROCESSING") {
+        return `
+          <div class="status-value status-processing status-hover">
+            PROCESSING
+            <span class="status-tooltip">${escapeHtml(formatProgress(item))}</span>
+          </div>
+        `;
+      }
+      const statusClass = status === "QUEUED" ? " status-queued" : "";
+      return `<div class="status-value${statusClass}">${escapeHtml(status)}</div>`;
+    }
+
+    function effectiveStatus(item) {
+      const jobStatus = item.latest_job_status || "";
+      if (jobStatus === "QUEUED" || jobStatus === "PROCESSING" || jobStatus === "FAILED") {
+        return jobStatus;
+      }
+      return item.ingestion_status || jobStatus || "";
+    }
+
+    function renderModeBadge(item) {
+      const mode = item.latest_job_indexing_mode || item.metadata?.indexing_mode || "";
+      if (mode === "GRAPH") return `<div class="mode-badge mode-graph">Graph RAG</div>`;
+      if (mode === "BOTH") return `<div class="mode-badge mode-both">Graph + embeddings</div>`;
+      if (mode === "STANDARD") return `<div class="mode-badge mode-standard">Standard embeddings</div>`;
+      return "";
+    }
+
+    function formatError(item) {
+      const parts = [];
+      if (item.latest_error_stage) parts.push(`Stage: ${item.latest_error_stage}`);
+      if (item.latest_error_type) parts.push(`Type: ${item.latest_error_type}`);
+      if (item.latest_error_message) parts.push(item.latest_error_message);
+      return parts.join("\n");
+    }
+
+    function formatProgress(item) {
+      const mode = item.latest_job_indexing_mode || "";
+      const total = item.latest_job_total_chunks || item.chunk_count || 0;
+      const parts = [];
+      if (item.latest_job_progress_message) parts.push(item.latest_job_progress_message);
+      if (total) parts.push(`Chunks: ${item.latest_job_processed_chunks || item.chunk_count || 0}/${total}`);
+      if (mode === "STANDARD" || mode === "BOTH") {
+        parts.push(`Embeddings: ${item.latest_job_embedded_chunks || item.embedding_count || 0}/${total}`);
+      }
+      if (mode === "GRAPH" || mode === "BOTH") {
+        parts.push(`Graph entities: ${item.latest_job_graph_entities_count || 0} consolidated`);
+        parts.push(`Graph relationships: ${item.latest_job_graph_relationships_count || 0} consolidated`);
+        if ((item.latest_job_progress_message || "").toLowerCase().includes("summary")) {
+          parts.push("Summary: running");
+        }
+      }
+      return parts.join("\n") || "Processing";
+    }
+
+    function renderActions(item) {
+      if (effectiveStatus(item) !== "FAILED" || item.latest_job_status !== "FAILED") {
+        return "";
+      }
+      return `<button class="small" type="button" data-action="retry" data-resource-id="${escapeHtml(item.resource_id)}">Retry</button>`;
     }
 
     async function deleteResources() {
@@ -156,6 +330,25 @@
       await loadResources();
     }
 
+    async function retryResource(button) {
+      const resourceId = button.dataset.resourceId;
+      if (!resourceId) return;
+      button.disabled = true;
+      summary.textContent = "Retrying...";
+      const response = await fetch(`/rag/admin/resources/${encodeURIComponent(resourceId)}/retry`, {
+        method: "POST"
+      });
+      const body = await readResponseBody(response);
+      showResult(body);
+      if (!response.ok) {
+        summary.textContent = "Retry failed";
+        button.disabled = false;
+        return;
+      }
+      summary.textContent = "Retry queued";
+      await loadResources();
+    }
+
     function updateSelectedState() {
       const selected = document.querySelectorAll("input[name='resource_id']:checked").length;
       deleteSelected.disabled = selected === 0;
@@ -165,6 +358,27 @@
     function showResult(value) {
       result.hidden = false;
       result.textContent = JSON.stringify(value, null, 2);
+    }
+
+    function scheduleRefresh() {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+        refreshTimer = null;
+      }
+      const hasActiveRows = resources.some((item) => ["QUEUED", "PROCESSING"].includes(effectiveStatus(item)));
+      if (hasActiveRows) {
+        refreshTimer = setTimeout(loadResources, 5000);
+      }
+    }
+
+    async function readResponseBody(response) {
+      const text = await response.text();
+      if (!text) return {};
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { detail: text };
+      }
     }
 
     function formatDate(value) {
@@ -178,12 +392,24 @@
       return `${(value / 1024 / 1024).toFixed(1)} MB`;
     }
 
+    function isValidBatchSize(value) {
+      return Number.isInteger(value) && value >= 1 && value <= 10;
+    }
+
+    function populateBatchSizeOptions(select) {
+      select.innerHTML = Array.from({ length: 10 }, (_, index) => {
+        const value = index + 1;
+        return `<option value="${value}">${value}</option>`;
+      }).join("");
+    }
+
     function escapeHtml(value) {
       return String(value ?? "").replace(/[&<>"']/g, (char) => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;"
       }[char]));
     }
 
+    loadGraphRagSettings();
     loadResources();
   </script>
 </body>

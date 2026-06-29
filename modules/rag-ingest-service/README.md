@@ -32,7 +32,7 @@ UI fields:
 - title, author, category, language, source system, business domain, and description
 - comma-separated tags
 - custom metadata JSON
-- indexing mode: Standard RAG, Graph RAG, or Both
+- indexing mode: None/chunks-only, Standard RAG, Graph RAG, or Both
 - chunk size and chunk overlap
 - metadata JSON preview
 - resource/job status display
@@ -96,6 +96,8 @@ Supported strategies:
 | `SEMANTIC_RECURSIVE` | Groups text by detected headings and paragraphs, then falls back to token windows for oversized paragraphs |
 | `INTELLIGENT_RECURSIVE` | Preserves the original section-aware fixed token window behavior |
 
+Detailed behavior, metadata, cleanup, and tradeoffs are documented in `docs/CHUNKING_STRATEGIES.md`.
+
 Request metadata can override the default per upload:
 
 ```json
@@ -121,6 +123,7 @@ The upload metadata accepts `indexing_mode`; if it is omitted, the service uses 
 
 | Mode | Behavior |
 | --- | --- |
+| `NONE` | Runs extraction and chunking only, then marks the resource ready without embeddings or Graph RAG. Useful for fast chunk validation in local/dev workflows. |
 | `STANDARD` | Runs the existing chunk embedding/vector indexing flow only. |
 | `GRAPH` | Runs the shared extraction/chunking flow and Graph RAG indexing. Chunk embeddings are skipped by default. |
 | `BOTH` | Runs both standard chunk embeddings and Graph RAG indexing. |
@@ -129,9 +132,14 @@ For graph-only ingestion, chunk embedding creation is controlled by:
 
 ```text
 GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS=false
+GRAPH_RAG_KEEP_EXTRACTION_CACHE=true
+GRAPH_RAG_ENTITY_BATCH_SIZE=1
+GRAPH_RAG_RELATIONSHIP_BATCH_SIZE=1
 ```
 
 When this flag is `false`, `indexing_mode=GRAPH` does not save rows in `rag_chunk_embeddings`. Set it to `true` only when you want graph-only uploads to also create chunk embeddings for vector search. `BOTH` always creates embeddings.
+
+Graph RAG sends chunks to the local LLM in small batches for extraction. `GRAPH_RAG_ENTITY_BATCH_SIZE` controls entity extraction batch size, and `GRAPH_RAG_RELATIONSHIP_BATCH_SIZE` controls relationship extraction batch size. Both currently default to `1` for maximum JSON reliability; use `2` after validating the local model returns stable batched JSON. Graph LLM calls retry transient failures using `GRAPH_RAG_LLM_MAX_RETRIES` and `GRAPH_RAG_LLM_RETRY_BACKOFF_SECONDS`. Successful per-chunk graph extraction is cached in chunk metadata so a resumed job can skip completed chunks. The resource-level summary remains one LLM call per document and is used by graph summary search.
 
 ## Embeddings
 
@@ -149,17 +157,22 @@ EMBEDDING_RETRY_SHRINK_BATCH=true
 EMBEDDING_MIN_BATCH_SIZE=1
 
 LLM_PROVIDER=ollama
-LLM_MODEL=mistral:7b-instruct-v0.3-q2_K
+LLM_MODEL=mistral:latest
 LLM_BASE_URL=http://localhost:11434
 LLM_GENERATE_PATH=/api/generate
-LLM_TIMEOUT_SECONDS=120
+LLM_TIMEOUT_SECONDS=240
+GRAPH_RAG_LLM_MAX_RETRIES=2
+GRAPH_RAG_LLM_RETRY_BACKOFF_SECONDS=2.0
 GRAPH_RAG_CREATE_CHUNK_EMBEDDINGS=false
+GRAPH_RAG_KEEP_EXTRACTION_CACHE=true
+GRAPH_RAG_ENTITY_BATCH_SIZE=1
+GRAPH_RAG_RELATIONSHIP_BATCH_SIZE=1
 
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_EMBEDDING_TIMEOUT_SECONDS=60
 ```
 
-Use `nomic-embed-text` for vector creation. Use `mistral:7b-instruct-v0.3-q2_K` for Graph RAG extraction and summary generation.
+Use `nomic-embed-text` for vector creation. Use `mistral:latest` for Graph RAG extraction and summary generation.
 
 `EMBEDDING_CONCURRENCY` defaults to `1`. Increase to `2` only when testing whether local Ollama can process embedding batches in parallel without slowing down.
 
@@ -185,7 +198,7 @@ EMBEDDING_DIMENSION=1536
 OPENAI_API_KEY=<from environment>
 ```
 
-`EMBEDDING_MODEL` is validated against a registry at startup. Chat/generation models such as `mistral:7b-instruct-v0.3-q2_K` are valid for `LLM_MODEL`, but are rejected as `EMBEDDING_MODEL`.
+`EMBEDDING_MODEL` is validated against a registry at startup. Chat/generation models such as `mistral:latest` are valid for `LLM_MODEL`, but are rejected as `EMBEDDING_MODEL`.
 
 Fake OpenAI embeddings are disabled by default. Tests or local-only smoke runs can opt in with:
 
@@ -219,6 +232,8 @@ The worker claims queued jobs in batches using `DB_WORKER_BATCH_SIZE`, sleeps be
 
 TODO: Add retry/requeue support for failed ingestion jobs. The schema has retry fields for the DB worker path, but the current processing flow marks embedding failures such as Ollama `ReadTimeout` as `FAILED` without automatic retry. A future pass should add retryable failure handling and/or a manual retry endpoint such as `POST /rag/ingest/jobs/{job_id}/retry`.
 
+TODO: Implement `GRAPH_RAG_KEEP_EXTRACTION_CACHE`. Today Graph RAG keeps per-chunk LLM extraction output in `rag_document_chunks.metadata_json.graph_rag_extraction` after final graph consolidation. This is useful for resume, debugging, and rebuilding graph tables without new LLM calls. A future pass should wire this flag so `true` preserves that cache and `false` removes it after successful consolidation to reduce DB size and avoid stale intermediate extraction data.
+
 Run the recovery worker to requeue stale `PROCESSING` jobs after service or worker restarts:
 
 ```powershell
@@ -236,9 +251,13 @@ The recovery worker uses:
 ```text
 RECOVERY_STALE_AFTER_SECONDS=900
 RECOVERY_WORKER_POLL_INTERVAL_SECONDS=30
+RECOVER_PROCESSING_JOBS_ON_STARTUP=true
+STARTUP_RECOVERY_STALE_AFTER_SECONDS=0
 ```
 
 By default it requeues stale jobs and processes queued jobs in the same process. Use `--no-process` to only requeue jobs.
+
+When `RECOVER_PROCESSING_JOBS_ON_STARTUP=true`, the API process requeues stale `PROCESSING` jobs during startup. For the FastAPI background task backend, startup also launches one background recovery pass to process the recovered queue. `STARTUP_RECOVERY_STALE_AFTER_SECONDS=0` treats any `PROCESSING` job left behind by a prior crash/restart as recoverable immediately.
 
 ## Example Upload
 
@@ -339,4 +358,10 @@ select stage, error_type, error_message, created_at
 from rag_processing_errors
 where job_id = '<job_id>'
 order by created_at desc;
+```
+
+
+```get the PID of the process:
+Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | Select-Object `
+ -ExpandProperty OwningProcess -Unique
 ```

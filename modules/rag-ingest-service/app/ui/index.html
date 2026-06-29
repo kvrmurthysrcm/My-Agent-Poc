@@ -388,6 +388,7 @@
               <option value="STANDARD" selected>Standard RAG</option>
               <option value="GRAPH">Graph RAG</option>
               <option value="BOTH">Both Standard and Graph RAG</option>
+              <option value="NONE">None - chunks only</option>
             </select>
           </div>
           <div class="field">
@@ -563,7 +564,7 @@
       indexingModeStatus.textContent = data.indexing_mode || "-";
       parserName.textContent = data.parser_name || "-";
       chunks.textContent = `${data.processed_chunks || 0}/${data.total_chunks || 0}`;
-      embeddings.textContent = `${data.embedded_chunks || 0}/${data.total_chunks || 0}`;
+      embeddings.textContent = renderEmbeddingStatus(data);
       graphCounts.textContent = `${data.graph_entities_count || 0} entities / ${data.graph_relationships_count || 0} relationships`;
       renderProfiling(data.profiling || []);
 
@@ -593,6 +594,16 @@
           .join(" ") : "";
         return `<tr><td>${escapeHtml(row.step)}</td><td class="${statusClass}">${escapeHtml(status)}</td><td>${Number(row.elapsed_ms).toFixed(2)}</td><td>${escapeHtml(details)}</td></tr>`;
       }).join("");
+    }
+
+    function renderEmbeddingStatus(data) {
+      if (data.indexing_mode === "NONE") {
+        return "Skipped";
+      }
+      if (data.indexing_mode === "GRAPH" && !data.embedded_chunks) {
+        return "Skipped";
+      }
+      return `${data.embedded_chunks || 0}/${data.total_chunks || 0}`;
     }
 
     function escapeHtml(value) {

@@ -1,7 +1,9 @@
 from app.services.text_extraction_service import TextExtractionService
 from zipfile import ZipFile
 
+from app.core.config import Settings
 from app.services.file_metadata_service import FileMetadataService
+from app.services.pdf_text_cleanup import PdfTextCleanupService
 
 
 def test_txt_extraction(tmp_path):
@@ -31,6 +33,47 @@ def test_epub_metadata_extraction(tmp_path):
     assert result.author == "EPUB Author"
     assert result.language == "en"
     assert result.publisher == "EPUB Publisher"
+
+
+def test_pdf_cleanup_repairs_drop_caps_and_common_pdf_artifacts():
+    text = (
+        "[Page 1]\n"
+        "Sons and Lovers\n"
+        "Free eBooks at Planet eBook.com\n"
+        "and email newsletter.\n"
+        "M\n\n"
+        "arley was dead: to begin with. There is no doubt what-\n"
+        "ever about that. It was a mer- ry Christmas for gentle- men.\uf648\n\n"
+        "[Page 2]\n"
+        "2\n"
+        "Sons and Lovers\n"
+        "Free eBooks at Planet eBook.com\n"
+        "The story continues andpresented the same problem.\n\n"
+        "[Page 3]\n"
+        "3\n"
+        "Sons and Lovers\n"
+        "Free eBooks at Planet eBook.com\n"
+        "The ghost hadwarned him threequarters earlier."
+    )
+
+    cleaned, stats = PdfTextCleanupService(Settings()).clean(text)
+
+    assert "Marley was dead" in cleaned
+    assert "whatever about that" in cleaned
+    assert "merry Christmas" in cleaned
+    assert "gentlemen" in cleaned
+    assert "Sons and Lovers" not in cleaned
+    assert "Free eBooks at Planet eBook.com" not in cleaned
+    assert "email newsletter" not in cleaned
+    assert "\n2\n" not in cleaned
+    assert "\n3\n" not in cleaned
+    assert "and presented" in cleaned
+    assert "had warned" in cleaned
+    assert "three quarters" in cleaned
+    assert "\uf648" not in cleaned
+    assert stats.boilerplate_lines_removed == 4
+    assert stats.page_number_lines_removed == 2
+    assert stats.joined_word_repairs == 3
 
 
 def write_sample_epub(path):
