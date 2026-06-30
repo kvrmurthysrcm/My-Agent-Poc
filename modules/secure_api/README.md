@@ -23,7 +23,7 @@ http://localhost:8080
 | Phase 3 | Keycloak-backed `/auth/login`, `/auth/refresh`, `/auth/logout` | Done | Wrapper auth curl commands below |
 | Phase 4 | JWT validation, role extraction, protected `/auth/me` | Done | `GET /auth/me` with bearer token |
 | Phase 5 | Protected RAG gateway routes using downstream `X-API-Key` | Done | `/rag/search`, `/rag/ingest`, `/rag/answer`, `/rag/test-downstream` |
-| Phase 6 | Final hardening, full README, security review | In progress | This README covers current validation |
+| Phase 6 | Final hardening, full README, security review, Library Search and admin tools UI | In progress | This README covers current validation |
 
 ## Implemented Components
 
@@ -43,6 +43,8 @@ http://localhost:8080
 - Realm and client role extraction
 - Protected `GET /auth/me`
 - Protected RAG gateway routes
+- Protected Library Search gateway route backed by `online_library_agent`
+- Admin-only Library Tools gateway routes backed by `online_library_mcp`
 - Resource list, delete, and retry gateway routes for the UI
 - Multipart upload forwarding for RAG ingest
 - Downstream calls using `X-API-Key`
@@ -71,6 +73,8 @@ DOWNSTREAM_API_KEY=local-poc-internal-api-key
 RAG_INGEST_BASE_URL=http://localhost:8000
 RAG_SEARCH_BASE_URL=http://localhost:8001
 RAG_ANSWER_BASE_URL=http://localhost:8002
+ONLINE_LIBRARY_AGENT_BASE_URL=http://localhost:8005
+ONLINE_LIBRARY_MCP_URL=http://localhost:8004/mcp
 DOWNSTREAM_TIMEOUT_SECONDS=600
 ```
 
@@ -84,7 +88,17 @@ local-keycloak
 
 Confirm the `local-keycloak` container is running before calling the Keycloak URLs.
 
-Start the wrapper service with `modules/secure_api/run_local.ps1` or `modules/secure_api/run_local.bat`.
+Start the wrapper service with `modules/secure_api/run-secure-api-service.bat`, `modules/secure_api/run_local.ps1`, or `modules/secure_api/run_local.bat`.
+
+Service dependencies by feature:
+
+| Feature | Required services/modules | Batch file |
+| --- | --- | --- |
+| Login/auth and `/auth/me` | Keycloak | `scripts/keycloak` setup scripts; Keycloak container `local-keycloak` |
+| Books dashboard, search, answer, ingest | `rag-ingest-service`, `rag-search-service`, `rag-answer-service` | `modules/rag-ingest-service/run-ingest-service.bat`, `modules/rag-search-service/run-search-service.bat`, `modules/rag-answer-service/run-answer-service.bat` |
+| Library Search UI | `online_library` API, `online_library_mcp` tools service, `online_library_agent` NLQ service, Ollama | `modules/online_library/run-library-api-service.bat`, `modules/online_library_mcp/run-library-tools-service.bat`, `modules/online_library_agent/run-library-agent-service.bat` |
+| Admin Library Tools UI | `online_library` API and `online_library_mcp` tools service | `modules/online_library/run-library-api-service.bat`, `modules/online_library_mcp/run-library-tools-service.bat` |
+| Secure browser UI and wrapper API | `secure_api` | `modules/secure_api/run-secure-api-service.bat` |
 
 Open the browser UI:
 
@@ -98,9 +112,10 @@ The UI starts with a login screen, stores the access token in browser local stor
 - Search
 - Answer generation
 - Compare model answers
+- Library Search for natural-language Online Library questions
 - Admin-only ingest
 - Admin-only delete and retry actions
-- A placeholder MCP tools section for future gateway endpoints
+- Admin-only Library Tools, backed by the Online Library MCP tools service
 
 Admin actions are shown only when the signed-in user has `rag_admin` or `system_admin`.
 
@@ -703,6 +718,137 @@ Expected response shape:
 
 The endpoint returns a per-service status and does not fail the entire response when one downstream service is unavailable.
 
+## Validate Library Search And Admin Tools
+
+The user-facing UI label is **Library Search** because users ask natural-language questions. It calls `online_library_agent`, which chooses and invokes MCP tools internally.
+
+The admin/debug UI label is **Library Tools**. It exposes raw MCP tool discovery and tool invocation only for users with `rag_admin` or `system_admin`.
+
+Natural-language flow:
+
+```text
+secure_api /library-search/ask
+  -> online_library_agent http://localhost:8005/ask
+  -> online_library_mcp http://localhost:8004/mcp
+  -> online_library API http://localhost:8003
+```
+
+Admin tools flow:
+
+```text
+secure_api /library-tools/*
+  -> online_library_mcp http://localhost:8004/mcp
+  -> online_library API http://localhost:8003
+```
+
+Headers sent by secure_api to the Library Search agent and MCP tools service:
+
+```text
+X-API-Key: local-poc-internal-api-key
+```
+
+The current agent/tools services do not validate the API key, but the wrapper sends it so the integration contract is already in place.
+
+Start the required services:
+
+```bash
+modules/online_library/run-library-api-service.bat
+modules/online_library_mcp/run-library-tools-service.bat
+modules/online_library_agent/run-library-agent-service.bat
+modules/secure_api/run-secure-api-service.bat
+```
+
+Direct Online Library API check:
+
+```bash
+curl -s "http://localhost:8003/tables"
+```
+
+Expected response includes `count` and `tables`.
+
+Direct Library Search agent check:
+
+```bash
+curl -s -X POST "http://localhost:8005/ask" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Show me books written by Kelly","limit":5,"offset":0,"include_raw":true}'
+```
+
+Expected response includes `question`, `selected_tool`, `answer`, `debug`, and `raw_tool_result`.
+
+Validate Library Search through secure_api as a normal user:
+
+```bash
+TOKEN=$(curl -s -X POST "http://localhost:8010/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"raguser","password":"raguser123"}' | jq -r .access_token)
+
+curl -s -X POST "http://localhost:8010/library-search/ask" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"question":"Show me books written by Kelly","limit":5,"offset":0,"include_raw":true}'
+```
+
+Expected response is the NLQ agent answer. If `online_library_agent`, `online_library_mcp`, `online_library`, Ollama, or the database is unavailable, secure_api returns `502 Bad Gateway` with `library_search_request_failed`.
+
+Direct MCP tools service check:
+
+```bash
+curl -s -X POST "http://localhost:8004/mcp" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: local-poc-internal-api-key" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+Expected response includes `result.tools` with tools such as:
+
+```text
+list_available_tables
+get_resources
+get_library_users
+get_user_bookshelf
+```
+
+Validate admin-only Library Tools through secure_api:
+
+```bash
+TOKEN=$(curl -s -X POST "http://localhost:8010/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"ragadmin","password":"ragadmin123"}' | jq -r .access_token)
+
+curl -s "http://localhost:8010/library-tools/tools" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Call a library data tool through secure_api:
+
+```bash
+curl -s -X POST "http://localhost:8010/library-tools/call" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"get_resources","arguments":{"limit":5,"offset":0}}'
+```
+
+Expected response is the Online Library API payload for the selected table. If `online_library` or `online_library_mcp` is not running, secure_api returns `502 Bad Gateway` with `library_tools_request_failed`.
+
+Normal users cannot access raw Library Tools:
+
+```bash
+TOKEN=$(curl -s -X POST "http://localhost:8010/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"raguser","password":"raguser123"}' | jq -r .access_token)
+
+curl -s -i "http://localhost:8010/library-tools/tools" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Expected status:
+
+```text
+403 Forbidden
+```
+
 Validate role rejection. `searchuser` has `rag_search_user`, so search is allowed but ingest is rejected:
 
 ```bash
@@ -760,7 +906,7 @@ From the repository root, run the secure API test suite with the repo virtualenv
 Expected result:
 
 ```text
-26 passed
+36 passed
 ```
 
 If you run `pytest` with the global Python installation, dependency imports may fail. Use the repo virtualenv or install `modules/secure_api/requirements.txt`.

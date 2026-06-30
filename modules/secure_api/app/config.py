@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     rag_ingest_base_url: str = Field("http://localhost:8000", alias="RAG_INGEST_BASE_URL")
     rag_search_base_url: str = Field("http://localhost:8001", alias="RAG_SEARCH_BASE_URL")
     rag_answer_base_url: str = Field("http://localhost:8002", alias="RAG_ANSWER_BASE_URL")
+    online_library_agent_base_url: str = Field(
+        "http://localhost:8005",
+        alias="ONLINE_LIBRARY_AGENT_BASE_URL",
+    )
+    online_library_mcp_url: str = Field("http://localhost:8004/mcp", alias="ONLINE_LIBRARY_MCP_URL")
     downstream_timeout_seconds: float = Field(600.0, alias="DOWNSTREAM_TIMEOUT_SECONDS")
     cors_origins: list[str] = Field(
         default_factory=lambda: [

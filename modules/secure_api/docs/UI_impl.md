@@ -287,16 +287,18 @@ The new UI is a wrapper-level UI. It combines the main workflows into one screen
 - Search
 - Answer
 - Compare model answers
+- Library Search
 - Admin ingest
 - Admin delete/retry
-- Future MCP area
+- Admin-only Library Tools
 
 It intentionally calls only secure_api endpoints so authentication and role checks stay centralized.
 
 ## Current Limitations
 
 - Token refresh is not automatic yet.
-- The MCP section is a placeholder; secure_api MCP endpoints are not implemented yet.
+- Library Search depends on `online_library_agent`, `online_library_mcp`, `online_library`, Ollama, and the Online Library database.
+- Raw Library Tools are admin-only and intended for diagnostics/debugging, not the normal user workflow.
 - Resource list/delete/retry reuse downstream search admin APIs, so the downstream search service must have admin resource APIs enabled.
 - The UI stores tokens in `localStorage`, which is acceptable only for this local laptop POC.
 - The answer flow can be slow when local Ollama models receive large context.
@@ -306,6 +308,6 @@ It intentionally calls only secure_api endpoints so authentication and role chec
 - Add automatic token refresh before expiry.
 - Add ingest job status polling after upload.
 - Add graph search and combined search tabs.
-- Add MCP tool discovery and invocation once secure_api exposes MCP routes.
+- Add richer Library Search result cards for common book/user/subscription fields.
 - Add a request log panel showing wrapper calls and response times.
 - Add a compact token/role inspector for debugging local auth.

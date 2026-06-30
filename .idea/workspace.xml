@@ -4,7 +4,19 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="fixed chunking strategies,  added more solid filters." />
+    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="submit missing files">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/online_library/Readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/online_library/Readme.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/online_library_agent/Readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/online_library_agent/Readme.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/online_library_mcp/Readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/online_library_mcp/Readme.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/secure_api/.env" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/secure_api/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/secure_api/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/ui/gateway.html" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/ui/gateway.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/secure_api/docs/UI_impl.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/docs/UI_impl.md" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -300,11 +312,18 @@
       <option name="project" value="LOCAL" />
       <updated>1782817111364</updated>
     </task>
-    <option name="localTasksCounter" value="29" />
+    <task id="LOCAL-00029" summary="submit missing files">
+      <option name="closed" value="true" />
+      <created>1782825692608</created>
+      <option name="number" value="00029" />
+      <option name="presentableId" value="LOCAL-00029" />
+      <option name="project" value="LOCAL" />
+      <updated>1782825692608</updated>
+    </task>
+    <option name="localTasksCounter" value="30" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="rag-ingest-service: added the following config:&#10;DELETE_ORIGINAL_FILE_AFTER_INGESTION=true" />
     <MESSAGE value="rag-ingest-service: added the following :&#10;add browser /ui to upload a file, meta data.&#10;add profiling support&#10;add configurable parser" />
     <MESSAGE value="rag-ingest-service: added the following :&#10;add browser /ui to upload a file, meta data.&#10;add profiling support&#10;add configurable parser&#10;&#10;Add missing files" />
     <MESSAGE value="Add missing .env files" />
@@ -329,6 +348,7 @@
     <MESSAGE value="add postman colelction for secure_api module.&#10;increase teh session timeoutfor JWT on keycloak to 7 days since its only a POC" />
     <MESSAGE value="add dark mode to UI.&#10;add Compare button also in the top bar." />
     <MESSAGE value="fixed chunking strategies,  added more solid filters." />
-    <option name="LAST_COMMIT_MESSAGE" value="fixed chunking strategies,  added more solid filters." />
+    <MESSAGE value="submit missing files" />
+    <option name="LAST_COMMIT_MESSAGE" value="submit missing files" />
   </component>
 </project>

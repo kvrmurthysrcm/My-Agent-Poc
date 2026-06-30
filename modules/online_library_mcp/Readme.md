@@ -14,6 +14,12 @@ MCP Streamable HTTP server that exposes tools on top of the `modules.online_libr
 .\.venv\Scripts\python.exe -m modules.online_library_mcp.server
 ```
 
+From the repository root, or by double-clicking from this module folder, you can also use:
+
+```powershell
+modules\online_library_mcp\run-library-tools-service.bat
+```
+
 MCP endpoint:
 
 ```text

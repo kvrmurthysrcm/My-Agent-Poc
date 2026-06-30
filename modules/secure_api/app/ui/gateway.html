@@ -95,6 +95,7 @@
     .login-panel p { margin: 0 0 18px; color: var(--muted); }
     .login-form { display: grid; gap: 12px; }
     label { display: grid; gap: 6px; color: var(--muted); font-weight: 700; font-size: 13px; }
+    .hint { color: var(--muted); font-size: 12px; font-weight: 600; margin-top: -4px; }
     .app-shell { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; }
     .topbar {
       position: sticky;
@@ -233,11 +234,15 @@
       font-size: 12px;
       font-weight: 800;
     }
+    .tool-grid { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 14px; }
+    .tool-list { display: grid; gap: 6px; align-content: start; }
+    .tool-list button { text-align: left; font-weight: 700; }
+    .tool-list button.active { border-color: var(--accent-2); background: var(--soft); color: var(--accent-2); }
     .hidden { display: none !important; }
     @media (max-width: 900px) {
       .topbar-inner { align-items: stretch; flex-direction: column; }
       .userbar { flex-wrap: wrap; }
-      .metrics, .grid-2, .form-grid { grid-template-columns: 1fr; }
+      .metrics, .grid-2, .form-grid, .tool-grid { grid-template-columns: 1fr; }
       nav button { flex: 1 1 auto; }
     }
   </style>
@@ -268,8 +273,9 @@
           <button type="button" data-view="search">Search</button>
           <button type="button" data-view="answer">Answer</button>
           <button type="button" data-view="compare">Compare</button>
+          <button type="button" data-view="librarySearch">Library Search</button>
           <button id="ingestNav" type="button" data-view="ingest" class="hidden">Ingest</button>
-          <button type="button" data-view="mcp">MCP</button>
+          <button id="libraryToolsNav" type="button" data-view="libraryTools" class="hidden">Library Tools</button>
         </nav>
         <div class="userbar">
           <span id="roleSummary" class="role-pill">roles</span>
@@ -326,7 +332,8 @@
           <div class="panel">
             <div class="panel-head"><h2>Search Books</h2></div>
             <form id="searchForm" class="panel-body">
-              <label class="full">Query <textarea id="searchQuery" required>what is graph rag?</textarea></label>
+              <label class="full">Query <textarea id="searchQuery" placeholder="Enter text from a book or a search phrase" required></textarea></label>
+              <div class="hint full">Enter a query or text from a book. The search returns matching book details and a short result summary when available.</div>
               <div class="form-grid">
                 <label>Mode
                   <select id="searchMode">
@@ -354,7 +361,8 @@
           <div class="panel">
             <div class="panel-head"><h2>Ask Books</h2></div>
             <form id="answerForm" class="panel-body">
-              <label>Question <textarea id="answerQuery" required>Tell me about A Christmas Carol</textarea></label>
+              <label>Question <textarea id="answerQuery" placeholder="Ask a question about ingested books" required></textarea></label>
+              <div class="hint">Ask a question about uploaded content. The answer uses retrieved book chunks and can include sources.</div>
               <div class="form-grid">
                 <label>Answer Mode
                   <select id="answerMode">
@@ -384,7 +392,8 @@
           <div class="panel">
             <div class="panel-head"><h2>Compare Models</h2></div>
             <form id="compareForm" class="panel-body">
-              <label>Question <textarea id="compareQuery" required>Tell me about A Christmas Carol</textarea></label>
+              <label>Question <textarea id="compareQuery" placeholder="Ask a question to compare model answers" required></textarea></label>
+              <div class="hint">Compare runs the same book question across selected local models and shows each response side by side.</div>
               <div class="form-grid">
                 <label>Models
                   <input id="compareModels" value="mistral:7b-instruct-v0.3-q2_K,gemma:7b" placeholder="comma separated model names">
@@ -415,6 +424,7 @@
           <form id="ingestForm" class="panel-body">
             <div class="form-grid">
               <label class="full">File <input id="ingestFile" type="file" required></label>
+              <div class="hint full">Upload a PDF, text, DOCX, or EPUB so it can be parsed, chunked, and optionally indexed for search and answers.</div>
               <label>Title <input id="ingestTitle" placeholder="Book title"></label>
               <label>Author <input id="ingestAuthor" placeholder="optional"></label>
               <label>Tags <input id="ingestTags" placeholder="comma separated"></label>
@@ -433,19 +443,59 @@
         </div>
       </section>
 
-      <section id="mcpView" class="view hidden">
+      <section id="librarySearchView" class="view hidden">
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><h2>Library Search</h2></div>
+            <form id="librarySearchForm" class="panel-body">
+              <label class="full">Question
+                <textarea id="librarySearchQuestion" placeholder="Ask about library books, users, authors, tags, subscriptions, or approvals" required></textarea>
+              </label>
+              <div class="hint full">Ask a natural-language question. The Library Search agent chooses the right library data tool behind the scenes.</div>
+              <div class="form-grid">
+                <label>Limit <input id="librarySearchLimit" type="number" min="1" max="100" value="10"></label>
+                <label>Offset <input id="librarySearchOffset" type="number" min="0" value="0"></label>
+              </div>
+              <div class="toolbar">
+                <button type="button" data-library-question="List available books and resources.">Books</button>
+                <button type="button" data-library-question="List authors.">Authors</button>
+                <button type="button" data-library-question="Show pending user approval requests.">Approvals</button>
+                <button type="button" data-library-question="Show user bookshelf records.">Bookshelf</button>
+              </div>
+              <button class="blue" type="submit">Search Library</button>
+            </form>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Library Answer</h2></div>
+            <div id="librarySearchResult" class="panel-body"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="libraryToolsView" class="view hidden">
         <div class="panel">
-          <div class="panel-head"><h2>MCP Tools</h2></div>
-          <div class="panel-body">
-            <div class="message">Future POC area for invoking MCP-backed tools through secure_api after adding gateway endpoints.</div>
-            <pre>{
-  "ideas": [
-    "List available MCP tools for the signed-in user",
-    "Run library lookup tools with role-based access",
-    "Show MCP execution logs per request",
-    "Save useful tool outputs as searchable resources"
-  ]
-}</pre>
+          <div class="panel-head">
+            <h2>Library Tools</h2>
+            <button type="button" id="loadLibraryToolsButton">Load Tools</button>
+          </div>
+          <div class="panel-body tool-grid">
+            <aside>
+              <div id="libraryToolsMessage" class="message">Admin diagnostics: load raw library tools to inspect available MCP-backed data operations.</div>
+              <div id="libraryToolList" class="tool-list"></div>
+            </aside>
+            <section class="panel">
+              <div class="panel-head"><h2 id="selectedToolTitle">Select a tool</h2></div>
+              <form id="libraryToolForm" class="panel-body">
+                <input id="libraryToolName" type="hidden">
+                <div id="libraryToolDescription" class="muted">Choose a raw tool to run directly. Normal users should use Library Search instead.</div>
+                <div class="form-grid">
+                  <label>Limit <input id="libraryToolLimit" type="number" min="1" max="100" value="20"></label>
+                  <label>Offset <input id="libraryToolOffset" type="number" min="0" value="0"></label>
+                </div>
+                <button class="blue" type="submit">Run Tool</button>
+                <pre id="libraryToolResult" class="hidden"></pre>
+              </form>
+            </section>
           </div>
         </div>
       </section>
@@ -453,7 +503,7 @@
   </section>
 
   <script>
-    const state = { token: localStorage.getItem("secure_api_access_token") || "", refreshToken: localStorage.getItem("secure_api_refresh_token") || "", user: null, resources: [] };
+    const state = { token: localStorage.getItem("secure_api_access_token") || "", refreshToken: localStorage.getItem("secure_api_refresh_token") || "", user: null, resources: [], libraryTools: [] };
     const loginScreen = document.getElementById("loginScreen");
     const appScreen = document.getElementById("appScreen");
     const globalMessage = document.getElementById("globalMessage");
@@ -471,6 +521,16 @@
     document.getElementById("answerForm").addEventListener("submit", answerQuestion);
     document.getElementById("compareForm").addEventListener("submit", compareAnswers);
     document.getElementById("ingestForm").addEventListener("submit", ingestBook);
+    document.getElementById("librarySearchForm").addEventListener("submit", askLibrary);
+    document.querySelectorAll("button[data-library-question]").forEach((button) => {
+      button.addEventListener("click", () => { librarySearchQuestion.value = button.dataset.libraryQuestion; });
+    });
+    document.getElementById("loadLibraryToolsButton").addEventListener("click", loadLibraryTools);
+    document.getElementById("libraryToolForm").addEventListener("submit", runLibraryTool);
+    document.getElementById("libraryToolList").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-tool-name]");
+      if (button) selectLibraryTool(button.dataset.toolName);
+    });
     document.querySelectorAll("nav button[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
     document.getElementById("resourceRows").addEventListener("click", (event) => {
       const button = event.target.closest("button[data-action='retry']");
@@ -528,6 +588,7 @@
       roleSummary.textContent = isAdmin() ? "admin" : "user";
       adminEls().forEach((el) => el.classList.toggle("hidden", !isAdmin()));
       ingestNav.classList.toggle("hidden", !isAdmin());
+      libraryToolsNav.classList.toggle("hidden", !isAdmin());
     }
 
     function isAdmin() {
@@ -742,6 +803,120 @@
       ingestResult.classList.remove("hidden");
       ingestResult.textContent = JSON.stringify(body, null, 2);
       if (response.ok) await loadResources();
+    }
+
+    async function askLibrary(event) {
+      event.preventDefault();
+      librarySearchResult.innerHTML = `<div class="message">Searching library data...</div>`;
+      const payload = {
+        question: librarySearchQuestion.value,
+        limit: Number(librarySearchLimit.value || 10),
+        offset: Number(librarySearchOffset.value || 0),
+        include_raw: true
+      };
+      const response = await apiFetch("/library-search/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const body = await readBody(response);
+      if (!response.ok) {
+        librarySearchResult.innerHTML = `<pre>${esc(JSON.stringify(body, null, 2))}</pre>`;
+        return;
+      }
+      librarySearchResult.innerHTML = renderLibrarySearchResponse(body);
+    }
+
+    function renderLibrarySearchResponse(body) {
+      const rows = body.raw_tool_result?.rows || [];
+      return `
+        <article class="result-item">
+          <strong>${esc(body.selected_tool || "No tool selected")}</strong>
+          <p>${esc(body.answer || "")}</p>
+          <div class="muted">Question: ${esc(body.question || "")}</div>
+        </article>
+        ${rows.length ? renderRowsTable(rows) : ""}
+        <pre>${esc(JSON.stringify({ tool_arguments: body.tool_arguments, debug: body.debug }, null, 2))}</pre>
+      `;
+    }
+
+    function renderRowsTable(rows) {
+      const columns = [];
+      rows.forEach((row) => Object.keys(row || {}).forEach((key) => { if (!columns.includes(key)) columns.push(key); }));
+      return `
+        <div class="table-wrap">
+          <table>
+            <thead><tr>${columns.map((column) => `<th>${esc(column)}</th>`).join("")}</tr></thead>
+            <tbody>
+              ${rows.map((row) => `<tr>${columns.map((column) => `<td>${esc(formatCell(row?.[column]))}</td>`).join("")}</tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function formatCell(value) {
+      if (value === null || value === undefined) return "";
+      if (typeof value === "object") return JSON.stringify(value);
+      return value;
+    }
+
+    async function loadLibraryTools() {
+      libraryToolsMessage.className = "message";
+      libraryToolsMessage.textContent = "Loading library data tools...";
+      const response = await apiFetch("/library-tools/tools");
+      const body = await readBody(response);
+      if (!response.ok) {
+        libraryToolsMessage.className = "message error";
+        libraryToolsMessage.textContent = body.error?.message || "Unable to load library tools";
+        libraryToolList.innerHTML = "";
+        return;
+      }
+      state.libraryTools = body.tools || [];
+      libraryToolsMessage.className = "message ok";
+      libraryToolsMessage.textContent = `${state.libraryTools.length} tools available.`;
+      libraryToolList.innerHTML = state.libraryTools.map(renderLibraryToolButton).join("");
+      if (state.libraryTools.length) selectLibraryTool(state.libraryTools[0].name);
+    }
+
+    function renderLibraryToolButton(tool) {
+      return `<button type="button" data-tool-name="${esc(tool.name)}">${esc(prettyToolName(tool.name))}</button>`;
+    }
+
+    function selectLibraryTool(name) {
+      const tool = state.libraryTools.find((item) => item.name === name);
+      if (!tool) return;
+      libraryToolName.value = tool.name;
+      selectedToolTitle.textContent = prettyToolName(tool.name);
+      libraryToolDescription.textContent = tool.description || "";
+      libraryToolResult.classList.add("hidden");
+      document.querySelectorAll("#libraryToolList button").forEach((button) => button.classList.toggle("active", button.dataset.toolName === name));
+    }
+
+    async function runLibraryTool(event) {
+      event.preventDefault();
+      const name = libraryToolName.value;
+      if (!name) return;
+      const payload = {
+        name,
+        arguments: name === "list_available_tables" ? {} : {
+          limit: Number(libraryToolLimit.value || 20),
+          offset: Number(libraryToolOffset.value || 0)
+        }
+      };
+      libraryToolResult.classList.remove("hidden");
+      libraryToolResult.textContent = "Running tool...";
+      const response = await apiFetch("/library-tools/call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const body = await readBody(response);
+      libraryToolResult.textContent = JSON.stringify(body, null, 2);
+    }
+
+    function prettyToolName(name) {
+      return String(name || "").replace(/^get_/, "").replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
     }
 
     function showView(view) {

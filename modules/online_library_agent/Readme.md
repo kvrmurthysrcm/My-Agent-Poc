@@ -28,6 +28,12 @@ ollama pull mistral:latest
 .\.venv\Scripts\python.exe -m uvicorn modules.online_library_agent.api:app --reload --port 8005
 ```
 
+From the repository root, or by double-clicking from this module folder, you can also use:
+
+```powershell
+modules\online_library_agent\run-library-agent-service.bat
+```
+
 Open:
 
 ```text

@@ -8,6 +8,12 @@ Read-only FastAPI module for exposing non-empty Online Library database tables a
 .\.venv\Scripts\python.exe -m uvicorn modules.online_library.api:app --reload --port 8003
 ```
 
+From the repository root, or by double-clicking from this module folder, you can also use:
+
+```powershell
+modules\online_library\run-library-api-service.bat
+```
+
 Open:
 
 ```text
