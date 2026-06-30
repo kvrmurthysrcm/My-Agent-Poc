@@ -1,0 +1,54 @@
+Phase 3 — Auth Login + Token Generation
+
+Goal:
+
+/auth/login calls Keycloak and returns JWT.
+/auth/refresh works.
+/auth/logout works.
+
+Deliverables:
+
+app/schemas.py
+app/auth/keycloak_client.py
+app/routes/auth_routes.py
+
+Success criteria:
+
+POST /auth/login with raguser/raguser123 returns access_token.
+POST /auth/login with wrong password returns 401.
+
+Prompt:
+
+Now add Keycloak login support to the existing FastAPI project.
+
+Use existing Keycloak setup:
+- Keycloak URL: http://localhost:8080
+- Realm: poc-realm
+- Client ID: fastapi-auth-gateway
+- Client Secret: fastapi-auth-gateway-secret
+- Token URL: http://localhost:8080/realms/poc-realm/protocol/openid-connect/token
+- Logout URL: http://localhost:8080/realms/poc-realm/protocol/openid-connect/logout
+
+Implement:
+- app/schemas.py
+- app/auth/keycloak_client.py
+- app/routes/auth_routes.py
+
+Endpoints:
+- POST /auth/login
+- POST /auth/refresh
+- POST /auth/logout
+
+/auth/login should accept username/password and call Keycloak password grant.
+/auth/refresh should accept refresh_token.
+/auth/logout should accept refresh_token.
+
+Do not validate JWT yet.
+Do not implement /auth/me yet.
+Do not implement RAG routes yet.
+
+Do not log passwords, tokens, refresh tokens, client secret, or API keys.
+Use httpx.AsyncClient.
+Handle invalid credentials as 401.
+Handle Keycloak unavailable as 503.
+Add tests with mocked Keycloak.

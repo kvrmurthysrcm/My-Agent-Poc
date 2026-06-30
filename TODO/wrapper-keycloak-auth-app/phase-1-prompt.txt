@@ -1,0 +1,106 @@
+Yes — your prioritization is correct. I would not ask Codex to generate everything in one shot. It is better to break it into controlled phases so you can test each phase before moving ahead.
+
+Recommended order:
+
+Phase 1: Keycloak resources + token test
+Phase 2: FastAPI project scaffolding
+Phase 3: Auth login + JWT validation
+Phase 4: Protected /auth/me endpoint
+Phase 5: RAG gateway calls with API_KEY
+Phase 6: Tests, cleanup, README, hardening
+
+This is better than one huge prompt because if something fails, you know exactly where the issue is.
+
+Recommended Build Strategy
+Phase 1 — Create Keycloak Resources First
+
+Goal:
+
+Create realm, client, roles, users.
+Generate token successfully using username/password.
+Confirm JWT contains expected user and role details.
+
+Do this before writing the FastAPI gateway.
+
+Deliverables:
+
+scripts/keycloak/01-keycloak-setup.ps1
+scripts/keycloak/02-keycloak-verify.ps1
+scripts/keycloak/README-keycloak-setup.md
+
+Success criteria:
+
+raguser can get access_token.
+ragadmin can get access_token.
+searchuser can get access_token.
+JWKS URL works.
+Discovery URL works.
+JWT contains realm_access.roles.
+
+This is the first Codex prompt I recommend:
+
+Create only the Keycloak CLI setup scripts for my local Docker Keycloak.
+
+Environment:
+- Keycloak container name: local-keycloak
+- Keycloak URL: http://localhost:8080
+- Keycloak admin username: admin
+- Keycloak admin password: admin123
+- New realm: poc-realm
+- New client: fastapi-auth-gateway
+- Client secret: fastapi-auth-gateway-secret
+- Wrapper URL: http://localhost:8010
+
+Create these files only:
+scripts/keycloak/01-keycloak-setup.ps1
+scripts/keycloak/02-keycloak-verify.ps1
+scripts/keycloak/README-keycloak-setup.md
+
+The setup script should use docker exec and /opt/keycloak/bin/kcadm.sh inside the local-keycloak container.
+
+It should:
+1. Login to Keycloak admin CLI.
+2. Create realm poc-realm if missing.
+3. Create roles:
+   - rag_user
+   - rag_admin
+   - rag_search_user
+   - rag_ingest_user
+   - graph_rag_user
+   - system_admin
+4. Create confidential OIDC client fastapi-auth-gateway if missing.
+5. Enable:
+   - standardFlowEnabled=true
+   - directAccessGrantsEnabled=true
+   - publicClient=false
+6. Configure redirect URIs:
+   - http://localhost:8010/*
+   - http://localhost:8010/docs/oauth2-redirect
+7. Configure web origins:
+   - http://localhost:8010
+   - http://localhost:3000
+   - http://localhost:4200
+8. Set client secret to fastapi-auth-gateway-secret.
+9. Create users:
+   - raguser / raguser123 with roles rag_user, rag_search_user
+   - ragadmin / ragadmin123 with roles rag_admin, rag_user, rag_search_user, rag_ingest_user, graph_rag_user, system_admin
+   - searchuser / searchuser123 with role rag_search_user
+10. Make the script idempotent where practical.
+11. Print final realm, client, issuer URL, token URL, JWKS URL, and sample users.
+
+The verify script should:
+1. Call discovery URL:
+   http://localhost:8080/realms/poc-realm/.well-known/openid-configuration
+2. Call JWKS URL:
+   http://localhost:8080/realms/poc-realm/protocol/openid-connect/certs
+3. Generate token using password grant for raguser.
+4. Generate token using password grant for ragadmin.
+5. Generate token using password grant for searchuser.
+6. Confirm access_token was received.
+7. Do not print the full token.
+8. Print first 30 characters only for debug.
+9. Print clear success/failure output.
+
+Do not create the FastAPI project yet.
+Only create the Keycloak scripts and README.
+Use production-quality PowerShell with clear variables and comments.

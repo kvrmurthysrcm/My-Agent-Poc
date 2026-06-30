@@ -1,0 +1,74 @@
+Phase 5 — RAG Gateway API_KEY Calls
+
+Goal:
+
+Protected wrapper endpoints call downstream services using X-API-Key.
+JWT is not forwarded.
+
+Deliverables:
+
+app/services/downstream_client.py
+app/routes/rag_gateway_routes.py
+tests/test_rag_gateway_routes.py
+
+Success criteria:
+
+/rag/search calls http://localhost:8001/rag/search
+/rag/ingest calls http://localhost:8000/rag/ingest
+/rag/ask calls http://localhost:8002/rag/ask
+Downstream receives X-API-Key.
+Downstream does not receive Authorization header.
+
+Prompt:
+
+Now add RAG Gateway routes to the existing FastAPI Keycloak Auth Gateway.
+
+Downstream services:
+- RAG Ingest: http://localhost:8000
+- RAG Search: http://localhost:8001
+- RAG Answer: http://localhost:8002
+
+Internal API key:
+DOWNSTREAM_API_KEY=local-poc-internal-api-key
+
+Implement:
+- app/services/downstream_client.py
+- app/routes/rag_gateway_routes.py
+
+Routes:
+POST /rag/ingest
+- Requires role rag_ingest_user OR rag_admin.
+- Accept generic dict payload.
+- Calls http://localhost:8000/rag/ingest.
+
+POST /rag/search
+- Requires role rag_search_user OR rag_user OR rag_admin.
+- Accept generic dict payload.
+- Calls http://localhost:8001/rag/search.
+
+POST /rag/ask
+- Requires role rag_user OR rag_admin.
+- Accept generic dict payload.
+- Calls http://localhost:8002/rag/ask.
+
+GET /rag/test-downstream
+- Requires valid JWT.
+- Calls /health on each downstream service if available.
+- Does not fail entire endpoint if one service is unavailable.
+
+For downstream calls:
+- Add X-API-Key.
+- Add X-User-Id.
+- Add X-Username.
+- Add X-User-Roles.
+- Do not forward Authorization header.
+- Do not forward JWT.
+- Convert downstream errors to 502 with safe details.
+- Do not expose secrets.
+
+Add tests verifying:
+- Correct downstream URLs.
+- X-API-Key is sent.
+- User context headers are sent.
+- Authorization header is not forwarded.
+- Role checks work.

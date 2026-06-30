@@ -1,0 +1,37 @@
+Phase 6 — Quality Pass
+
+Goal:
+
+Clean README, tests, security, hardening.
+
+Prompt:
+
+Perform a quality pass on the FastAPI Keycloak Auth Gateway project.
+
+Check:
+- Imports.
+- Type hints.
+- Error handling.
+- Logging.
+- No secrets in logs.
+- No JWT forwarded downstream.
+- README completeness.
+- .env.example correctness.
+- Tests coverage.
+- run_local.ps1 works.
+- Application starts cleanly.
+
+Update README with:
+- Architecture.
+- Keycloak setup.
+- Login flow.
+- JWT validation.
+- RAG downstream API key flow.
+- Postman examples.
+- Swagger examples.
+- Security notes.
+- Deferred production improvements.
+
+Run or inspect tests and fix failures.
+Do not add unnecessary features.
+Keep the project POC scope but production-quality in implementation.

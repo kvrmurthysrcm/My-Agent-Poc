@@ -1,0 +1,1381 @@
+You are OpenAI Codex running inside PyCharm IDE.
+
+Your task is to create a new Python FastAPI project named:
+
+fastapi-keycloak-auth-gateway
+
+This is a POC project, but it must be implemented with production-grade quality.
+
+Important principle:
+This is a POC, but do not write throwaway code. We may intentionally leave some advanced features for later, but whatever is implemented now must be clean, secure, modular, maintainable, typed, testable, and production-quality in structure.
+
+This new project will act as an Auth Gateway / Wrapper API in front of existing FastAPI POC services.
+
+============================================================
+CURRENT LOCAL ENVIRONMENT
+=========================
+
+Keycloak is already running locally in Docker.
+
+Actual Keycloak Docker details:
+
+Keycloak container name:
+local-keycloak
+
+Keycloak image:
+quay.io/keycloak/keycloak:26.5.6
+
+Keycloak host URL:
+http://localhost:8080
+
+Keycloak admin user:
+admin
+
+Keycloak admin password:
+admin123
+
+PostgreSQL Docker container:
+local-postgres-pgvector
+
+PostgreSQL image:
+pgvector/pgvector:0.8.2-pg16
+
+PostgreSQL host port:
+5432
+
+Existing downstream FastAPI POC services:
+
+rag-ingest-service:
+http://localhost:8000
+
+rag-search-service:
+http://localhost:8001
+
+rag-answer-service:
+http://localhost:8002
+
+New Auth Gateway service should run on:
+
+http://localhost:8010
+
+Do not modify existing FastAPI downstream services yet.
+
+============================================================
+SYSTEM GOAL
+===========
+
+The wrapper service should authenticate users against Keycloak.
+
+The wrapper application should expose:
+
+POST /auth/login
+
+This endpoint accepts username/password from the client, calls the Keycloak token endpoint, and returns the Keycloak access token and refresh token.
+
+After successful login, the client will call wrapper APIs using:
+
+Authorization: Bearer <Keycloak JWT>
+
+The wrapper service must validate JWT locally using Keycloak JWKS/certs.
+
+After JWT validation, the wrapper service must call existing downstream FastAPI services using an internal API key.
+
+The wrapper service must not forward the user JWT to downstream services.
+
+Security rule:
+
+External client to wrapper:
+
+Authorization: Bearer <Keycloak JWT>
+
+Wrapper to downstream FastAPI services:
+
+X-API-Key: <internal-api-key>
+X-User-Id: <Keycloak subject>
+X-Username: <Keycloak preferred username>
+X-User-Roles: <comma-separated roles>
+
+Never send this downstream:
+
+Authorization: Bearer <Keycloak JWT>
+
+============================================================
+PROJECT STRUCTURE TO CREATE
+===========================
+
+Create this exact project structure:
+
+fastapi-keycloak-auth-gateway/
+│
+├── app/
+│   ├── **init**.py
+│   ├── main.py
+│   ├── config.py
+│   ├── logging_config.py
+│   ├── exceptions.py
+│   ├── schemas.py
+│   │
+│   ├── auth/
+│   │   ├── **init**.py
+│   │   ├── keycloak_client.py
+│   │   ├── jwt_validator.py
+│   │   ├── dependencies.py
+│   │   └── roles.py
+│   │
+│   ├── routes/
+│   │   ├── **init**.py
+│   │   ├── auth_routes.py
+│   │   ├── health_routes.py
+│   │   └── rag_gateway_routes.py
+│   │
+│   ├── services/
+│   │   ├── **init**.py
+│   │   └── downstream_client.py
+│   │
+│   └── middleware/
+│       ├── **init**.py
+│       └── request_context.py
+│
+├── scripts/
+│   ├── keycloak/
+│   │   ├── 01-keycloak-setup.ps1
+│   │   ├── 02-keycloak-verify.ps1
+│   │   └── README-keycloak-setup.md
+│
+├── tests/
+│   ├── **init**.py
+│   ├── test_health.py
+│   ├── test_auth_routes.py
+│   ├── test_jwt_validator.py
+│   ├── test_roles.py
+│   └── test_rag_gateway_routes.py
+│
+├── .env.example
+├── .gitignore
+├── requirements.txt
+├── README.md
+└── run_local.ps1
+
+Use Python 3.11+ compatible code.
+
+============================================================
+DEPENDENCIES
+============
+
+Create requirements.txt with:
+
+fastapi
+uvicorn[standard]
+httpx
+python-dotenv
+pydantic
+pydantic-settings
+python-jose[cryptography]
+pytest
+pytest-asyncio
+respx
+anyio
+
+============================================================
+PART 1: KEYCLOAK CLI RESOURCE GENERATION
+========================================
+
+Generate Keycloak CLI setup scripts under:
+
+scripts/keycloak/
+
+Create:
+
+scripts/keycloak/01-keycloak-setup.ps1
+
+This script should create required Keycloak resources using kcadm.sh inside the running Keycloak Docker container.
+
+Use these exact defaults:
+
+$KEYCLOAK_CONTAINER = "local-keycloak"
+$KEYCLOAK_INTERNAL_URL = "http://localhost:8080"
+$KEYCLOAK_ADMIN_REALM = "master"
+$KEYCLOAK_ADMIN_USER = "admin"
+$KEYCLOAK_ADMIN_PASSWORD = "admin123"
+
+$APP_REALM = "poc-realm"
+$CLIENT_ID = "fastapi-auth-gateway"
+$CLIENT_SECRET = "fastapi-auth-gateway-secret"
+
+$WRAPPER_BASE_URL = "http://localhost:8010"
+
+The PowerShell script should:
+
+1. Login to Keycloak Admin CLI.
+
+Use this command pattern:
+
+docker exec -it $KEYCLOAK_CONTAINER /opt/keycloak/bin/kcadm.sh config credentials `  --server $KEYCLOAK_INTERNAL_URL`
+--realm $KEYCLOAK_ADMIN_REALM `  --user $KEYCLOAK_ADMIN_USER`
+--password $KEYCLOAK_ADMIN_PASSWORD
+
+2. Create realm named:
+
+poc-realm
+
+The realm should be enabled.
+
+Use this command pattern:
+
+docker exec -it $KEYCLOAK_CONTAINER /opt/keycloak/bin/kcadm.sh create realms `  -s realm=$APP_REALM`
+-s enabled=true
+
+3. Create these realm roles:
+
+rag_user
+rag_admin
+rag_search_user
+rag_ingest_user
+graph_rag_user
+system_admin
+
+Use this command pattern:
+
+docker exec -it $KEYCLOAK_CONTAINER /opt/keycloak/bin/kcadm.sh create roles `  -r $APP_REALM`
+-s name=rag_user
+
+Repeat for all roles.
+
+4. Create confidential OIDC client.
+
+Client settings:
+
+clientId:
+fastapi-auth-gateway
+
+enabled:
+true
+
+protocol:
+openid-connect
+
+publicClient:
+false
+
+serviceAccountsEnabled:
+false
+
+standardFlowEnabled:
+true
+
+directAccessGrantsEnabled:
+true
+
+authorizationServicesEnabled:
+false
+
+redirectUris:
+http://localhost:8010/*
+http://localhost:8010/docs/oauth2-redirect
+
+webOrigins:
+http://localhost:8010
+http://localhost:3000
+http://localhost:4200
+
+Use this command pattern:
+
+docker exec -it $KEYCLOAK_CONTAINER /opt/keycloak/bin/kcadm.sh create clients `  -r $APP_REALM`
+-s clientId=$CLIENT_ID `  -s enabled=true`
+-s protocol=openid-connect `  -s publicClient=false`
+-s serviceAccountsEnabled=false `  -s standardFlowEnabled=true`
+-s directAccessGrantsEnabled=true `  -s authorizationServicesEnabled=false`
+-s 'redirectUris=["http://localhost:8010/*","http://localhost:8010/docs/oauth2-redirect"]' `
+-s 'webOrigins=["http://localhost:8010","http://localhost:3000","http://localhost:4200"]'
+
+5. Get client internal UUID.
+
+Use this command pattern:
+
+$CLIENT_UUID = docker exec $KEYCLOAK_CONTAINER /opt/keycloak/bin/kcadm.sh get clients `  -r $APP_REALM`
+-q clientId=$CLIENT_ID `  --fields id`
+--format csv `
+--noquotes
+
+6. Set client secret.
+
+Client secret should be:
+
+fastapi-auth-gateway-secret
+
+Use this command pattern:
+
+docker exec -it $KEYCLOAK_CONTAINER /opt/keycloak/bin/kcadm.sh update clients/$CLIENT_UUID `  -r $APP_REALM`
+-s secret=$CLIENT_SECRET
+
+7. Create at least three users.
+
+User 1:
+
+username:
+raguser
+
+password:
+raguser123
+
+email:
+[raguser@example.com](mailto:raguser@example.com)
+
+firstName:
+RAG
+
+lastName:
+User
+
+enabled:
+true
+
+emailVerified:
+true
+
+requiredActions:
+empty
+
+realm roles:
+rag_user
+rag_search_user
+
+User 2:
+
+username:
+ragadmin
+
+password:
+ragadmin123
+
+email:
+[ragadmin@example.com](mailto:ragadmin@example.com)
+
+firstName:
+RAG
+
+lastName:
+Admin
+
+enabled:
+true
+
+emailVerified:
+true
+
+requiredActions:
+empty
+
+realm roles:
+rag_admin
+rag_user
+rag_search_user
+rag_ingest_user
+graph_rag_user
+system_admin
+
+User 3:
+
+username:
+searchuser
+
+password:
+searchuser123
+
+email:
+[searchuser@example.com](mailto:searchuser@example.com)
+
+firstName:
+Search
+
+lastName:
+User
+
+enabled:
+true
+
+emailVerified:
+true
+
+requiredActions:
+empty
+
+realm roles:
+rag_search_user
+
+Use this command pattern to create user:
+
+docker exec -it $KEYCLOAK_CONTAINER /opt/keycloak/bin/kcadm.sh create users `  -r $APP_REALM`
+-s username=raguser `  -s enabled=true`
+-s email=[raguser@example.com](mailto:raguser@example.com) `  -s firstName=RAG`
+-s lastName=User `
+-s emailVerified=true
+
+Use this command pattern to set password:
+
+docker exec -it $KEYCLOAK_CONTAINER /opt/keycloak/bin/kcadm.sh set-password `  -r $APP_REALM`
+--username raguser `  --new-password raguser123`
+--temporary=false
+
+Use this command pattern to assign roles:
+
+docker exec -it $KEYCLOAK_CONTAINER /opt/keycloak/bin/kcadm.sh add-roles `  -r $APP_REALM`
+--uusername raguser `  --rolename rag_user`
+--rolename rag_search_user
+
+Create ragadmin similarly and assign:
+
+rag_admin
+rag_user
+rag_search_user
+rag_ingest_user
+graph_rag_user
+system_admin
+
+Create searchuser similarly and assign:
+
+rag_search_user
+
+8. Make the script idempotent where practical.
+
+If realm, roles, client, or users already exist, handle gracefully.
+
+Acceptable approaches:
+
+* Check whether each resource exists before creating it.
+* Or catch conflict errors and continue with clear warning messages.
+
+Do not fail the entire setup just because a resource already exists.
+
+9. Print final setup values at the end.
+
+Print:
+
+Realm:
+poc-realm
+
+Client ID:
+fastapi-auth-gateway
+
+Client Secret:
+fastapi-auth-gateway-secret
+
+Issuer:
+http://localhost:8080/realms/poc-realm
+
+Discovery URL:
+http://localhost:8080/realms/poc-realm/.well-known/openid-configuration
+
+Token URL:
+http://localhost:8080/realms/poc-realm/protocol/openid-connect/token
+
+JWKS URL:
+http://localhost:8080/realms/poc-realm/protocol/openid-connect/certs
+
+Logout URL:
+http://localhost:8080/realms/poc-realm/protocol/openid-connect/logout
+
+Sample users:
+
+raguser / raguser123
+ragadmin / ragadmin123
+searchuser / searchuser123
+
+10. Add comments explaining each step.
+
+============================================================
+KEYCLOAK VERIFY SCRIPT
+======================
+
+Create:
+
+scripts/keycloak/02-keycloak-verify.ps1
+
+This script should verify Keycloak setup from the host machine using PowerShell Invoke-RestMethod.
+
+Use these values:
+
+$KEYCLOAK_BASE_URL = "http://localhost:8080"
+$APP_REALM = "poc-realm"
+$CLIENT_ID = "fastapi-auth-gateway"
+$CLIENT_SECRET = "fastapi-auth-gateway-secret"
+
+The script should:
+
+1. Call OIDC discovery URL:
+
+http://localhost:8080/realms/poc-realm/.well-known/openid-configuration
+
+2. Call JWKS URL:
+
+http://localhost:8080/realms/poc-realm/protocol/openid-connect/certs
+
+3. Request token for raguser using username/password grant.
+
+Use this pattern:
+
+$tokenResponse = Invoke-RestMethod `  -Method Post`
+-Uri "http://localhost:8080/realms/poc-realm/protocol/openid-connect/token" `  -ContentType "application/x-www-form-urlencoded"`
+-Body @{
+grant_type = "password"
+client_id = "fastapi-auth-gateway"
+client_secret = "fastapi-auth-gateway-secret"
+username = "raguser"
+password = "raguser123"
+scope = "openid profile email"
+}
+
+4. Request token for ragadmin.
+
+5. Request token for searchuser.
+
+6. Print whether access_token was received for each user.
+
+7. Do not print the full access token by default.
+
+8. If useful, print only first 30 characters of token plus "..." for debugging.
+
+9. Print clear success/failure messages.
+
+============================================================
+KEYCLOAK SETUP README
+=====================
+
+Create:
+
+scripts/keycloak/README-keycloak-setup.md
+
+It should explain:
+
+1. How to confirm Keycloak container name:
+
+docker ps
+
+Expected container:
+
+local-keycloak
+
+2. How to run setup:
+
+cd scripts/keycloak
+.\01-keycloak-setup.ps1
+
+3. How to verify setup:
+
+.\02-keycloak-verify.ps1
+
+4. How to open Keycloak admin console:
+
+http://localhost:8080
+
+5. Admin login:
+
+username:
+admin
+
+password:
+admin123
+
+6. Realm created:
+
+poc-realm
+
+7. Client created:
+
+fastapi-auth-gateway
+
+8. Client secret:
+
+fastapi-auth-gateway-secret
+
+9. Users created:
+
+raguser / raguser123
+ragadmin / ragadmin123
+searchuser / searchuser123
+
+10. Why direct access grant is enabled for this POC.
+
+Explanation:
+The FastAPI wrapper will expose /auth/login, accept username/password, and call Keycloak token endpoint using password grant. This is convenient for a local POC and Postman testing. For a real browser UI, Authorization Code Flow with PKCE is preferred.
+
+11. Why JWT validation should use JWKS.
+
+12. How roles appear in JWT.
+
+13. How to troubleshoot:
+
+* invalid_grant
+* unauthorized_client
+* client_secret mismatch
+* role missing in token
+* wrong realm
+* wrong port
+* container name mismatch
+
+============================================================
+PART 2: FASTAPI AUTH GATEWAY APPLICATION
+========================================
+
+Create:
+
+.env.example
+
+With exactly these values:
+
+APP_NAME=fastapi-keycloak-auth-gateway
+APP_PORT=8010
+ENVIRONMENT=local
+LOG_LEVEL=INFO
+
+KEYCLOAK_BASE_URL=http://localhost:8080
+KEYCLOAK_REALM=poc-realm
+KEYCLOAK_CLIENT_ID=fastapi-auth-gateway
+KEYCLOAK_CLIENT_SECRET=fastapi-auth-gateway-secret
+
+KEYCLOAK_ISSUER=http://localhost:8080/realms/poc-realm
+KEYCLOAK_TOKEN_URL=http://localhost:8080/realms/poc-realm/protocol/openid-connect/token
+KEYCLOAK_LOGOUT_URL=http://localhost:8080/realms/poc-realm/protocol/openid-connect/logout
+KEYCLOAK_JWKS_URL=http://localhost:8080/realms/poc-realm/protocol/openid-connect/certs
+
+TOKEN_AUDIENCE_VALIDATION_ENABLED=false
+
+DOWNSTREAM_API_KEY=local-poc-internal-api-key
+
+RAG_INGEST_BASE_URL=http://localhost:8000
+RAG_SEARCH_BASE_URL=http://localhost:8001
+RAG_ASK_BASE_URL=http://localhost:8002
+
+HTTP_TIMEOUT_SECONDS=30
+DOWNSTREAM_TIMEOUT_SECONDS=120
+
+============================================================
+CONFIGURATION
+=============
+
+Create app/config.py using pydantic-settings.
+
+Settings should include:
+
+app_name
+app_port
+environment
+log_level
+
+keycloak_base_url
+keycloak_realm
+keycloak_client_id
+keycloak_client_secret
+keycloak_issuer
+keycloak_token_url
+keycloak_logout_url
+keycloak_jwks_url
+
+token_audience_validation_enabled
+
+downstream_api_key
+
+rag_ingest_base_url
+rag_search_base_url
+rag_ask_base_url
+
+http_timeout_seconds
+downstream_timeout_seconds
+
+Do not hardcode secrets anywhere else.
+
+============================================================
+MAIN APPLICATION
+================
+
+Create app/main.py.
+
+Requirements:
+
+* Create FastAPI app.
+* Title: FastAPI Keycloak Auth Gateway.
+* Version: 1.0.0.
+* Description: Auth Gateway using Keycloak JWT externally and API key internally.
+* Include /health router.
+* Include /auth router.
+* Include /rag router.
+* Enable CORS for:
+
+  * http://localhost:3000
+  * http://localhost:4200
+  * http://localhost:8010
+* Register exception handlers.
+* Register request logging middleware.
+* Configure logging on startup.
+
+============================================================
+LOGGING
+=======
+
+Create app/logging_config.py.
+
+Use Python logging.
+
+Log:
+
+* app startup
+* request method/path/status/duration
+* login attempt username only
+* token validation failures safely
+* downstream call start/end
+* downstream failures safely
+
+Never log:
+
+* passwords
+* full JWTs
+* refresh tokens
+* client secrets
+* API keys
+
+============================================================
+SCHEMAS
+=======
+
+Create app/schemas.py with Pydantic models.
+
+LoginRequest:
+username: str
+password: str
+
+RefreshRequest:
+refresh_token: str
+
+LogoutRequest:
+refresh_token: str
+
+TokenResponse:
+access_token: str
+refresh_token: optional str
+expires_in: optional int
+refresh_expires_in: optional int
+token_type: optional str
+
+UserInfoResponse:
+sub: str
+preferred_username: optional str
+email: optional str
+name: optional str
+roles: list[str]
+issuer: optional str
+
+ErrorResponse:
+error_code: str
+message: str
+details: optional dict
+
+GenericProxyResponse:
+downstream_response: dict
+
+For RAG wrapper routes, use generic dict payloads for now because downstream API contracts may evolve.
+
+============================================================
+KEYCLOAK CLIENT
+===============
+
+Create app/auth/keycloak_client.py.
+
+Implement class KeycloakClient.
+
+Methods:
+
+async login(request: LoginRequest) -> dict
+
+Behavior:
+
+* POST to KEYCLOAK_TOKEN_URL.
+* Use application/x-www-form-urlencoded.
+* Use grant_type=password.
+* Use client_id.
+* Use client_secret.
+* Use username and password from request.
+* Use scope=openid profile email.
+* Return token JSON.
+
+async refresh(request: RefreshRequest) -> dict
+
+Behavior:
+
+* POST to KEYCLOAK_TOKEN_URL.
+* Use application/x-www-form-urlencoded.
+* Use grant_type=refresh_token.
+* Use client_id.
+* Use client_secret.
+* Use refresh_token.
+* Return token JSON.
+
+async logout(request: LogoutRequest) -> dict
+
+Behavior:
+
+* POST to KEYCLOAK_LOGOUT_URL.
+* Use application/x-www-form-urlencoded.
+* Use client_id.
+* Use client_secret.
+* Use refresh_token.
+* Return:
+  {
+  "status": "logged_out"
+  }
+
+Handle Keycloak error responses cleanly:
+
+* Invalid username/password should become 401.
+* Invalid refresh token should become 401.
+* Keycloak unavailable should become 503.
+* Unexpected response should become safe HTTPException.
+
+Do not expose raw secrets or tokens in logs.
+
+============================================================
+JWT VALIDATOR
+=============
+
+Create app/auth/jwt_validator.py.
+
+Implement class JWTValidator.
+
+Requirements:
+
+* Fetch JWKS from KEYCLOAK_JWKS_URL.
+* Cache JWKS in memory.
+* Use kid from JWT header to select the right public key.
+* Validate JWT signature using RS256.
+* Validate issuer using KEYCLOAK_ISSUER.
+* Validate expiration.
+* Audience validation should be configurable.
+* TOKEN_AUDIENCE_VALIDATION_ENABLED defaults to false for this POC.
+* If kid is not found, refresh JWKS once and retry.
+* If still not found, return 401.
+* If JWKS fetch fails, return 503.
+* Use python-jose.
+* Do not use token introspection for every request.
+
+Important:
+For Keycloak access tokens, audience may not equal client ID unless a proper audience mapper is configured. Therefore, for this POC, audience validation should default to false. Document how to enable it later.
+
+============================================================
+AUTH DEPENDENCIES
+=================
+
+Create app/auth/dependencies.py.
+
+Implement:
+
+* HTTPBearer security dependency.
+* get_current_user() that validates Bearer JWT and returns payload.
+* extract_roles(payload: dict) -> list[str]
+
+extract_roles should read roles from:
+
+realm_access.roles
+
+and:
+
+resource_access.<client>.roles
+
+If roles are missing, return empty list.
+
+Also implement:
+
+require_role(required_role: str)
+
+require_any_role(required_roles: list[str])
+
+Return 403 when required role is not present.
+
+============================================================
+ROLE CONSTANTS
+==============
+
+Create app/auth/roles.py.
+
+Define:
+
+ROLE_RAG_USER = "rag_user"
+ROLE_RAG_ADMIN = "rag_admin"
+ROLE_RAG_SEARCH_USER = "rag_search_user"
+ROLE_RAG_INGEST_USER = "rag_ingest_user"
+ROLE_GRAPH_RAG_USER = "graph_rag_user"
+ROLE_SYSTEM_ADMIN = "system_admin"
+
+============================================================
+AUTH ROUTES
+===========
+
+Create app/routes/auth_routes.py.
+
+Prefix:
+/auth
+
+Tag:
+Auth
+
+Endpoints:
+
+POST /auth/login
+
+* Public endpoint.
+* Accept LoginRequest.
+* Calls KeycloakClient.login.
+* Returns:
+
+  * access_token
+  * refresh_token
+  * expires_in
+  * refresh_expires_in
+  * token_type
+
+POST /auth/refresh
+
+* Public endpoint.
+* Accept RefreshRequest.
+* Calls KeycloakClient.refresh.
+
+POST /auth/logout
+
+* Public endpoint.
+* Accept LogoutRequest.
+* Calls KeycloakClient.logout.
+
+GET /auth/me
+
+* Protected endpoint.
+* Requires Authorization: Bearer <access_token>.
+* Returns:
+
+  * sub
+  * preferred_username
+  * email
+  * name
+  * roles
+  * issuer
+
+============================================================
+HEALTH ROUTES
+=============
+
+Create app/routes/health_routes.py.
+
+GET /health
+
+Return:
+
+{
+"status": "UP",
+"service": "fastapi-keycloak-auth-gateway"
+}
+
+GET /health/details
+
+Return:
+
+* status
+* service
+* environment
+* keycloak_issuer
+* rag_ingest_base_url
+* rag_search_base_url
+* rag_ask_base_url
+
+Do not return:
+
+* client secret
+* API key
+* passwords
+* tokens
+* refresh tokens
+
+============================================================
+DOWNSTREAM CLIENT
+=================
+
+Create app/services/downstream_client.py.
+
+Implement class DownstreamClient.
+
+Use httpx.AsyncClient.
+
+Methods:
+
+async post(
+base_url: str,
+path: str,
+payload: dict,
+user_payload: dict | None = None
+) -> dict
+
+async get(
+base_url: str,
+path: str,
+user_payload: dict | None = None
+) -> dict
+
+For every downstream call:
+
+* Add X-API-Key from DOWNSTREAM_API_KEY.
+* Add Content-Type: application/json.
+* Add X-User-Id from JWT sub when available.
+* Add X-Username from JWT preferred_username when available.
+* Add X-User-Roles as comma-separated roles when available.
+* Do not forward Authorization header.
+* Do not forward Keycloak JWT.
+* Use timeout from DOWNSTREAM_TIMEOUT_SECONDS.
+* Convert downstream 4xx/5xx into 502 Bad Gateway from wrapper.
+* Include downstream status code in safe error details.
+* Do not expose secrets in error responses.
+
+============================================================
+RAG GATEWAY ROUTES
+==================
+
+Create app/routes/rag_gateway_routes.py.
+
+Prefix:
+/rag
+
+Tag:
+RAG Gateway
+
+Endpoints:
+
+POST /rag/ingest
+
+* Protected endpoint.
+* Requires role rag_ingest_user OR rag_admin.
+* Accept generic dict payload.
+* Calls downstream:
+  RAG_INGEST_BASE_URL + /rag/ingest
+
+Since RAG_INGEST_BASE_URL is:
+
+http://localhost:8000
+
+The full downstream URL becomes:
+
+http://localhost:8000/rag/ingest
+
+POST /rag/search
+
+* Protected endpoint.
+* Requires role rag_search_user OR rag_user OR rag_admin.
+* Accept generic dict payload.
+* Calls downstream:
+  RAG_SEARCH_BASE_URL + /rag/search
+
+Since RAG_SEARCH_BASE_URL is:
+
+http://localhost:8001
+
+The full downstream URL becomes:
+
+http://localhost:8001/rag/search
+
+POST /rag/ask
+
+* Protected endpoint.
+* Requires role rag_user OR rag_admin.
+* Accept generic dict payload.
+* Calls downstream:
+  RAG_ASK_BASE_URL + /rag/ask
+
+Since RAG_ASK_BASE_URL is:
+
+http://localhost:8002
+
+The full downstream URL becomes:
+
+http://localhost:8002/rag/ask
+
+GET /rag/test-downstream
+
+* Protected endpoint.
+* Requires any valid JWT.
+* Tries to call downstream health endpoints:
+
+  * http://localhost:8000/health
+  * http://localhost:8001/health
+  * http://localhost:8002/health
+* If a service does not expose /health or is unavailable, return that service as UNKNOWN or NOT_AVAILABLE.
+* Do not fail the entire endpoint just because one downstream service is unavailable.
+
+============================================================
+REQUEST LOGGING MIDDLEWARE
+==========================
+
+Create app/middleware/request_context.py.
+
+Middleware should log:
+
+* request method
+* path
+* status code
+* duration in milliseconds
+
+Do not log request body by default.
+
+============================================================
+EXCEPTION HANDLING
+==================
+
+Create app/exceptions.py.
+
+Create consistent error response shape:
+
+{
+"error_code": "ERROR_CODE",
+"message": "Human-readable message",
+"details": {}
+}
+
+Handle:
+
+* HTTPException
+* generic Exception
+
+Do not leak stack traces in API responses.
+
+Do not expose secrets in API responses.
+
+============================================================
+LOCAL RUN SCRIPT
+================
+
+Create run_local.ps1.
+
+It should:
+
+1. Create venv if missing.
+2. Activate venv.
+3. Install requirements.
+4. Copy .env.example to .env if .env is missing.
+5. Start:
+
+uvicorn app.main:app --reload --port 8010
+
+============================================================
+README
+======
+
+Create README.md.
+
+It should include detailed documentation.
+
+Include:
+
+1. Project overview.
+2. Architecture explanation.
+3. Request flow:
+
+   * User calls /auth/login.
+   * Wrapper calls Keycloak token endpoint.
+   * Keycloak returns JWT.
+   * User calls /rag/search with Bearer JWT.
+   * Wrapper validates JWT using JWKS.
+   * Wrapper calls downstream RAG service with X-API-Key.
+4. Current local ports:
+
+   * Keycloak: http://localhost:8080
+   * Auth Gateway: http://localhost:8010
+   * RAG Ingest: http://localhost:8000
+   * RAG Search: http://localhost:8001
+   * RAG Answer: http://localhost:8002
+   * PostgreSQL: localhost:5432
+5. Keycloak CLI setup:
+
+   * How to find Keycloak container:
+     docker ps
+   * Expected container:
+     local-keycloak
+   * How to run:
+     cd scripts/keycloak
+     .\01-keycloak-setup.ps1
+     .\02-keycloak-verify.ps1
+6. Environment variables.
+7. How to run locally:
+   .\run_local.ps1
+8. How to test Swagger:
+   http://localhost:8010/docs
+9. How to test login.
+10. How to test /auth/me.
+11. How to test /rag/search.
+12. Role model.
+13. Security notes.
+14. Production improvements deferred for later.
+
+Add these example test calls to README.
+
+Login as raguser:
+
+POST http://localhost:8010/auth/login
+Content-Type: application/json
+
+{
+"username": "raguser",
+"password": "raguser123"
+}
+
+Login as ragadmin:
+
+POST http://localhost:8010/auth/login
+Content-Type: application/json
+
+{
+"username": "ragadmin",
+"password": "ragadmin123"
+}
+
+Login as searchuser:
+
+POST http://localhost:8010/auth/login
+Content-Type: application/json
+
+{
+"username": "searchuser",
+"password": "searchuser123"
+}
+
+Call /auth/me:
+
+GET http://localhost:8010/auth/me
+Authorization: Bearer <access_token>
+
+Call /rag/search:
+
+POST http://localhost:8010/rag/search
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+"query": "explain graph rag search",
+"top_k": 5
+}
+
+Expected internal downstream call:
+
+POST http://localhost:8001/rag/search
+X-API-Key: local-poc-internal-api-key
+X-User-Id: <keycloak-sub>
+X-Username: <preferred_username>
+X-User-Roles: <roles>
+
+============================================================
+TESTS
+=====
+
+Create pytest tests.
+
+Use mocking.
+
+Tests should not require real Keycloak.
+
+Tests should cover:
+
+* /health returns UP.
+* /health/details does not expose secrets.
+* /auth/me rejects missing token.
+* extract_roles reads realm_access roles.
+* extract_roles reads resource_access client roles.
+* require_any_role allows authorized role.
+* require_any_role rejects unauthorized role.
+* downstream client sends X-API-Key.
+* downstream client sends X-User-Id.
+* downstream client sends X-Username.
+* downstream client sends X-User-Roles.
+* downstream client does not forward Authorization header.
+* RAG search endpoint calls http://localhost:8001/rag/search.
+* RAG ingest endpoint calls http://localhost:8000/rag/ingest.
+* RAG ask endpoint calls http://localhost:8002/rag/ask.
+* JWT validator handles invalid token.
+* JWT validator handles missing kid.
+* JWT validator refreshes JWKS when kid not found.
+
+Use pytest, pytest-asyncio, respx, and anyio where useful.
+
+============================================================
+QUALITY REQUIREMENTS
+====================
+
+Follow these rules:
+
+* Use type hints.
+* Use async HTTP calls with httpx.AsyncClient.
+* Keep files small and modular.
+* Use dependency injection where useful.
+* Do not hardcode secrets outside .env.example and setup scripts.
+* Do not log passwords.
+* Do not log full access tokens.
+* Do not log refresh tokens.
+* Do not log client secret.
+* Do not log API key.
+* Do not forward JWT downstream.
+* Validate JWT using JWKS.
+* Validate issuer.
+* Validate token expiration.
+* Use role-based access for RAG routes.
+* Keep generic dict payloads for RAG routes for now.
+* Do not invent downstream schemas yet.
+* Make the implemented foundation high quality.
+* Make sure application starts without syntax errors.
+* Make sure all imports work.
+* Make sure tests can run.
+
+============================================================
+SECURITY REQUIREMENTS
+=====================
+
+* Never log passwords.
+* Never log full JWT tokens.
+* Never log refresh tokens.
+* Never log API keys.
+* Never log Keycloak client secret.
+* Never send JWT to downstream services.
+* Use environment variables for runtime secrets.
+* Validate JWT signature using JWKS.
+* Validate issuer.
+* Validate token expiration.
+* Use role-based access for RAG routes.
+* Treat downstream API key as an internal secret.
+* For local POC, audience validation may be disabled.
+* Document how to enable strict audience validation later.
+
+============================================================
+DEFERRED FEATURES
+=================
+
+Document these in README but do not implement unless trivial:
+
+* Browser Authorization Code Flow with PKCE.
+* Proper Keycloak audience mapper and strict audience validation.
+* Dockerfile and docker-compose for wrapper.
+* OpenTelemetry tracing.
+* Prometheus metrics.
+* Centralized audit logging.
+* mTLS for service-to-service.
+* OAuth2 client credentials for service-to-service instead of API key.
+* Redis cache for JWKS in multi-instance deployment.
+* Rate limiting.
+* Request/response schema validation for downstream APIs.
+* Kubernetes deployment.
+* CI/CD pipeline.
+* Secrets manager integration.
+
+============================================================
+FINAL OUTPUT FROM CODEX
+=======================
+
+After generating all files:
+
+1. Show project tree.
+2. Show commands to run Keycloak setup script.
+3. Show commands to verify Keycloak token generation.
+4. Show commands to run the FastAPI gateway.
+5. Show commands to run tests.
+6. Mention all assumptions made.
+7. Mention what I must manually check in Keycloak if the setup script fails.
+8. Mention how to test /auth/login, /auth/me, and /rag/search from Swagger or Postman.

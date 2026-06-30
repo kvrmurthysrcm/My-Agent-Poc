@@ -1,0 +1,70 @@
+Phase 4 — JWT Validation + /auth/me
+
+Goal:
+
+Wrapper can validate Bearer JWT.
+Protected endpoint works.
+Roles are extracted.
+
+Deliverables:
+
+app/auth/jwt_validator.py
+app/auth/dependencies.py
+app/auth/roles.py
+GET /auth/me
+tests/test_jwt_validator.py
+tests/test_roles.py
+
+Success criteria:
+
+GET /auth/me with access_token returns user info and roles.
+Missing token gives 403/401.
+Invalid token gives 401.
+
+Prompt:
+
+Now add JWT validation to the existing FastAPI Keycloak Auth Gateway.
+
+Use:
+- Issuer: http://localhost:8080/realms/poc-realm
+- JWKS URL: http://localhost:8080/realms/poc-realm/protocol/openid-connect/certs
+- Client ID: fastapi-auth-gateway
+- TOKEN_AUDIENCE_VALIDATION_ENABLED=false for POC
+
+Implement:
+- app/auth/jwt_validator.py
+- app/auth/dependencies.py
+- app/auth/roles.py
+- GET /auth/me in auth_routes.py
+
+JWT validator must:
+- Fetch JWKS.
+- Cache JWKS.
+- Use kid to select signing key.
+- Validate RS256 signature.
+- Validate issuer.
+- Validate expiration.
+- Refresh JWKS once if kid not found.
+- Return 401 for invalid/expired token.
+- Return 503 if JWKS cannot be fetched.
+- Keep audience validation configurable and disabled by default.
+
+Auth dependencies must:
+- Use HTTPBearer.
+- Implement get_current_user.
+- Implement extract_roles from realm_access.roles and resource_access.<client>.roles.
+- Implement require_role and require_any_role.
+
+Add role constants:
+rag_user
+rag_admin
+rag_search_user
+rag_ingest_user
+graph_rag_user
+system_admin
+
+/auth/me should return:
+sub, preferred_username, email, name, roles, issuer.
+
+Add unit tests with mocked JWKS/token behavior where practical.
+Do not require real Keycloak for unit tests.

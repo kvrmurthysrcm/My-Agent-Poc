@@ -1,0 +1,234 @@
+IMPORTANT UPDATE BASED ON ACTUAL LOCAL DOCKER SETUP
+
+Use the following actual container and port values:
+
+Keycloak Docker container:
+local-keycloak
+
+Keycloak image:
+quay.io/keycloak/keycloak:26.5.6
+
+Keycloak host URL:
+http://localhost:8080
+
+PostgreSQL Docker container:
+local-postgres-pgvector
+
+PostgreSQL host port:
+5432
+
+Therefore, all Keycloak configuration, CLI scripts, README examples, .env.example values, token URLs, issuer URLs, and JWKS URLs must use port 8080, not 9000.
+
+Use these final Keycloak values:
+
+KEYCLOAK_CONTAINER=local-keycloak
+KEYCLOAK_INTERNAL_URL=http://localhost:8080
+KEYCLOAK_BASE_URL=http://localhost:8080
+KEYCLOAK_ADMIN_REALM=master
+KEYCLOAK_ADMIN_USER=admin
+KEYCLOAK_ADMIN_PASSWORD=admin
+
+APP_REALM=poc-realm
+CLIENT_ID=fastapi-auth-gateway
+CLIENT_SECRET=fastapi-auth-gateway-secret
+
+KEYCLOAK_ISSUER=http://localhost:8080/realms/poc-realm
+KEYCLOAK_TOKEN_URL=http://localhost:8080/realms/poc-realm/protocol/openid-connect/token
+KEYCLOAK_LOGOUT_URL=http://localhost:8080/realms/poc-realm/protocol/openid-connect/logout
+KEYCLOAK_JWKS_URL=http://localhost:8080/realms/poc-realm/protocol/openid-connect/certs
+KEYCLOAK_DISCOVERY_URL=http://localhost:8080/realms/poc-realm/.well-known/openid-configuration
+
+Update .env.example to use:
+
+APP_NAME=fastapi-keycloak-auth-gateway
+APP_PORT=8010
+ENVIRONMENT=local
+LOG_LEVEL=INFO
+
+KEYCLOAK_BASE_URL=http://localhost:8080
+KEYCLOAK_REALM=poc-realm
+KEYCLOAK_CLIENT_ID=fastapi-auth-gateway
+KEYCLOAK_CLIENT_SECRET=fastapi-auth-gateway-secret
+
+KEYCLOAK_ISSUER=http://localhost:8080/realms/poc-realm
+KEYCLOAK_TOKEN_URL=http://localhost:8080/realms/poc-realm/protocol/openid-connect/token
+KEYCLOAK_LOGOUT_URL=http://localhost:8080/realms/poc-realm/protocol/openid-connect/logout
+KEYCLOAK_JWKS_URL=http://localhost:8080/realms/poc-realm/protocol/openid-connect/certs
+
+TOKEN_AUDIENCE_VALIDATION_ENABLED=false
+
+DOWNSTREAM_API_KEY=local-poc-internal-api-key
+
+RAG_INGEST_BASE_URL=http://localhost:8000
+RAG_SEARCH_BASE_URL=http://localhost:8001
+RAG_ASK_BASE_URL=http://localhost:8002
+
+HTTP_TIMEOUT_SECONDS=30
+DOWNSTREAM_TIMEOUT_SECONDS=120
+
+Update scripts/keycloak/01-keycloak-setup.ps1 to default to:
+
+$KEYCLOAK_CONTAINER = "local-keycloak"
+$KEYCLOAK_INTERNAL_URL = "http://localhost:8080"
+$KEYCLOAK_ADMIN_REALM = "master"
+$KEYCLOAK_ADMIN_USER = "admin"
+$KEYCLOAK_ADMIN_PASSWORD = "admin"
+
+$APP_REALM = "poc-realm"
+$CLIENT_ID = "fastapi-auth-gateway"
+$CLIENT_SECRET = "fastapi-auth-gateway-secret"
+
+$WRAPPER_BASE_URL = "http://localhost:8010"
+
+Use this login command pattern:
+
+docker exec -it $KEYCLOAK_CONTAINER /opt/keycloak/bin/kcadm.sh config credentials `  --server $KEYCLOAK_INTERNAL_URL`
+--realm $KEYCLOAK_ADMIN_REALM `  --user $KEYCLOAK_ADMIN_USER`
+--password $KEYCLOAK_ADMIN_PASSWORD
+
+Create realm:
+
+docker exec -it $KEYCLOAK_CONTAINER /opt/keycloak/bin/kcadm.sh create realms `  -s realm=$APP_REALM`
+-s enabled=true
+
+Create roles:
+rag_user
+rag_admin
+rag_search_user
+rag_ingest_user
+graph_rag_user
+system_admin
+
+Create confidential client:
+
+docker exec -it $KEYCLOAK_CONTAINER /opt/keycloak/bin/kcadm.sh create clients `  -r $APP_REALM`
+-s clientId=$CLIENT_ID `  -s enabled=true`
+-s protocol=openid-connect `  -s publicClient=false`
+-s serviceAccountsEnabled=false `  -s standardFlowEnabled=true`
+-s directAccessGrantsEnabled=true `  -s authorizationServicesEnabled=false`
+-s 'redirectUris=["http://localhost:8010/*","http://localhost:8010/docs/oauth2-redirect"]' `
+-s 'webOrigins=["http://localhost:8010","http://localhost:3000","http://localhost:4200"]'
+
+Get client UUID:
+
+$CLIENT_UUID = docker exec $KEYCLOAK_CONTAINER /opt/keycloak/bin/kcadm.sh get clients `  -r $APP_REALM`
+-q clientId=$CLIENT_ID `  --fields id`
+--format csv `
+--noquotes
+
+Set client secret:
+
+docker exec -it $KEYCLOAK_CONTAINER /opt/keycloak/bin/kcadm.sh update clients/$CLIENT_UUID `  -r $APP_REALM`
+-s secret=$CLIENT_SECRET
+
+Create users:
+
+User 1:
+username: raguser
+password: raguser123
+email: [raguser@example.com](mailto:raguser@example.com)
+roles:
+
+* rag_user
+* rag_search_user
+
+User 2:
+username: ragadmin
+password: ragadmin123
+email: [ragadmin@example.com](mailto:ragadmin@example.com)
+roles:
+
+* rag_admin
+* rag_user
+* rag_search_user
+* rag_ingest_user
+* graph_rag_user
+* system_admin
+
+User 3:
+username: searchuser
+password: searchuser123
+email: [searchuser@example.com](mailto:searchuser@example.com)
+roles:
+
+* rag_search_user
+
+Token verification from host PowerShell must use port 8080:
+
+$tokenResponse = Invoke-RestMethod `  -Method Post`
+-Uri "http://localhost:8080/realms/poc-realm/protocol/openid-connect/token" `  -ContentType "application/x-www-form-urlencoded"`
+-Body @{
+grant_type = "password"
+client_id = "fastapi-auth-gateway"
+client_secret = "fastapi-auth-gateway-secret"
+username = "raguser"
+password = "raguser123"
+scope = "openid profile email"
+}
+
+Do not print the full token by default.
+
+The FastAPI wrapper service should expose:
+
+POST http://localhost:8010/auth/login
+
+Example request:
+
+{
+"username": "raguser",
+"password": "raguser123"
+}
+
+The wrapper internally calls:
+
+POST http://localhost:8080/realms/poc-realm/protocol/openid-connect/token
+
+After successful login, wrapper returns:
+
+* access_token
+* refresh_token
+* expires_in
+* refresh_expires_in
+* token_type
+
+Then user calls protected APIs:
+
+GET http://localhost:8010/auth/me
+Authorization: Bearer <access_token>
+
+POST http://localhost:8010/rag/search
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+"query": "explain graph rag search",
+"top_k": 5
+}
+
+Wrapper validates JWT using:
+
+http://localhost:8080/realms/poc-realm/protocol/openid-connect/certs
+
+Wrapper then calls downstream RAG services using API key, not JWT:
+
+rag-ingest-service:
+http://localhost:8000/rag/ingest
+
+rag-search-service:
+http://localhost:8001/rag/search
+
+rag-answer-service:
+http://localhost:8002/rag/ask
+
+Internal downstream headers:
+
+X-API-Key: local-poc-internal-api-key
+X-User-Id: <Keycloak subject>
+X-Username: <Keycloak preferred username>
+X-User-Roles: <comma-separated roles>
+
+Never forward:
+
+Authorization: Bearer <JWT>
+
+to downstream services.

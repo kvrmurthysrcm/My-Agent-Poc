@@ -1,0 +1,66 @@
+Phase 2 — Project Scaffolding Only
+
+After Keycloak is working, ask Codex to create only the base project.
+
+Goal:
+
+FastAPI app starts.
+Health endpoint works.
+Config loads from .env.
+Logging and error handling are ready.
+No Keycloak integration yet.
+
+Deliverables:
+
+app/main.py
+app/config.py
+app/logging_config.py
+app/exceptions.py
+app/routes/health_routes.py
+app/middleware/request_context.py
+.env.example
+requirements.txt
+run_local.ps1
+README.md basic
+tests/test_health.py
+
+Success criteria:
+
+.\run_local.ps1 works.
+http://localhost:8010/health returns UP.
+pytest passes.
+
+Prompt:
+
+Create the base FastAPI project scaffolding for fastapi-keycloak-auth-gateway.
+
+Do not implement Keycloak authentication yet.
+Do not implement RAG downstream proxy yet.
+
+Create:
+- app/main.py
+- app/config.py
+- app/logging_config.py
+- app/exceptions.py
+- app/routes/health_routes.py
+- app/middleware/request_context.py
+- .env.example
+- requirements.txt
+- run_local.ps1
+- README.md
+- tests/test_health.py
+
+Requirements:
+- Python 3.11+
+- FastAPI app runs on port 8010.
+- Use pydantic-settings for config.
+- Load .env.
+- Add request logging middleware.
+- Add consistent exception handlers.
+- Add CORS for localhost:3000, localhost:4200, localhost:8010.
+- Add GET /health.
+- Add GET /health/details but do not expose secrets.
+- Add pytest test for /health.
+- Make sure app starts with:
+  uvicorn app.main:app --reload --port 8010
+- Keep code clean, typed, modular, production-quality.
