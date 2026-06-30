@@ -25,3 +25,12 @@ class TokenResponse(BaseModel):
 
 class LogoutResponse(BaseModel):
     status: str = "LOGGED_OUT"
+
+
+class CurrentUser(BaseModel):
+    sub: str
+    preferred_username: str | None = None
+    email: str | None = None
+    name: str | None = None
+    roles: list[str] = Field(default_factory=list)
+    issuer: str

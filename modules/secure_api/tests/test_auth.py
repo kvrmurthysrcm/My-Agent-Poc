@@ -2,9 +2,11 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
+from app.auth.dependencies import get_current_user
 from app.auth.keycloak_client import KeycloakAuthenticationError, KeycloakUnavailableError
 from app.main import app
 from app.routes.auth_routes import get_keycloak_client
+from app.schemas import CurrentUser
 
 
 class FakeKeycloakClient:
@@ -110,3 +112,45 @@ def test_logout_returns_logged_out() -> None:
     assert response.status_code == 200
     assert response.json() == {"status": "LOGGED_OUT"}
     assert fake_client.calls == [("logout", {"refresh_token": "refresh-token"})]
+
+
+def test_me_returns_current_user() -> None:
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(
+        sub="user-123",
+        preferred_username="raguser",
+        email="raguser@example.local",
+        name="RAG User",
+        roles=["rag_user", "rag_search_user"],
+        issuer="http://localhost:8080/realms/rag-auth-gateway",
+    )
+    client = TestClient(app)
+
+    response = client.get("/auth/me", headers={"Authorization": "Bearer token"})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "sub": "user-123",
+        "preferred_username": "raguser",
+        "email": "raguser@example.local",
+        "name": "RAG User",
+        "roles": ["rag_user", "rag_search_user"],
+        "issuer": "http://localhost:8080/realms/rag-auth-gateway",
+    }
+
+
+def test_me_without_token_returns_401() -> None:
+    client = TestClient(app)
+
+    response = client.get("/auth/me")
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "missing_bearer_token"
+
+
+def test_me_with_invalid_token_returns_401() -> None:
+    client = TestClient(app)
+
+    response = client.get("/auth/me", headers={"Authorization": "Bearer invalid-token"})
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "invalid_bearer_token"

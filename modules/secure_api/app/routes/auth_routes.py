@@ -6,9 +6,10 @@ from app.auth.keycloak_client import (
     KeycloakClient,
     KeycloakUnavailableError,
 )
+from app.auth.dependencies import get_current_user
 from app.config import Settings, get_settings
 from app.exceptions import AppError
-from app.schemas import LoginRequest, LogoutRequest, LogoutResponse, RefreshRequest, TokenResponse
+from app.schemas import CurrentUser, LoginRequest, LogoutRequest, LogoutResponse, RefreshRequest, TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -89,3 +90,8 @@ async def logout(
         ) from exc
 
     return LogoutResponse()
+
+
+@router.get("/me", response_model=CurrentUser)
+async def me(current_user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    return current_user
