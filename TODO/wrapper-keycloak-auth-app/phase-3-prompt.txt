@@ -1,6 +1,7 @@
 Phase 3 — Auth Login + Token Generation
 
 Goal:
+upgrade he /secure_api module created in phase2 work.
 
 /auth/login calls Keycloak and returns JWT.
 /auth/refresh works.

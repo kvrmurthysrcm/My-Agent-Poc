@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     host: str = "127.0.0.1"
     port: int = 8010
+    keycloak_url: str = Field("http://localhost:8080", alias="KEYCLOAK_URL")
+    keycloak_realm: str = Field("poc-realm", alias="KEYCLOAK_REALM")
+    keycloak_client_id: str = Field("fastapi-auth-gateway", alias="KEYCLOAK_CLIENT_ID")
+    keycloak_client_secret: str = Field(
+        "fastapi-auth-gateway-secret",
+        alias="KEYCLOAK_CLIENT_SECRET",
+    )
+    keycloak_timeout_seconds: float = Field(10.0, alias="KEYCLOAK_TIMEOUT_SECONDS")
     cors_origins: list[str] = Field(
         default_factory=lambda: [
             "http://localhost:3000",
@@ -26,6 +34,16 @@ class Settings(BaseSettings):
             "http://localhost:8010",
         ]
     )
+
+    @property
+    def keycloak_token_url(self) -> str:
+        base_url = self.keycloak_url.rstrip("/")
+        return f"{base_url}/realms/{self.keycloak_realm}/protocol/openid-connect/token"
+
+    @property
+    def keycloak_logout_url(self) -> str:
+        base_url = self.keycloak_url.rstrip("/")
+        return f"{base_url}/realms/{self.keycloak_realm}/protocol/openid-connect/logout"
 
 
 @lru_cache

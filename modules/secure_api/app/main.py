@@ -5,6 +5,7 @@ from app.config import get_settings
 from app.exceptions import register_exception_handlers
 from app.logging_config import configure_logging
 from app.middleware.request_context import request_context_middleware
+from app.routes.auth_routes import router as auth_router
 from app.routes.health_routes import router as health_router
 
 
@@ -29,6 +30,7 @@ def create_app() -> FastAPI:
 
     register_exception_handlers(app)
     app.include_router(health_router)
+    app.include_router(auth_router)
 
     return app
 

@@ -9,8 +9,10 @@ set PYTHON_EXE=%~dp0..\..\.venv\Scripts\python.exe
 if not exist "%PYTHON_EXE%" set PYTHON_EXE=python
 
 echo Starting %TITLE% on http://localhost:%PORT%
+echo Press Ctrl+C to stop the service.
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$p = Start-Process -FilePath '%PYTHON_EXE%' -ArgumentList '-m uvicorn %APP_MODULE% --reload --port %PORT%' -WorkingDirectory '%~dp0' -PassThru; Write-Host 'Service PID:' $p.Id; Write-Host 'Stop command: taskkill /PID' $p.Id '/F'"
+pushd "%~dp0"
+"%PYTHON_EXE%" -m uvicorn %APP_MODULE% --reload --port %PORT%
+popd
 
 endlocal
