@@ -22,7 +22,7 @@ http://localhost:8080
 | Phase 2 | FastAPI scaffold, config, logging, CORS, health endpoints | Done | `GET /health`, unit tests |
 | Phase 3 | Keycloak-backed `/auth/login`, `/auth/refresh`, `/auth/logout` | Done | Wrapper auth curl commands below |
 | Phase 4 | JWT validation, role extraction, protected `/auth/me` | Done | `GET /auth/me` with bearer token |
-| Phase 5 | Protected RAG gateway routes using downstream `X-API-Key` | Not implemented yet | `/rag/*` routes currently return `404` |
+| Phase 5 | Protected RAG gateway routes using downstream `X-API-Key` | Done | `/rag/search`, `/rag/ingest`, `/rag/answer`, `/rag/test-downstream` |
 | Phase 6 | Final hardening, full README, security review | In progress | This README covers current validation |
 
 ## Implemented Components
@@ -41,7 +41,11 @@ http://localhost:8080
 - JWT validation with cached Keycloak JWKS
 - Realm and client role extraction
 - Protected `GET /auth/me`
-- Unit tests for health, auth, JWT validation, role extraction, and `/auth/me`
+- Protected RAG gateway routes
+- Multipart upload forwarding for RAG ingest
+- Downstream calls using `X-API-Key`
+- User context forwarding with `X-User-Id`, `X-Username`, and `X-User-Roles`
+- Unit tests for health, auth, JWT validation, role extraction, `/auth/me`, and RAG gateway routing
 
 ## Local Configuration
 
@@ -51,11 +55,7 @@ The checked-in Keycloak scripts create and verify this realm:
 rag-auth-gateway
 ```
 
-Create a local `.env` file:
-
-```powershell
-Copy-Item .\modules\secure_api\.env.example .\modules\secure_api\.env
-```
+Create a local `.env` file from `modules/secure_api/.env.example`.
 
 Expected important values:
 
@@ -65,6 +65,11 @@ KEYCLOAK_REALM=rag-auth-gateway
 KEYCLOAK_CLIENT_ID=fastapi-auth-gateway
 KEYCLOAK_CLIENT_SECRET=fastapi-auth-gateway-secret
 TOKEN_AUDIENCE_VALIDATION_ENABLED=false
+DOWNSTREAM_API_KEY=local-poc-internal-api-key
+RAG_INGEST_BASE_URL=http://localhost:8000
+RAG_SEARCH_BASE_URL=http://localhost:8001
+RAG_ANSWER_BASE_URL=http://localhost:8002
+DOWNSTREAM_TIMEOUT_SECONDS=600
 ```
 
 ## Start Services
@@ -75,31 +80,13 @@ Start Keycloak first. The expected container name is:
 local-keycloak
 ```
 
-Confirm it is running:
+Confirm the `local-keycloak` container is running before calling the Keycloak URLs.
 
-```powershell
-docker ps --filter "name=local-keycloak"
-```
-
-Start the wrapper service:
-
-```powershell
-.\modules\secure_api\run_local.ps1
-```
-
-Or:
-
-```bat
-.\modules\secure_api\run_local.bat
-```
+Start the wrapper service with `modules/secure_api/run_local.ps1` or `modules/secure_api/run_local.bat`.
 
 ## Validate Phase 1: Keycloak Directly
 
-Run the automated verification script from the repository root:
-
-```powershell
-.\scripts\keycloak\02-keycloak-verify.ps1
-```
+Run `scripts/keycloak/02-keycloak-verify.ps1` from the repository root, or use the curl checks below.
 
 Expected result:
 
@@ -117,13 +104,6 @@ Requesting user tokens...
 
 Check the discovery URL manually:
 
-```powershell
-Invoke-RestMethod -Method Get `
-  -Uri "http://localhost:8080/realms/rag-auth-gateway/.well-known/openid-configuration"
-```
-
-Equivalent curl:
-
 ```bash
 curl -s http://localhost:8080/realms/rag-auth-gateway/.well-known/openid-configuration
 ```
@@ -140,13 +120,6 @@ Expected response includes:
 
 Check JWKS manually:
 
-```powershell
-Invoke-RestMethod -Method Get `
-  -Uri "http://localhost:8080/realms/rag-auth-gateway/protocol/openid-connect/certs"
-```
-
-Equivalent curl:
-
 ```bash
 curl -s http://localhost:8080/realms/rag-auth-gateway/protocol/openid-connect/certs
 ```
@@ -154,23 +127,6 @@ curl -s http://localhost:8080/realms/rag-auth-gateway/protocol/openid-connect/ce
 Expected response includes a non-empty `keys` array.
 
 Generate a token directly from Keycloak:
-
-```powershell
-Invoke-RestMethod `
-  -Method Post `
-  -Uri "http://localhost:8080/realms/rag-auth-gateway/protocol/openid-connect/token" `
-  -ContentType "application/x-www-form-urlencoded" `
-  -Body @{
-    grant_type = "password"
-    client_id = "fastapi-auth-gateway"
-    client_secret = "fastapi-auth-gateway-secret"
-    username = "raguser"
-    password = "raguser123"
-    scope = "openid profile email"
-  }
-```
-
-Equivalent curl:
 
 ```bash
 curl -s -X POST "http://localhost:8080/realms/rag-auth-gateway/protocol/openid-connect/token" \
@@ -208,12 +164,6 @@ Other test users:
 
 Health:
 
-```powershell
-Invoke-RestMethod -Method Get -Uri "http://localhost:8010/health"
-```
-
-Equivalent curl:
-
 ```bash
 curl -s http://localhost:8010/health
 ```
@@ -227,12 +177,6 @@ Expected response:
 ```
 
 Detailed health:
-
-```powershell
-Invoke-RestMethod -Method Get -Uri "http://localhost:8010/health/details"
-```
-
-Equivalent curl:
 
 ```bash
 curl -s http://localhost:8010/health/details
@@ -255,16 +199,6 @@ The detailed health response must not expose `client_secret`, `api_key`, access 
 ## Validate Phase 3: Wrapper Auth Endpoints
 
 Login through the wrapper:
-
-```powershell
-Invoke-RestMethod `
-  -Method Post `
-  -Uri "http://localhost:8010/auth/login" `
-  -ContentType "application/json" `
-  -Body '{"username":"raguser","password":"raguser123"}'
-```
-
-Equivalent curl:
 
 ```bash
 curl -s -X POST "http://localhost:8010/auth/login" \
@@ -349,21 +283,6 @@ Expected response:
 
 `/auth/me` requires an access token issued by Keycloak. You can get the token from the wrapper login endpoint.
 
-PowerShell:
-
-```powershell
-$loginResponse = Invoke-RestMethod `
-  -Method Post `
-  -Uri "http://localhost:8010/auth/login" `
-  -ContentType "application/json" `
-  -Body '{"username":"raguser","password":"raguser123"}'
-
-Invoke-RestMethod `
-  -Method Get `
-  -Uri "http://localhost:8010/auth/me" `
-  -Headers @{ Authorization = "Bearer $($loginResponse.access_token)" }
-```
-
 Expected response:
 
 ```json
@@ -384,8 +303,6 @@ Expected response:
 ```
 
 The exact role list can include Keycloak default realm roles in addition to the application roles.
-
-curl:
 
 ```bash
 TOKEN=$(curl -s -X POST "http://localhost:8010/auth/login" \
@@ -445,42 +362,374 @@ Expected response shape:
 }
 ```
 
-## Validate Not-Yet-Implemented Routes
+## Validate Phase 5: RAG Gateway Routes
 
-These routes are expected to return `404` until phase 5 is implemented:
+The wrapper validates the Keycloak bearer token, checks roles, and then calls downstream RAG services with internal API key headers. It does not forward the incoming `Authorization` header or JWT to downstream services.
+
+Downstream target URLs:
+
+| Wrapper route | Required role | Downstream URL |
+| --- | --- | --- |
+| `POST /rag/ingest` | `rag_ingest_user` or `rag_admin` | `http://localhost:8000/rag/ingest` |
+| `POST /rag/search` | `rag_search_user`, `rag_user`, or `rag_admin` | `http://localhost:8001/rag/search` |
+| `POST /rag/answer` | `rag_user` or `rag_admin` | `http://localhost:8002/rag/answer` |
+| `POST /rag/ask` | `rag_user` or `rag_admin` | Compatibility alias to `http://localhost:8002/rag/answer` |
+| `GET /rag/test-downstream` | any valid token | `/health` on each downstream service |
+
+Headers sent downstream:
+
+```text
+X-API-Key: local-poc-internal-api-key
+X-User-Id: <keycloak-user-id>
+X-Username: <preferred_username>
+X-User-Roles: <comma-separated-roles>
+```
+
+Headers intentionally not sent downstream:
+
+```text
+Authorization
+```
+
+Create tokens for validation with the login curl commands in each section below.
+
+### RAG Search
+
+Wrapper URL:
+
+```text
+POST http://localhost:8010/rag/search
+```
+
+Downstream URL:
+
+```text
+POST http://localhost:8001/rag/search
+```
+
+Request body fields:
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `query` | string | yes | 1-4000 chars, trimmed, must not be blank |
+| `search_mode` | string | no | `vector`, `keyword`, or `hybrid` |
+| `top_k` | integer | no | Minimum `1`; service default applies when omitted |
+| `min_score` | number | no | `0` to `1` |
+| `filters.resource_id` | string | no | Restrict search to one resource |
+| `filters.category` | string | no | Category filter |
+| `filters.tags` | string array | no | Blank tags are ignored |
+| `filters.metadata` | object | no | Metadata filters |
+| `include_metadata` | boolean | no | Defaults to `true` |
+| `include_chunk_text` | boolean | no | Include full chunk text when supported |
+
+Validate with `raguser`:
 
 ```bash
-curl -s -i -X POST http://localhost:8010/rag/search -H "Content-Type: application/json" -d '{}'
-curl -s -i -X POST http://localhost:8010/rag/ingest -H "Content-Type: application/json" -d '{}'
-curl -s -i -X POST http://localhost:8010/rag/ask -H "Content-Type: application/json" -d '{}'
-curl -s -i http://localhost:8010/rag/test-downstream
+TOKEN=$(curl -s -X POST "http://localhost:8010/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"raguser","password":"raguser123"}' | jq -r .access_token)
+
+curl -s -X POST "http://localhost:8010/rag/search" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"query":"what is graph rag?","search_mode":"hybrid","top_k":5,"filters":{"tags":["architecture"]},"include_metadata":true}'
+```
+
+Expected behavior:
+
+- If the RAG search service is running on port `8001`, the wrapper returns the downstream response.
+- If the RAG search service is not running, the wrapper returns `502 Bad Gateway`.
+
+Expected response fields include:
+
+```json
+{
+  "query": "what is graph rag?",
+  "search_mode": "hybrid",
+  "top_k": 5,
+  "total_results": 0,
+  "embedding_provider": "...",
+  "embedding_model": "...",
+  "results": []
+}
+```
+
+Related downstream search URLs currently not proxied by the wrapper:
+
+| Downstream URL | Method | Request body | Purpose |
+| --- | --- | --- | --- |
+| `http://localhost:8001/rag/graph/search` | POST | `{"query":"...","resource_ids":[],"top_k":10,"include_entities":true,"include_relationships":true,"include_summaries":true}` | Graph RAG entity, relationship, summary, and related chunk search |
+| `http://localhost:8001/rag/search/combined` | POST | Same shape as `/rag/search` | Standard search plus graph search in one response |
+| `http://localhost:8001/rag/search/debug` | POST | Same shape as `/rag/search` | Debug/observability search; only available when enabled |
+| `http://localhost:8001/rag/admin/resources` | GET | none | List resources; only available when search admin is enabled |
+| `http://localhost:8001/rag/admin/resources/delete` | POST | `{"resource_ids":["..."],"force":false}` | Delete resources; only available when search admin is enabled |
+| `http://localhost:8001/rag/admin/resources/{resource_id}/retry` | POST | none | Retry a resource by calling ingest retry; only available when search admin is enabled |
+| `http://localhost:8001/rag/admin/settings/graph-rag` | GET/PUT | `{"entity_batch_size":10,"relationship_batch_size":10}` for PUT | Read or update Graph RAG runtime settings via search admin |
+
+### RAG Ingest
+
+Wrapper URL:
+
+```text
+POST http://localhost:8010/rag/ingest
+```
+
+Downstream URL:
+
+```text
+POST http://localhost:8000/rag/ingest
+```
+
+This route is multipart form data, not JSON.
+
+Form fields:
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `file` | file | yes | Upload file; downstream validates extension and size |
+| `metadata` | string | yes | JSON string parsed into ingest metadata |
+
+Metadata JSON fields:
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `title` | string | no | 1-500 chars |
+| `description` | string | no | Free text |
+| `resource_type` | string | no | Defaults to `DOCUMENT` |
+| `category_name` | string | no | Category label |
+| `business_domain` | string | no | Domain label |
+| `source_system` | string | no | Defaults to `manual_upload` |
+| `author` | string | no | Author name |
+| `language` | string | no | Language code/name |
+| `publisher` | string | no | Publisher |
+| `published_date` | datetime | no | ISO datetime |
+| `tags` | string array | no | Defaults to `[]` |
+| `custom_metadata` | object | no | Defaults to `{}` |
+| `chunking.strategy` | string | no | `INTELLIGENT_RECURSIVE` or `SEMANTIC_RECURSIVE` |
+| `chunking.chunk_size_tokens` | integer | no | Minimum `100` |
+| `chunking.chunk_overlap_tokens` | integer | no | Minimum `0` |
+| `indexing_mode` | string | no | `NONE`, `STANDARD`, `GRAPH`, or `BOTH`; defaults to `STANDARD` |
+
+Validate with `ragadmin`:
+
+```bash
+TOKEN=$(curl -s -X POST "http://localhost:8010/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"ragadmin","password":"ragadmin123"}' | jq -r .access_token)
+
+curl -s -X POST "http://localhost:8010/rag/ingest" \
+  -H "Authorization: Bearer $TOKEN" \
+  -F 'file=@README.md;type=text/markdown' \
+  -F 'metadata={"title":"Demo README","resource_type":"DOCUMENT","tags":["demo"],"indexing_mode":"STANDARD"}'
+```
+
+Expected response:
+
+```json
+{
+  "resource_id": "<resource-id>",
+  "job_id": "<job-id>",
+  "status": "QUEUED",
+  "message": "Document accepted. Ingestion will continue asynchronously."
+}
+```
+
+Related downstream ingest URLs currently not proxied by the wrapper:
+
+| Downstream URL | Method | Purpose |
+| --- | --- | --- |
+| `http://localhost:8000/rag/ingest/jobs/{job_id}` | GET | Check ingestion job status |
+| `http://localhost:8000/rag/ingest/jobs/{job_id}/errors` | GET | List processing errors |
+| `http://localhost:8000/rag/ingest/resources/{resource_id}/retry` | POST | Retry failed resource ingestion |
+| `http://localhost:8000/rag/settings/graph-rag` | GET/PUT | Read or update Graph RAG runtime settings |
+
+### RAG Answer
+
+Wrapper URL:
+
+```text
+POST http://localhost:8010/rag/answer
+```
+
+Compatibility wrapper URL:
+
+```text
+POST http://localhost:8010/rag/ask
+```
+
+Downstream URL:
+
+```text
+POST http://localhost:8002/rag/answer
+```
+
+Request body fields:
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `query` | string | yes | 1-4000 chars, trimmed, must not be blank |
+| `search_mode` | string | no | `vector`, `keyword`, or `hybrid`; defaults to `hybrid` |
+| `top_k` | integer | no | `1` to `50` |
+| `context_top_k` | integer | no | `1` to `20` |
+| `filters.resource_id` | string | no | Restrict context to one resource |
+| `filters.category` | string | no | Category filter |
+| `filters.tags` | string array | no | Tag filter |
+| `filters.metadata` | object | no | Metadata filters |
+| `include_sources` | boolean | no | Include source list when supported |
+| `answer_mode` | string | no | `concise`, `detailed`, or `quote-backed`; defaults to `concise` |
+| `include_raw_prompt` | boolean | no | Defaults to `false` |
+| `system_instruction` | string | no | Max 2000 chars |
+| `compare_models` | string array | no | Used by compare endpoints, max 8 models |
+
+Validate `/rag/answer` with `raguser`:
+
+```bash
+TOKEN=$(curl -s -X POST "http://localhost:8010/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"raguser","password":"raguser123"}' | jq -r .access_token)
+
+curl -s -X POST "http://localhost:8010/rag/ask" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"query":"summarize the uploaded material","search_mode":"hybrid","answer_mode":"concise","include_sources":true}'
+```
+
+Preferred curl for the real wrapper route:
+
+```bash
+curl -s -X POST "http://localhost:8010/rag/answer" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"query":"summarize the uploaded material","search_mode":"hybrid","answer_mode":"concise","include_sources":true}'
+```
+
+Expected response fields include:
+
+```json
+{
+  "query": "summarize the uploaded material",
+  "answer": "...",
+  "answer_status": "answered",
+  "answer_mode": "concise",
+  "llm_provider": "...",
+  "llm_model": "...",
+  "search_mode": "hybrid",
+  "search_total_results": 0,
+  "context_source_count": 0,
+  "sources": []
+}
+```
+
+Related downstream answer URLs currently not proxied by the wrapper:
+
+| Downstream URL | Method | Purpose |
+| --- | --- | --- |
+| `http://localhost:8002/rag/answer/compare` | POST | Compare answers across configured models |
+| `http://localhost:8002/rag/answer/compare/stream` | POST | Stream comparison events as SSE |
+
+Validate downstream health fan-out:
+
+```bash
+curl -s "http://localhost:8010/rag/test-downstream" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Expected response shape:
+
+```json
+{
+  "status": "OK",
+  "services": [
+    {
+      "service": "rag-ingest",
+      "status": "available",
+      "status_code": 200,
+      "url": "http://localhost:8000/health",
+      "response": {
+        "status": "UP"
+      }
+    },
+    {
+      "service": "rag-search",
+      "status": "unavailable",
+      "url": "http://localhost:8001/health"
+    },
+    {
+      "service": "rag-answer",
+      "status": "available",
+      "status_code": 200,
+      "url": "http://localhost:8002/health",
+      "response": {
+        "status": "UP"
+      }
+    }
+  ]
+}
+```
+
+The endpoint returns a per-service status and does not fail the entire response when one downstream service is unavailable.
+
+Validate role rejection. `searchuser` has `rag_search_user`, so search is allowed but ingest is rejected:
+
+```bash
+TOKEN=$(curl -s -X POST "http://localhost:8010/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"searchuser","password":"searchuser123"}' | jq -r .access_token)
+
+curl -s -i -X POST "http://localhost:8010/rag/ingest" \
+  -H "Authorization: Bearer $TOKEN" \
+  -F 'file=@README.md;type=text/markdown' \
+  -F 'metadata={"title":"Demo README"}'
 ```
 
 Expected status:
 
 ```text
-404 Not Found
+403 Forbidden
 ```
+
+Expected response shape:
+
+```json
+{
+  "error": {
+    "code": "insufficient_role",
+    "message": "Insufficient role.",
+    "request_id": "<request-id>"
+  }
+}
+```
+
+Expected downstream failure response when a downstream service is unavailable:
+
+```json
+{
+  "error": {
+    "code": "downstream_request_failed",
+    "message": "Downstream service request failed.",
+    "request_id": "<request-id>",
+    "details": {
+      "service": "rag-search",
+      "error_type": "http_status_error",
+      "status_code": 500
+    }
+  }
+}
+```
+
+If `error_type` is `timeout`, the downstream service accepted the connection but did not finish before `DOWNSTREAM_TIMEOUT_SECONDS`. Local Ollama answer generation can take several minutes when answer context is large, so this wrapper uses `600` seconds by default for local POC validation.
 
 ## Run Automated Tests
 
-From the repository root:
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest modules\secure_api\tests
-```
+From the repository root, run the secure API test suite with the repo virtualenv.
 
 Expected result:
 
 ```text
-15 passed
+26 passed
 ```
 
-If you run `pytest` with the global Python installation, dependency imports may fail. Use the repo virtualenv or install:
-
-```powershell
-pip install -r .\modules\secure_api\requirements.txt
-```
+If you run `pytest` with the global Python installation, dependency imports may fail. Use the repo virtualenv or install `modules/secure_api/requirements.txt`.
 
 ## Troubleshooting
 
@@ -497,14 +746,6 @@ KEYCLOAK_CLIENT_ID=fastapi-auth-gateway
 KEYCLOAK_CLIENT_SECRET=fastapi-auth-gateway-secret
 ```
 
-If discovery or JWKS returns `404`, rerun the Keycloak setup:
+If discovery or JWKS returns `404`, rerun `scripts/keycloak/01-keycloak-setup.ps1`.
 
-```powershell
-.\scripts\keycloak\01-keycloak-setup.ps1
-```
-
-If the wrapper service does not start, check port `8010` and run:
-
-```powershell
-.\modules\secure_api\run_local.ps1
-```
+If the wrapper service does not start, check port `8010` and run `modules/secure_api/run_local.ps1`.

@@ -12,5 +12,5 @@ Use that README for:
 - Phase 2 wrapper health validation
 - Phase 3 login, refresh, and logout validation
 - Phase 4 JWT validation and `/auth/me` validation
-- Current phase 5 gaps
+- Phase 5 RAG gateway validation
 - Test commands and expected responses

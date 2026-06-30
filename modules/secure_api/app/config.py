@@ -31,6 +31,14 @@ class Settings(BaseSettings):
         False,
         alias="TOKEN_AUDIENCE_VALIDATION_ENABLED",
     )
+    downstream_api_key: str = Field(
+        "local-poc-internal-api-key",
+        alias="DOWNSTREAM_API_KEY",
+    )
+    rag_ingest_base_url: str = Field("http://localhost:8000", alias="RAG_INGEST_BASE_URL")
+    rag_search_base_url: str = Field("http://localhost:8001", alias="RAG_SEARCH_BASE_URL")
+    rag_answer_base_url: str = Field("http://localhost:8002", alias="RAG_ANSWER_BASE_URL")
+    downstream_timeout_seconds: float = Field(600.0, alias="DOWNSTREAM_TIMEOUT_SECONDS")
     cors_origins: list[str] = Field(
         default_factory=lambda: [
             "http://localhost:3000",
