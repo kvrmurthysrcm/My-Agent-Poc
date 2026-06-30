@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Secure RAG Gateway</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --surface: #ffffff;
+      --surface-2: #f8fafc;
+      --ink: #18202b;
+      --muted: #667085;
+      --line: #d8dee8;
+      --accent: #087f5b;
+      --accent-2: #1d4ed8;
+      --accent-3: #7c3aed;
+      --danger: #b42318;
+      --warn: #a16207;
+      --ok: #15803d;
+      --soft: #eef4ff;
+      --shadow: 0 10px 28px rgba(16, 24, 40, 0.08);
+      --input: #ffffff;
+      --pre-bg: #101828;
+    }
+    body.dark {
+      --bg: #0f172a;
+      --surface: #162033;
+      --surface-2: #111827;
+      --ink: #e5edf7;
+      --muted: #9aa8bd;
+      --line: #2b3a52;
+      --accent: #14b8a6;
+      --accent-2: #60a5fa;
+      --accent-3: #a78bfa;
+      --danger: #fb7185;
+      --warn: #facc15;
+      --ok: #4ade80;
+      --soft: #1e293b;
+      --shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+      --input: #0f172a;
+      --pre-bg: #020617;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    button, input, select, textarea { font: inherit; }
+    button {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px 12px;
+      background: var(--input);
+      color: var(--ink);
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+    }
+    button:hover { transform: translateY(-1px); }
+    button.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+    button.blue { border-color: var(--accent-2); background: var(--accent-2); color: #fff; }
+    button.purple { border-color: var(--accent-3); background: var(--accent-3); color: #fff; }
+    button.danger { border-color: var(--danger); background: var(--danger); color: #fff; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 9px 10px;
+      background: var(--input);
+      color: var(--ink);
+    }
+    textarea { min-height: 92px; resize: vertical; }
+    .login-shell {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+    .login-panel {
+      width: min(420px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 22px;
+      box-shadow: var(--shadow);
+    }
+    .login-panel h1 { margin: 0 0 6px; font-size: 22px; }
+    .login-panel p { margin: 0 0 18px; color: var(--muted); }
+    .login-form { display: grid; gap: 12px; }
+    label { display: grid; gap: 6px; color: var(--muted); font-weight: 700; font-size: 13px; }
+    .app-shell { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--surface) 94%, transparent);
+      backdrop-filter: blur(8px);
+    }
+    .topbar-inner {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .brand { display: grid; gap: 2px; min-width: 190px; }
+    .brand strong { font-size: 17px; }
+    .brand span { color: var(--muted); font-size: 12px; }
+    nav { display: flex; flex-wrap: wrap; gap: 6px; }
+    nav button { min-width: 92px; }
+    nav button.active { border-color: var(--accent-2); background: var(--soft); color: var(--accent-2); }
+    .userbar { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+    .role-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 9px;
+      background: var(--surface-2);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    main {
+      max-width: 1320px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 12px;
+      box-shadow: var(--shadow);
+    }
+    .metric span { display: block; color: var(--muted); font-size: 12px; }
+    .metric strong { font-size: 24px; }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .panel-head {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .panel-head h2 { margin: 0; font-size: 16px; }
+    .panel-body { padding: 14px; display: grid; gap: 12px; }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .toolbar input { max-width: 360px; }
+    .table-wrap { overflow: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 980px; }
+    th, td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--surface-2); color: var(--muted); font-size: 12px; position: sticky; top: 0; }
+    .title { font-weight: 800; }
+    .muted { color: var(--muted); }
+    .badge {
+      display: inline-block;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 7px;
+      margin: 1px 2px 1px 0;
+      background: var(--surface-2);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .status-ready { color: var(--ok); font-weight: 800; }
+    .status-failed { color: var(--danger); font-weight: 800; }
+    .status-processing, .status-queued { color: var(--warn); font-weight: 800; }
+    .grid-2 { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 14px; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .full { grid-column: 1 / -1; }
+    .result-list { display: grid; gap: 10px; }
+    .result-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--surface);
+    }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 0;
+      border-radius: 8px;
+      padding: 12px;
+      max-height: 340px;
+      overflow: auto;
+      background: var(--pre-bg);
+      color: #f9fafb;
+    }
+    .message {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: var(--surface-2);
+      color: var(--muted);
+    }
+    .message.error { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--surface)); color: var(--danger); }
+    .message.ok { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, var(--surface)); color: var(--ok); }
+    .compare-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .model-chip {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 8px;
+      background: var(--surface-2);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .hidden { display: none !important; }
+    @media (max-width: 900px) {
+      .topbar-inner { align-items: stretch; flex-direction: column; }
+      .userbar { flex-wrap: wrap; }
+      .metrics, .grid-2, .form-grid { grid-template-columns: 1fr; }
+      nav button { flex: 1 1 auto; }
+    }
+  </style>
+</head>
+<body>
+  <section id="loginScreen" class="login-shell">
+    <div class="login-panel">
+      <h1>Secure RAG Gateway</h1>
+      <p>Sign in with the local Keycloak POC users.</p>
+      <form id="loginForm" class="login-form">
+        <label>Username <input id="username" autocomplete="username" value="raguser" required></label>
+        <label>Password <input id="password" type="password" autocomplete="current-password" value="raguser123" required></label>
+        <button class="primary" type="submit">Sign In</button>
+        <div id="loginMessage" class="message hidden"></div>
+      </form>
+    </div>
+  </section>
+
+  <section id="appScreen" class="app-shell hidden">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <strong>Secure RAG Gateway</strong>
+          <span id="welcomeText">Signed in</span>
+        </div>
+        <nav>
+          <button type="button" data-view="dashboard" class="active">Books</button>
+          <button type="button" data-view="search">Search</button>
+          <button type="button" data-view="answer">Answer</button>
+          <button type="button" data-view="compare">Compare</button>
+          <button id="ingestNav" type="button" data-view="ingest" class="hidden">Ingest</button>
+          <button type="button" data-view="mcp">MCP</button>
+        </nav>
+        <div class="userbar">
+          <span id="roleSummary" class="role-pill">roles</span>
+          <button type="button" id="themeButton">Dark</button>
+          <button type="button" id="refreshButton">Refresh</button>
+          <button type="button" id="logoutButton">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section id="globalMessage" class="message hidden"></section>
+
+      <section id="dashboardView" class="view">
+        <div class="metrics">
+          <div class="metric"><span>Total books</span><strong id="metricTotal">0</strong></div>
+          <div class="metric"><span>Ready</span><strong id="metricReady">0</strong></div>
+          <div class="metric"><span>Processing</span><strong id="metricProcessing">0</strong></div>
+          <div class="metric"><span>Failed</span><strong id="metricFailed">0</strong></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Books</h2>
+            <span id="resourceSummary" class="muted"></span>
+          </div>
+          <div class="panel-body">
+            <div class="toolbar">
+              <input id="resourceFilter" placeholder="Filter title, author, status, tag">
+              <button type="button" id="loadResourcesButton">Load Books</button>
+              <button type="button" id="deleteSelectedButton" class="danger hidden" disabled>Delete Selected</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="admin-only hidden"><input id="selectAllResources" type="checkbox"></th>
+                    <th>Book</th>
+                    <th>Metadata</th>
+                    <th>Status</th>
+                    <th>Chunks</th>
+                    <th>Jobs</th>
+                    <th class="admin-only hidden">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="resourceRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="searchView" class="view hidden">
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><h2>Search Books</h2></div>
+            <form id="searchForm" class="panel-body">
+              <label class="full">Query <textarea id="searchQuery" required>what is graph rag?</textarea></label>
+              <div class="form-grid">
+                <label>Mode
+                  <select id="searchMode">
+                    <option value="hybrid">hybrid</option>
+                    <option value="vector">vector</option>
+                    <option value="keyword">keyword</option>
+                  </select>
+                </label>
+                <label>Top K <input id="searchTopK" type="number" min="1" value="5"></label>
+                <label>Resource ID <input id="searchResourceId" placeholder="optional"></label>
+                <label>Tags <input id="searchTags" placeholder="comma separated"></label>
+              </div>
+              <button class="blue" type="submit">Search</button>
+            </form>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Results</h2></div>
+            <div id="searchResults" class="panel-body result-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="answerView" class="view hidden">
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><h2>Ask Books</h2></div>
+            <form id="answerForm" class="panel-body">
+              <label>Question <textarea id="answerQuery" required>Tell me about A Christmas Carol</textarea></label>
+              <div class="form-grid">
+                <label>Answer Mode
+                  <select id="answerMode">
+                    <option value="concise">concise</option>
+                    <option value="detailed">detailed</option>
+                    <option value="quote-backed">quote-backed</option>
+                  </select>
+                </label>
+                <label>Top K <input id="answerTopK" type="number" min="1" max="50" value="1"></label>
+                <label>Context Top K <input id="answerContextTopK" type="number" min="1" max="20" value="1"></label>
+                <label>Include Sources
+                  <select id="answerSources"><option value="true">true</option><option value="false">false</option></select>
+                </label>
+              </div>
+              <button class="blue" type="submit">Answer</button>
+            </form>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Answer</h2></div>
+            <div id="answerResult" class="panel-body"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="compareView" class="view hidden">
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><h2>Compare Models</h2></div>
+            <form id="compareForm" class="panel-body">
+              <label>Question <textarea id="compareQuery" required>Tell me about A Christmas Carol</textarea></label>
+              <div class="form-grid">
+                <label>Models
+                  <input id="compareModels" value="mistral:7b-instruct-v0.3-q2_K,gemma:7b" placeholder="comma separated model names">
+                </label>
+                <label>Answer Mode
+                  <select id="compareAnswerMode">
+                    <option value="concise">concise</option>
+                    <option value="detailed">detailed</option>
+                    <option value="quote-backed">quote-backed</option>
+                  </select>
+                </label>
+                <label>Top K <input id="compareTopK" type="number" min="1" max="50" value="1"></label>
+                <label>Context Top K <input id="compareContextTopK" type="number" min="1" max="20" value="1"></label>
+              </div>
+              <button class="purple" type="submit">Compare</button>
+            </form>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Comparison</h2></div>
+            <div id="compareResult" class="panel-body"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="ingestView" class="view hidden">
+        <div class="panel">
+          <div class="panel-head"><h2>Ingest Book</h2></div>
+          <form id="ingestForm" class="panel-body">
+            <div class="form-grid">
+              <label class="full">File <input id="ingestFile" type="file" required></label>
+              <label>Title <input id="ingestTitle" placeholder="Book title"></label>
+              <label>Author <input id="ingestAuthor" placeholder="optional"></label>
+              <label>Tags <input id="ingestTags" placeholder="comma separated"></label>
+              <label>Indexing Mode
+                <select id="ingestMode">
+                  <option value="STANDARD">STANDARD</option>
+                  <option value="GRAPH">GRAPH</option>
+                  <option value="BOTH">BOTH</option>
+                  <option value="NONE">NONE</option>
+                </select>
+              </label>
+            </div>
+            <button class="primary" type="submit">Upload</button>
+            <pre id="ingestResult" class="hidden"></pre>
+          </form>
+        </div>
+      </section>
+
+      <section id="mcpView" class="view hidden">
+        <div class="panel">
+          <div class="panel-head"><h2>MCP Tools</h2></div>
+          <div class="panel-body">
+            <div class="message">Future POC area for invoking MCP-backed tools through secure_api after adding gateway endpoints.</div>
+            <pre>{
+  "ideas": [
+    "List available MCP tools for the signed-in user",
+    "Run library lookup tools with role-based access",
+    "Show MCP execution logs per request",
+    "Save useful tool outputs as searchable resources"
+  ]
+}</pre>
+          </div>
+        </div>
+      </section>
+    </main>
+  </section>
+
+  <script>
+    const state = { token: localStorage.getItem("secure_api_access_token") || "", refreshToken: localStorage.getItem("secure_api_refresh_token") || "", user: null, resources: [] };
+    const loginScreen = document.getElementById("loginScreen");
+    const appScreen = document.getElementById("appScreen");
+    const globalMessage = document.getElementById("globalMessage");
+    const adminEls = () => document.querySelectorAll(".admin-only");
+
+    document.getElementById("loginForm").addEventListener("submit", login);
+    document.getElementById("logoutButton").addEventListener("click", logout);
+    document.getElementById("themeButton").addEventListener("click", toggleTheme);
+    document.getElementById("refreshButton").addEventListener("click", loadResources);
+    document.getElementById("loadResourcesButton").addEventListener("click", loadResources);
+    document.getElementById("resourceFilter").addEventListener("input", renderResources);
+    document.getElementById("selectAllResources").addEventListener("change", toggleAllResources);
+    document.getElementById("deleteSelectedButton").addEventListener("click", deleteSelectedResources);
+    document.getElementById("searchForm").addEventListener("submit", searchBooks);
+    document.getElementById("answerForm").addEventListener("submit", answerQuestion);
+    document.getElementById("compareForm").addEventListener("submit", compareAnswers);
+    document.getElementById("ingestForm").addEventListener("submit", ingestBook);
+    document.querySelectorAll("nav button[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
+    document.getElementById("resourceRows").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-action='retry']");
+      if (button) retryResource(button.dataset.resourceId);
+    });
+    document.getElementById("resourceRows").addEventListener("change", updateDeleteState);
+
+    async function login(event) {
+      event.preventDefault();
+      const message = document.getElementById("loginMessage");
+      message.className = "message";
+      message.textContent = "Signing in...";
+      const response = await fetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username.value, password: password.value })
+      });
+      const body = await readBody(response);
+      if (!response.ok) {
+        message.className = "message error";
+        message.textContent = body.error?.message || "Login failed";
+        return;
+      }
+      state.token = body.access_token;
+      state.refreshToken = body.refresh_token || "";
+      localStorage.setItem("secure_api_access_token", state.token);
+      localStorage.setItem("secure_api_refresh_token", state.refreshToken);
+      await bootstrapSession();
+    }
+
+    async function bootstrapSession() {
+      if (!state.token) return showLogin();
+      const response = await apiFetch("/auth/me");
+      const body = await readBody(response);
+      if (!response.ok) {
+        localStorage.removeItem("secure_api_access_token");
+        localStorage.removeItem("secure_api_refresh_token");
+        state.token = "";
+        return showLogin();
+      }
+      state.user = body;
+      showApp();
+      await loadResources();
+    }
+
+    function showLogin() {
+      loginScreen.classList.remove("hidden");
+      appScreen.classList.add("hidden");
+    }
+
+    function showApp() {
+      loginScreen.classList.add("hidden");
+      appScreen.classList.remove("hidden");
+      welcomeText.textContent = `Welcome, ${state.user.preferred_username || state.user.sub}`;
+      roleSummary.textContent = isAdmin() ? "admin" : "user";
+      adminEls().forEach((el) => el.classList.toggle("hidden", !isAdmin()));
+      ingestNav.classList.toggle("hidden", !isAdmin());
+    }
+
+    function isAdmin() {
+      const roles = state.user?.roles || [];
+      return roles.includes("rag_admin") || roles.includes("system_admin");
+    }
+
+    async function logout() {
+      if (state.refreshToken) {
+        await fetch("/auth/logout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: state.refreshToken })
+        }).catch(() => null);
+      }
+      localStorage.removeItem("secure_api_access_token");
+      localStorage.removeItem("secure_api_refresh_token");
+      state.token = "";
+      state.refreshToken = "";
+      state.user = null;
+      showLogin();
+    }
+
+    async function loadResources() {
+      setGlobal("Loading books...");
+      const response = await apiFetch("/rag/resources");
+      const body = await readBody(response);
+      if (!response.ok) {
+        setGlobal(body.error?.message || "Unable to load books", true);
+        return;
+      }
+      state.resources = body.resources || [];
+      renderResources();
+      setGlobal("");
+    }
+
+    function renderResources() {
+      const filter = resourceFilter.value.trim().toLowerCase();
+      const rows = state.resources.filter((item) => {
+        const text = [item.title, item.author, item.category, item.ingestion_status, item.latest_job_status, ...(item.tags || [])].filter(Boolean).join(" ").toLowerCase();
+        return !filter || text.includes(filter);
+      });
+      metricTotal.textContent = state.resources.length;
+      metricReady.textContent = state.resources.filter((r) => effectiveStatus(r) === "READY" || effectiveStatus(r) === "COMPLETED").length;
+      metricProcessing.textContent = state.resources.filter((r) => ["QUEUED", "PROCESSING"].includes(effectiveStatus(r))).length;
+      metricFailed.textContent = state.resources.filter((r) => effectiveStatus(r) === "FAILED").length;
+      resourceSummary.textContent = `${rows.length} visible`;
+      resourceRows.innerHTML = rows.length ? rows.map(renderResourceRow).join("") : `<tr><td colspan="${isAdmin() ? 7 : 5}" class="muted">No books found.</td></tr>`;
+      updateDeleteState();
+    }
+
+    function renderResourceRow(item) {
+      const status = effectiveStatus(item);
+      return `
+        <tr>
+          <td class="admin-only ${isAdmin() ? "" : "hidden"}"><input name="resource_id" type="checkbox" value="${esc(item.resource_id)}"></td>
+          <td><div class="title">${esc(item.title || "Untitled")}</div><div class="muted">${esc(item.resource_id)}</div></td>
+          <td><div>${esc(item.author || "")}</div><div>${(item.tags || []).map((tag) => `<span class="badge">${esc(tag)}</span>`).join("")}</div></td>
+          <td><span class="${statusClass(status)}">${esc(status)}</span><div class="muted">${esc(item.latest_error_message || "")}</div></td>
+          <td>${item.chunk_count || 0}<div class="muted">${item.embedding_count || 0} embeddings</div></td>
+          <td>${item.job_count || 0}<div class="muted">${esc(item.latest_job_indexing_mode || "")}</div></td>
+          <td class="admin-only ${isAdmin() ? "" : "hidden"}">${status === "FAILED" ? `<button type="button" data-action="retry" data-resource-id="${esc(item.resource_id)}">Retry</button>` : ""}</td>
+        </tr>`;
+    }
+
+    function effectiveStatus(item) {
+      return item.latest_job_status || item.ingestion_status || "";
+    }
+
+    function statusClass(status) {
+      if (status === "FAILED") return "status-failed";
+      if (status === "QUEUED") return "status-queued";
+      if (status === "PROCESSING") return "status-processing";
+      return "status-ready";
+    }
+
+    function toggleAllResources() {
+      document.querySelectorAll("input[name='resource_id']").forEach((box) => { box.checked = selectAllResources.checked; });
+      updateDeleteState();
+    }
+
+    function selectedResourceIds() {
+      return [...document.querySelectorAll("input[name='resource_id']:checked")].map((box) => box.value);
+    }
+
+    function updateDeleteState() {
+      deleteSelectedButton.disabled = selectedResourceIds().length === 0;
+    }
+
+    async function deleteSelectedResources() {
+      const ids = selectedResourceIds();
+      if (!ids.length || !confirm(`Delete ${ids.length} selected book(s)?`)) return;
+      const response = await apiFetch("/rag/resources/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resource_ids: ids, force: true })
+      });
+      const body = await readBody(response);
+      setGlobal(response.ok ? "Delete request completed." : body.error?.message || "Delete failed", !response.ok);
+      await loadResources();
+    }
+
+    async function retryResource(resourceId) {
+      const response = await apiFetch(`/rag/resources/${encodeURIComponent(resourceId)}/retry`, { method: "POST" });
+      const body = await readBody(response);
+      setGlobal(response.ok ? "Retry queued." : body.error?.message || "Retry failed", !response.ok);
+      await loadResources();
+    }
+
+    async function searchBooks(event) {
+      event.preventDefault();
+      searchResults.innerHTML = `<div class="message">Searching...</div>`;
+      const tags = searchTags.value.split(",").map((tag) => tag.trim()).filter(Boolean);
+      const payload = {
+        query: searchQuery.value,
+        search_mode: searchMode.value,
+        top_k: Number(searchTopK.value || 5),
+        filters: {
+          resource_id: searchResourceId.value.trim() || null,
+          tags
+        },
+        include_metadata: true
+      };
+      const response = await apiFetch("/rag/search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const body = await readBody(response);
+      if (!response.ok) {
+        searchResults.innerHTML = `<pre>${esc(JSON.stringify(body, null, 2))}</pre>`;
+        return;
+      }
+      searchResults.innerHTML = (body.results || []).map((item) => `
+        <article class="result-item"><strong>${item.rank}. ${esc(item.title)}</strong><div class="muted">score ${item.score} | chunk ${item.chunk_index}</div><p>${esc(item.snippet)}</p></article>
+      `).join("") || `<div class="message">No results.</div>`;
+    }
+
+    async function answerQuestion(event) {
+      event.preventDefault();
+      answerResult.innerHTML = `<div class="message">Generating answer. Local Ollama can take a while.</div>`;
+      const payload = {
+        query: answerQuery.value,
+        search_mode: "hybrid",
+        answer_mode: answerMode.value,
+        include_sources: answerSources.value === "true",
+        top_k: Number(answerTopK.value || 1),
+        context_top_k: Number(answerContextTopK.value || 1)
+      };
+      const response = await apiFetch("/rag/answer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const body = await readBody(response);
+      if (!response.ok) {
+        answerResult.innerHTML = `<pre>${esc(JSON.stringify(body, null, 2))}</pre>`;
+        return;
+      }
+      answerResult.innerHTML = `<article class="result-item"><strong>${esc(body.answer_status)}</strong><p>${esc(body.answer)}</p></article><pre>${esc(JSON.stringify(body.sources || [], null, 2))}</pre>`;
+    }
+
+    async function compareAnswers(event) {
+      event.preventDefault();
+      compareResult.innerHTML = `<div class="message">Comparing models. This may take several minutes with local Ollama.</div>`;
+      const models = compareModels.value.split(",").map((model) => model.trim()).filter(Boolean);
+      const payload = {
+        query: compareQuery.value,
+        search_mode: "hybrid",
+        answer_mode: compareAnswerMode.value,
+        include_sources: true,
+        top_k: Number(compareTopK.value || 1),
+        context_top_k: Number(compareContextTopK.value || 1),
+        compare_models: models
+      };
+      const response = await apiFetch("/rag/answer/compare", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const body = await readBody(response);
+      if (!response.ok) {
+        compareResult.innerHTML = `<pre>${esc(JSON.stringify(body, null, 2))}</pre>`;
+        return;
+      }
+      compareResult.innerHTML = `
+        <div class="message ok">Compared ${body.results?.length || 0} model responses using ${esc(body.search_mode || "hybrid")} search.</div>
+        <div class="compare-grid">
+          ${(body.results || []).map(renderComparisonResult).join("") || `<div class="message">No model results.</div>`}
+        </div>
+        <pre>${esc(JSON.stringify(body.sources || [], null, 2))}</pre>
+      `;
+    }
+
+    function renderComparisonResult(item) {
+      return `
+        <article class="result-item">
+          <span class="model-chip">${esc(item.llm_provider)}:${esc(item.llm_model)}</span>
+          <h3>${esc(item.answer_status || "answer")}</h3>
+          <p>${esc(item.answer || "")}</p>
+          <div class="muted">Sources: ${item.context_source_count || 0} | mode: ${esc(item.answer_mode || "")}</div>
+        </article>
+      `;
+    }
+
+    async function ingestBook(event) {
+      event.preventDefault();
+      const file = ingestFile.files[0];
+      if (!file) return;
+      const tags = ingestTags.value.split(",").map((tag) => tag.trim()).filter(Boolean);
+      const metadata = {
+        title: ingestTitle.value.trim() || file.name,
+        author: ingestAuthor.value.trim() || undefined,
+        resource_type: "DOCUMENT",
+        source_system: "secure_api_ui",
+        tags,
+        indexing_mode: ingestMode.value
+      };
+      const form = new FormData();
+      form.append("file", file);
+      form.append("metadata", JSON.stringify(metadata));
+      const response = await apiFetch("/rag/ingest", { method: "POST", body: form });
+      const body = await readBody(response);
+      ingestResult.classList.remove("hidden");
+      ingestResult.textContent = JSON.stringify(body, null, 2);
+      if (response.ok) await loadResources();
+    }
+
+    function showView(view) {
+      document.querySelectorAll(".view").forEach((el) => el.classList.add("hidden"));
+      document.getElementById(`${view}View`).classList.remove("hidden");
+      document.querySelectorAll("nav button[data-view]").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
+    }
+
+    function applyTheme(theme) {
+      document.body.classList.toggle("dark", theme === "dark");
+      themeButton.textContent = theme === "dark" ? "Light" : "Dark";
+      localStorage.setItem("secure_api_theme", theme);
+    }
+
+    function toggleTheme() {
+      applyTheme(document.body.classList.contains("dark") ? "light" : "dark");
+    }
+
+    async function apiFetch(url, options = {}) {
+      const headers = new Headers(options.headers || {});
+      headers.set("Authorization", `Bearer ${state.token}`);
+      return fetch(url, { ...options, headers });
+    }
+
+    async function readBody(response) {
+      const text = await response.text();
+      if (!text) return {};
+      try { return JSON.parse(text); } catch { return { detail: text }; }
+    }
+
+    function setGlobal(text, error = false) {
+      if (!text) {
+        globalMessage.classList.add("hidden");
+        return;
+      }
+      globalMessage.textContent = text;
+      globalMessage.className = `message ${error ? "error" : "ok"}`;
+    }
+
+    function esc(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;" }[char]));
+    }
+
+    applyTheme(localStorage.getItem("secure_api_theme") || "light");
+    bootstrapSession();
+  </script>
+</body>
+</html>

@@ -54,6 +54,33 @@ class DownstreamClient:
 
         return _response_body(response)
 
+    async def get_json(
+        self,
+        *,
+        service: str,
+        url: str,
+        user: CurrentUser,
+    ) -> Any:
+        try:
+            async with httpx.AsyncClient(timeout=self._settings.downstream_timeout_seconds) as client:
+                response = await client.get(
+                    url,
+                    headers=self._user_context_headers(user),
+                )
+        except httpx.TimeoutException as exc:
+            raise DownstreamServiceError(service=service, error_type="timeout") from exc
+        except httpx.RequestError as exc:
+            raise DownstreamServiceError(service=service, error_type=type(exc).__name__) from exc
+
+        if response.status_code >= 400:
+            raise DownstreamServiceError(
+                service=service,
+                status_code=response.status_code,
+                error_type="http_status_error",
+            )
+
+        return _response_body(response)
+
     async def post_file(
         self,
         *,

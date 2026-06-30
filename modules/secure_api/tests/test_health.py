@@ -23,3 +23,13 @@ def test_health_details_does_not_expose_secrets() -> None:
     assert "secret" not in body
     assert "client_secret" not in body
     assert "api_key" not in body
+
+
+def test_ui_returns_gateway_html() -> None:
+    response = client.get("/ui")
+
+    assert response.status_code == 200
+    assert "Secure RAG Gateway" in response.text
+    assert "loginForm" in response.text
+    assert "compareForm" in response.text
+    assert "themeButton" in response.text

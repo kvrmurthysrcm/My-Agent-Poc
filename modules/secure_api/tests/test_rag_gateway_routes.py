@@ -37,6 +37,7 @@ def teardown_function() -> None:
     [
         ("/rag/search", "rag_search_user", "http://localhost:8001/rag/search"),
         ("/rag/answer", "rag_user", "http://localhost:8002/rag/answer"),
+        ("/rag/answer/compare", "rag_user", "http://localhost:8002/rag/answer/compare"),
         ("/rag/ask", "rag_user", "http://localhost:8002/rag/answer"),
     ],
 )
@@ -209,6 +210,51 @@ def test_test_downstream_returns_each_service_status_without_failing_all() -> No
             "response": {"status": "UP"},
         },
     ]
+
+
+def test_list_resources_allows_authenticated_user() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "http://localhost:8001/rag/admin/resources"
+        return httpx.Response(200, json={"total": 1, "resources": [{"resource_id": "res-1", "title": "Book"}]})
+
+    transport = httpx.MockTransport(handler)
+    original_async_client = httpx.AsyncClient
+    httpx.AsyncClient = lambda *args, **kwargs: original_async_client(transport=transport)
+    try:
+        client = _client_for_user(_user("rag_user"))
+        response = client.get("/rag/resources")
+    finally:
+        httpx.AsyncClient = original_async_client
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+
+
+def test_delete_resources_requires_admin_role() -> None:
+    client = _client_for_user(_user("rag_user"))
+
+    response = client.post("/rag/resources/delete", json={"resource_ids": ["res-1"], "force": True})
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "insufficient_role"
+
+
+def test_retry_resource_calls_downstream_for_admin() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "http://localhost:8001/rag/admin/resources/res-1/retry"
+        return httpx.Response(202, json={"resource_id": "res-1", "status": "QUEUED"})
+
+    transport = httpx.MockTransport(handler)
+    original_async_client = httpx.AsyncClient
+    httpx.AsyncClient = lambda *args, **kwargs: original_async_client(transport=transport)
+    try:
+        client = _client_for_user(_user("rag_admin"))
+        response = client.post("/rag/resources/res-1/retry")
+    finally:
+        httpx.AsyncClient = original_async_client
+
+    assert response.status_code == 200
+    assert response.json() == {"resource_id": "res-1", "status": "QUEUED"}
 
 
 @pytest.mark.anyio

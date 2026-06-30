@@ -1,0 +1,419 @@
+{
+  "info": {
+    "name": "Secure API Gateway",
+    "description": "Postman collection for the FastAPI Keycloak Auth Gateway wrapper. Login captures access_token and refresh_token collection variables. Protected requests use Authorization: Bearer {{access_token}}.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8010",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "username",
+      "value": "raguser",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "raguser123",
+      "type": "string"
+    },
+    {
+      "key": "admin_username",
+      "value": "ragadmin",
+      "type": "string"
+    },
+    {
+      "key": "admin_password",
+      "value": "ragadmin123",
+      "type": "string"
+    },
+    {
+      "key": "sample_file_path",
+      "value": "README.md",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "curl -s {{base_url}}/health"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /health/details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/details",
+              "host": ["{{base_url}}"],
+              "path": ["health", "details"]
+            },
+            "description": "curl -s {{base_url}}/health/details"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST /auth/login - raguser",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('access_token', body.access_token || '');",
+                  "  pm.collectionVariables.set('refresh_token', body.refresh_token || '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Logs in through the wrapper and saves access_token and refresh_token collection variables.\n\ncurl -s -X POST \"{{base_url}}/auth/login\" -H \"Content-Type: application/json\" -d '{\"username\":\"raguser\",\"password\":\"raguser123\"}'"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /auth/login - ragadmin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('access_token', body.access_token || '');",
+                  "  pm.collectionVariables.set('refresh_token', body.refresh_token || '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{admin_username}}\",\n  \"password\": \"{{admin_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Logs in as ragadmin for ingest/admin-role checks and saves access_token and refresh_token collection variables."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /auth/refresh",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('access_token', body.access_token || '');",
+                  "  pm.collectionVariables.set('refresh_token', body.refresh_token || pm.collectionVariables.get('refresh_token') || '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "refresh"]
+            },
+            "description": "Refreshes the token using {{refresh_token}}. The Authorization header is not required for this endpoint.\n\ncurl -s -X POST \"{{base_url}}/auth/refresh\" -H \"Content-Type: application/json\" -d '{\"refresh_token\":\"<refresh-token>\"}'"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /auth/logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "logout"]
+            },
+            "description": "Logs out the Keycloak session associated with {{refresh_token}}. The Authorization header is not required for this endpoint.\n\ncurl -s -X POST \"{{base_url}}/auth/logout\" -H \"Content-Type: application/json\" -d '{\"refresh_token\":\"<refresh-token>\"}'"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /auth/me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Validates the current access token and returns user claims/roles.\n\ncurl -s \"{{base_url}}/auth/me\" -H \"Authorization: Bearer <access-token>\""
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "RAG Gateway",
+      "item": [
+        {
+          "name": "POST /rag/search",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"what is graph rag?\",\n  \"search_mode\": \"hybrid\",\n  \"top_k\": 5,\n  \"filters\": {\n    \"tags\": [\"architecture\"]\n  },\n  \"include_metadata\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rag/search",
+              "host": ["{{base_url}}"],
+              "path": ["rag", "search"]
+            },
+            "description": "Requires rag_search_user, rag_user, or rag_admin. Wrapper forwards to rag-search-service /rag/search with X-API-Key and user context headers.\n\ncurl -s -X POST \"{{base_url}}/rag/search\" -H \"Content-Type: application/json\" -H \"Authorization: Bearer <access-token>\" -d '{\"query\":\"what is graph rag?\",\"search_mode\":\"hybrid\",\"top_k\":5,\"filters\":{\"tags\":[\"architecture\"]},\"include_metadata\":true}'"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /rag/answer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Tell me about A Christmas Carol\",\n  \"search_mode\": \"hybrid\",\n  \"answer_mode\": \"concise\",\n  \"include_sources\": true,\n  \"top_k\": 1,\n  \"context_top_k\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rag/answer",
+              "host": ["{{base_url}}"],
+              "path": ["rag", "answer"]
+            },
+            "description": "Requires rag_user or rag_admin. Wrapper forwards to rag-answer-service /rag/answer. top_k/context_top_k are intentionally small for local Ollama testing.\n\ncurl -s -X POST \"{{base_url}}/rag/answer\" -H \"Content-Type: application/json\" -H \"Authorization: Bearer <access-token>\" -d '{\"query\":\"Tell me about A Christmas Carol\",\"search_mode\":\"hybrid\",\"answer_mode\":\"concise\",\"include_sources\":true,\"top_k\":1,\"context_top_k\":1}'"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /rag/ask - compatibility alias",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Tell me about A Christmas Carol\",\n  \"search_mode\": \"hybrid\",\n  \"answer_mode\": \"concise\",\n  \"include_sources\": true,\n  \"top_k\": 1,\n  \"context_top_k\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/rag/ask",
+              "host": ["{{base_url}}"],
+              "path": ["rag", "ask"]
+            },
+            "description": "Compatibility alias for /rag/answer. Prefer /rag/answer for new tests."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /rag/ingest - multipart",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "{{sample_file_path}}"
+                },
+                {
+                  "key": "metadata",
+                  "type": "text",
+                  "value": "{\"title\":\"Postman Upload\",\"resource_type\":\"DOCUMENT\",\"tags\":[\"postman\"],\"indexing_mode\":\"STANDARD\"}"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/rag/ingest",
+              "host": ["{{base_url}}"],
+              "path": ["rag", "ingest"]
+            },
+            "description": "Requires rag_ingest_user or rag_admin. Login as ragadmin first. Wrapper forwards multipart file + metadata to rag-ingest-service /rag/ingest.\n\ncurl -s -X POST \"{{base_url}}/rag/ingest\" -H \"Authorization: Bearer <access-token>\" -F 'file=@README.md;type=text/markdown' -F 'metadata={\"title\":\"Postman Upload\",\"resource_type\":\"DOCUMENT\",\"tags\":[\"postman\"],\"indexing_mode\":\"STANDARD\"}'"
+          },
+          "response": []
+        },
+        {
+          "name": "GET /rag/test-downstream",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/rag/test-downstream",
+              "host": ["{{base_url}}"],
+              "path": ["rag", "test-downstream"]
+            },
+            "description": "Checks /health on ingest/search/answer downstream services and returns per-service availability.\n\ncurl -s \"{{base_url}}/rag/test-downstream\" -H \"Authorization: Bearer <access-token>\""
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

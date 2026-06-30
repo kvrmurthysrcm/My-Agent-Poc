@@ -35,6 +35,7 @@ http://localhost:8080
 - CORS for local frontend origins
 - `GET /health`
 - `GET /health/details`
+- `GET /` and `GET /ui` lightweight browser UI
 - `POST /auth/login`
 - `POST /auth/refresh`
 - `POST /auth/logout`
@@ -42,6 +43,7 @@ http://localhost:8080
 - Realm and client role extraction
 - Protected `GET /auth/me`
 - Protected RAG gateway routes
+- Resource list, delete, and retry gateway routes for the UI
 - Multipart upload forwarding for RAG ingest
 - Downstream calls using `X-API-Key`
 - User context forwarding with `X-User-Id`, `X-Username`, and `X-User-Roles`
@@ -83,6 +85,24 @@ local-keycloak
 Confirm the `local-keycloak` container is running before calling the Keycloak URLs.
 
 Start the wrapper service with `modules/secure_api/run_local.ps1` or `modules/secure_api/run_local.bat`.
+
+Open the browser UI:
+
+```text
+http://localhost:8010/ui
+```
+
+The UI starts with a login screen, stores the access token in browser local storage for the local POC session, and shows:
+
+- Books/resources with ingestion status
+- Search
+- Answer generation
+- Compare model answers
+- Admin-only ingest
+- Admin-only delete and retry actions
+- A placeholder MCP tools section for future gateway endpoints
+
+Admin actions are shown only when the signed-in user has `rag_admin` or `system_admin`.
 
 ## Postman Collection
 
@@ -383,8 +403,12 @@ Downstream target URLs:
 | `POST /rag/ingest` | `rag_ingest_user` or `rag_admin` | `http://localhost:8000/rag/ingest` |
 | `POST /rag/search` | `rag_search_user`, `rag_user`, or `rag_admin` | `http://localhost:8001/rag/search` |
 | `POST /rag/answer` | `rag_user` or `rag_admin` | `http://localhost:8002/rag/answer` |
+| `POST /rag/answer/compare` | `rag_user` or `rag_admin` | `http://localhost:8002/rag/answer/compare` |
 | `POST /rag/ask` | `rag_user` or `rag_admin` | Compatibility alias to `http://localhost:8002/rag/answer` |
 | `GET /rag/test-downstream` | any valid token | `/health` on each downstream service |
+| `GET /rag/resources` | any valid token | `http://localhost:8001/rag/admin/resources` |
+| `POST /rag/resources/delete` | `rag_admin` or `system_admin` | `http://localhost:8001/rag/admin/resources/delete` |
+| `POST /rag/resources/{resource_id}/retry` | `rag_admin` or `system_admin` | `http://localhost:8001/rag/admin/resources/{resource_id}/retry` |
 
 Headers sent downstream:
 
