@@ -35,7 +35,7 @@ scripts/keycloak
 | Username | Password | Main roles | UI behavior |
 | --- | --- | --- | --- |
 | `raguser` | `raguser123` | `rag_user`, `rag_search_user` | Can view books, search, and ask questions |
-| `ragadmin` | `ragadmin123` | `rag_admin`, `rag_user`, `rag_search_user`, `rag_ingest_user`, `graph_rag_user`, `system_admin` | Can view books, search, ask, ingest, delete, and retry |
+| `ragadmin` | `ragadmin123` | `rag_admin`, `rag_user`, `rag_search_user`, `rag_ingest_user`, `graph_rag_user`, `system_admin` | Can view books, search, ask, ingest, delete, retry, and queue indexing |
 | `searchuser` | `searchuser123` | `rag_search_user` | Can view books and search |
 
 `admin / admin123` is the Keycloak admin console user. It is not an application user in the `rag-auth-gateway` realm, so it will not work in the secure API UI login screen.
@@ -94,6 +94,7 @@ Admin-only controls:
 - Ingest tab
 - Delete selected books
 - Retry failed books
+- Create Standard embeddings or Graph indexes for uploaded books
 
 Regular authenticated users can still:
 
@@ -120,6 +121,8 @@ GET http://localhost:8001/rag/admin/resources
 ```
 
 This is reused from the RAG Search Service admin resource API.
+
+The Books tab refreshes this list automatically whenever the user clicks back into the tab. The top-bar `Refresh` button and the Books tab `Refresh Books` button use the same wrapper call for manual reloads. The UI guards concurrent reloads so rapid clicks do not send duplicate resource-list requests.
 
 ### Delete Books
 
@@ -152,6 +155,41 @@ POST http://localhost:8001/rag/admin/resources/{resource_id}/retry
 ```
 
 That downstream search-admin endpoint then calls the ingest service retry endpoint.
+
+### Queue Indexing For Existing Books
+
+The secure API UI uses a two-step workflow for fast library loading:
+
+1. Upload in the Ingest tab with `indexing_mode=NONE`.
+2. From the Books tab, admins can click `Create Embeddings` or `Create Graph Index`.
+
+Wrapper URL:
+
+```text
+POST http://localhost:8010/rag/resources/{resource_id}/index
+```
+
+Downstream URL:
+
+```text
+POST http://localhost:8001/rag/admin/resources/{resource_id}/index
+```
+
+The search-admin endpoint forwards to:
+
+```text
+POST http://localhost:8000/rag/ingest/resources/{resource_id}/index
+```
+
+Request body:
+
+```json
+{
+  "indexing_mode": "STANDARD"
+}
+```
+
+Use `GRAPH` to queue Graph RAG indexing.
 
 Only `rag_admin` or `system_admin` users can call this wrapper endpoint.
 
@@ -289,7 +327,7 @@ The new UI is a wrapper-level UI. It combines the main workflows into one screen
 - Compare model answers
 - Library Search
 - Admin ingest
-- Admin delete/retry
+- Admin delete/retry/indexing
 - Admin-only Library Tools
 
 It intentionally calls only secure_api endpoints so authentication and role checks stay centralized.
@@ -299,7 +337,7 @@ It intentionally calls only secure_api endpoints so authentication and role chec
 - Token refresh is not automatic yet.
 - Library Search depends on `online_library_agent`, `online_library_mcp`, `online_library`, Ollama, and the Online Library database.
 - Raw Library Tools are admin-only and intended for diagnostics/debugging, not the normal user workflow.
-- Resource list/delete/retry reuse downstream search admin APIs, so the downstream search service must have admin resource APIs enabled.
+- Resource list/delete/retry/indexing reuse downstream search admin APIs, so the downstream search service must have admin resource APIs enabled.
 - The UI stores tokens in `localStorage`, which is acceptable only for this local laptop POC.
 - The answer flow can be slow when local Ollama models receive large context.
 

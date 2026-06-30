@@ -49,16 +49,34 @@ def process_job(job_id: str) -> None:
         chunks_repo = RagChunkRepository(db)
         embeddings_repo = RagEmbeddingRepository(db)
         job_started = job.job_id
+        resource_chunk_rows = chunks_repo.list_chunks_for_resource(resource.resource_id)
+        can_reuse_resource_chunks = bool(resource_chunk_rows) and job.indexing_mode in {"STANDARD", "GRAPH", "BOTH"}
 
         try:
             with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_mark_processing"):
                 jobs.mark_processing(job, worker_id=job.worker_id)
-                jobs.update_progress(job, "Starting text extraction")
+                jobs.update_progress(
+                    job,
+                    "Reusing existing chunks for indexing" if can_reuse_resource_chunks else "Starting text extraction",
+                )
                 resources.update_status(resource.resource_id, "PROCESSING")
                 db.commit()
 
             existing_extraction = chunks_repo.get_extraction_for_job(job.job_id)
-            if existing_extraction:
+            if can_reuse_resource_chunks:
+                logger.info(
+                    "RAG job %s resource %s: reusing existing resource chunks=%s",
+                    job.job_id,
+                    resource.resource_id,
+                    len(resource_chunk_rows),
+                )
+                extracted_text = ""
+                extraction_parser_name = resource.parser_name or "reused_chunks"
+                extraction_page_count = None
+                extraction_metadata = {"reused_resource_chunks": True}
+                text_hash = resource.extracted_text_hash_sha256 or ""
+                extraction_token_count = sum(chunk.token_count for chunk in resource_chunk_rows)
+            elif existing_extraction:
                 logger.info("RAG job %s resource %s: reusing existing extraction", job.job_id, resource.resource_id)
                 extracted_text = existing_extraction.extracted_text
                 extraction_parser_name = existing_extraction.parser_name
@@ -105,7 +123,7 @@ def process_job(job_id: str) -> None:
             with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_store_extraction"):
                 jobs.update_progress(job, "Text extracted; storing extraction summary")
                 db.commit()
-                if not existing_extraction:
+                if not existing_extraction and not can_reuse_resource_chunks:
                     chunks_repo.create_extraction(
                         resource_id=resource.resource_id,
                         job_id=job.job_id,
@@ -121,7 +139,7 @@ def process_job(job_id: str) -> None:
                 resource.extracted_text_hash_sha256 = text_hash
 
             with profile_step(settings.profiling, logger, job.job_id, resource.resource_id, "db_update_chunking_status"):
-                jobs.update_progress(job, "Chunking extracted text")
+                jobs.update_progress(job, "Using existing chunks" if can_reuse_resource_chunks else "Chunking extracted text")
                 db.commit()
             logger.info(
                 "RAG job %s resource %s: extracted chars=%s tokens=%s parser=%s",
@@ -131,7 +149,7 @@ def process_job(job_id: str) -> None:
                 extraction_token_count,
                 extraction_parser_name,
             )
-            chunk_rows = chunks_repo.list_chunks_for_job(job.job_id)
+            chunk_rows = resource_chunk_rows if can_reuse_resource_chunks else chunks_repo.list_chunks_for_job(job.job_id)
             if chunk_rows:
                 logger.info("RAG job %s resource %s: reusing existing chunks=%s", job.job_id, resource.resource_id, len(chunk_rows))
             else:

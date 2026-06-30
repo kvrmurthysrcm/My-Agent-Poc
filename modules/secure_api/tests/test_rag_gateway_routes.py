@@ -257,6 +257,34 @@ def test_retry_resource_calls_downstream_for_admin() -> None:
     assert response.json() == {"resource_id": "res-1", "status": "QUEUED"}
 
 
+def test_index_resource_calls_downstream_for_admin() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "http://localhost:8001/rag/admin/resources/res-1/index"
+        assert request.content.decode() == '{"indexing_mode":"STANDARD"}'
+        return httpx.Response(202, json={"resource_id": "res-1", "status": "QUEUED", "indexing_mode": "STANDARD"})
+
+    transport = httpx.MockTransport(handler)
+    original_async_client = httpx.AsyncClient
+    httpx.AsyncClient = lambda *args, **kwargs: original_async_client(transport=transport)
+    try:
+        client = _client_for_user(_user("rag_admin"))
+        response = client.post("/rag/resources/res-1/index", json={"indexing_mode": "STANDARD"})
+    finally:
+        httpx.AsyncClient = original_async_client
+
+    assert response.status_code == 200
+    assert response.json() == {"resource_id": "res-1", "status": "QUEUED", "indexing_mode": "STANDARD"}
+
+
+def test_index_resource_rejects_invalid_mode() -> None:
+    client = _client_for_user(_user("rag_admin"))
+
+    response = client.post("/rag/resources/res-1/index", json={"indexing_mode": "NONE"})
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_indexing_mode"
+
+
 @pytest.mark.anyio
 async def test_downstream_client_uses_custom_settings_and_does_not_forward_authorization() -> None:
     captured: dict[str, Any] = {}

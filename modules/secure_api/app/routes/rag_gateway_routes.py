@@ -167,6 +167,32 @@ async def retry_resource(
         raise _downstream_app_error(exc) from exc
 
 
+@router.post("/resources/{resource_id}/index")
+async def index_resource(
+    resource_id: str,
+    payload: dict[str, Any],
+    user: CurrentUser = Depends(require_any_role(RAG_ADMIN, SYSTEM_ADMIN)),
+    settings: Settings = Depends(get_settings),
+    downstream_client: DownstreamClient = Depends(get_downstream_client),
+) -> Any:
+    indexing_mode = str(payload.get("indexing_mode") or "").strip().upper()
+    if indexing_mode not in {"STANDARD", "GRAPH", "BOTH"}:
+        raise AppError(
+            "indexing_mode must be STANDARD, GRAPH, or BOTH.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            error_code="invalid_indexing_mode",
+        )
+    try:
+        return await downstream_client.post_json(
+            service="rag-search",
+            url=f"{settings.rag_search_base_url.rstrip('/')}/rag/admin/resources/{resource_id}/index",
+            payload={"indexing_mode": indexing_mode},
+            user=user,
+        )
+    except DownstreamServiceError as exc:
+        raise _downstream_app_error(exc) from exc
+
+
 async def _post_downstream(
     *,
     downstream_client: DownstreamClient,

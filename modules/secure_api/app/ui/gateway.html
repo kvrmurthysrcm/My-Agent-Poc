@@ -304,7 +304,7 @@
           <div class="panel-body">
             <div class="toolbar">
               <input id="resourceFilter" placeholder="Filter title, author, status, tag">
-              <button type="button" id="loadResourcesButton">Load Books</button>
+              <button type="button" id="loadResourcesButton">Refresh Books</button>
               <button type="button" id="deleteSelectedButton" class="danger hidden" disabled>Delete Selected</button>
             </div>
             <div class="table-wrap">
@@ -430,10 +430,10 @@
               <label>Tags <input id="ingestTags" placeholder="comma separated"></label>
               <label>Indexing Mode
                 <select id="ingestMode">
+                  <option value="NONE" selected>Upload only - no indexing</option>
                   <option value="STANDARD">STANDARD</option>
                   <option value="GRAPH">GRAPH</option>
                   <option value="BOTH">BOTH</option>
-                  <option value="NONE">NONE</option>
                 </select>
               </label>
             </div>
@@ -503,7 +503,7 @@
   </section>
 
   <script>
-    const state = { token: localStorage.getItem("secure_api_access_token") || "", refreshToken: localStorage.getItem("secure_api_refresh_token") || "", user: null, resources: [], libraryTools: [] };
+    const state = { token: localStorage.getItem("secure_api_access_token") || "", refreshToken: localStorage.getItem("secure_api_refresh_token") || "", user: null, resources: [], libraryTools: [], resourcesLoading: false };
     const loginScreen = document.getElementById("loginScreen");
     const appScreen = document.getElementById("appScreen");
     const globalMessage = document.getElementById("globalMessage");
@@ -512,8 +512,8 @@
     document.getElementById("loginForm").addEventListener("submit", login);
     document.getElementById("logoutButton").addEventListener("click", logout);
     document.getElementById("themeButton").addEventListener("click", toggleTheme);
-    document.getElementById("refreshButton").addEventListener("click", loadResources);
-    document.getElementById("loadResourcesButton").addEventListener("click", loadResources);
+    document.getElementById("refreshButton").addEventListener("click", refreshBooks);
+    document.getElementById("loadResourcesButton").addEventListener("click", refreshBooks);
     document.getElementById("resourceFilter").addEventListener("input", renderResources);
     document.getElementById("selectAllResources").addEventListener("change", toggleAllResources);
     document.getElementById("deleteSelectedButton").addEventListener("click", deleteSelectedResources);
@@ -535,6 +535,8 @@
     document.getElementById("resourceRows").addEventListener("click", (event) => {
       const button = event.target.closest("button[data-action='retry']");
       if (button) retryResource(button.dataset.resourceId);
+      const indexButton = event.target.closest("button[data-action='index']");
+      if (indexButton) indexResource(indexButton.dataset.resourceId, indexButton.dataset.indexingMode);
     });
     document.getElementById("resourceRows").addEventListener("change", updateDeleteState);
 
@@ -573,7 +575,7 @@
       }
       state.user = body;
       showApp();
-      await loadResources();
+      await refreshBooks();
     }
 
     function showLogin() {
@@ -610,6 +612,20 @@
       state.refreshToken = "";
       state.user = null;
       showLogin();
+    }
+
+    async function refreshBooks() {
+      if (state.resourcesLoading) return;
+      state.resourcesLoading = true;
+      loadResourcesButton.disabled = true;
+      refreshButton.disabled = true;
+      try {
+        await loadResources();
+      } finally {
+        state.resourcesLoading = false;
+        loadResourcesButton.disabled = false;
+        refreshButton.disabled = false;
+      }
     }
 
     async function loadResources() {
@@ -650,8 +666,16 @@
           <td><span class="${statusClass(status)}">${esc(status)}</span><div class="muted">${esc(item.latest_error_message || "")}</div></td>
           <td>${item.chunk_count || 0}<div class="muted">${item.embedding_count || 0} embeddings</div></td>
           <td>${item.job_count || 0}<div class="muted">${esc(item.latest_job_indexing_mode || "")}</div></td>
-          <td class="admin-only ${isAdmin() ? "" : "hidden"}">${status === "FAILED" ? `<button type="button" data-action="retry" data-resource-id="${esc(item.resource_id)}">Retry</button>` : ""}</td>
+          <td class="admin-only ${isAdmin() ? "" : "hidden"}">${renderAdminResourceActions(item, status)}</td>
         </tr>`;
+    }
+
+    function renderAdminResourceActions(item, status) {
+      const disabled = ["QUEUED", "PROCESSING"].includes(status) ? "disabled" : "";
+      const retry = status === "FAILED" ? `<button type="button" data-action="retry" data-resource-id="${esc(item.resource_id)}">Retry</button>` : "";
+      const standard = `<button type="button" data-action="index" data-indexing-mode="STANDARD" data-resource-id="${esc(item.resource_id)}" ${disabled}>Create Embeddings</button>`;
+      const graph = `<button type="button" data-action="index" data-indexing-mode="GRAPH" data-resource-id="${esc(item.resource_id)}" ${disabled}>Create Graph Index</button>`;
+      return `<div class="toolbar">${retry}${standard}${graph}</div>`;
     }
 
     function effectiveStatus(item) {
@@ -688,14 +712,25 @@
       });
       const body = await readBody(response);
       setGlobal(response.ok ? "Delete request completed." : body.error?.message || "Delete failed", !response.ok);
-      await loadResources();
+      await refreshBooks();
     }
 
     async function retryResource(resourceId) {
       const response = await apiFetch(`/rag/resources/${encodeURIComponent(resourceId)}/retry`, { method: "POST" });
       const body = await readBody(response);
       setGlobal(response.ok ? "Retry queued." : body.error?.message || "Retry failed", !response.ok);
-      await loadResources();
+      await refreshBooks();
+    }
+
+    async function indexResource(resourceId, indexingMode) {
+      const response = await apiFetch(`/rag/resources/${encodeURIComponent(resourceId)}/index`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ indexing_mode: indexingMode })
+      });
+      const body = await readBody(response);
+      setGlobal(response.ok ? `${indexingMode} indexing queued.` : body.error?.message || "Indexing request failed", !response.ok);
+      await refreshBooks();
     }
 
     async function searchBooks(event) {
@@ -802,7 +837,7 @@
       const body = await readBody(response);
       ingestResult.classList.remove("hidden");
       ingestResult.textContent = JSON.stringify(body, null, 2);
-      if (response.ok) await loadResources();
+      if (response.ok) await refreshBooks();
     }
 
     async function askLibrary(event) {
@@ -923,6 +958,7 @@
       document.querySelectorAll(".view").forEach((el) => el.classList.add("hidden"));
       document.getElementById(`${view}View`).classList.remove("hidden");
       document.querySelectorAll("nav button[data-view]").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
+      if (view === "dashboard") refreshBooks();
     }
 
     function applyTheme(theme) {

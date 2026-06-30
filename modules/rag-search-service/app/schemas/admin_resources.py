@@ -64,6 +64,18 @@ class AdminRetryResourceResponse(BaseModel):
     message: str
 
 
+class AdminIndexResourceRequest(BaseModel):
+    indexing_mode: str = Field(pattern="^(STANDARD|GRAPH|BOTH)$")
+
+
+class AdminIndexResourceResponse(BaseModel):
+    resource_id: str
+    job_id: str | None = None
+    status: str
+    indexing_mode: str | None = None
+    message: str
+
+
 class AdminGraphRagSettingsRequest(BaseModel):
     entity_batch_size: int = Field(ge=1, le=10)
     relationship_batch_size: int = Field(ge=1, le=10)

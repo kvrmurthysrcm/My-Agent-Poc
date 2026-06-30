@@ -13,7 +13,8 @@ from app.repositories.rag_profiling_repository import RagProfilingRepository
 from app.repositories.runtime_settings_repository import RuntimeSettingsRepository
 from app.schemas.dev_delete_response import DevDeleteResourceResponse
 from app.schemas.ingest_response import IngestAcceptedResponse
-from app.schemas.job_response import JobErrorResponse, JobRetryResponse, JobStatusResponse
+from app.schemas.ingest_request import IndexingMode
+from app.schemas.job_response import JobErrorResponse, JobRetryResponse, JobStatusResponse, ResourceIndexRequest, ResourceIndexResponse
 from app.schemas.runtime_settings import GraphRagRuntimeSettingsRequest, GraphRagRuntimeSettingsResponse
 from app.services.async_backends.factory import JobDispatcherFactory
 from app.services.dev_delete_service import DevDeleteService
@@ -177,6 +178,56 @@ def retry_resource_ingestion(
         db.rollback()
         logger.exception("Unexpected ingestion retry failure")
         raise HTTPException(status_code=500, detail=f"Unexpected retry error: {type(exc).__name__}") from exc
+
+
+@router.post("/ingest/resources/{resource_id}/index", response_model=ResourceIndexResponse, status_code=202)
+def index_existing_resource(
+    resource_id: str,
+    request: ResourceIndexRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> ResourceIndexResponse:
+    resource = db.get(Resource, resource_id)
+    if resource is None:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    if request.indexing_mode == IndexingMode.NONE:
+        raise HTTPException(status_code=400, detail="indexing_mode must be STANDARD, GRAPH, or BOTH")
+
+    job_repo = RagJobRepository(db)
+    latest_job = job_repo.latest_for_resource(resource_id)
+    if latest_job and latest_job.status in {"PROCESSING", "QUEUED"}:
+        raise HTTPException(status_code=409, detail=f"Latest ingestion job is already {latest_job.status}")
+
+    try:
+        chunk_size = latest_job.chunk_size_tokens if latest_job else settings.default_chunk_size_tokens
+        chunk_overlap = latest_job.chunk_overlap_tokens if latest_job else settings.default_chunk_overlap_tokens
+        chunking_strategy = latest_job.chunking_strategy if latest_job else settings.default_chunking_strategy
+        job = job_repo.create_job(
+            resource_id=resource.resource_id,
+            async_backend=settings.async_backend.value,
+            strategy=chunking_strategy,
+            size=chunk_size,
+            overlap=chunk_overlap,
+            indexing_mode=request.indexing_mode.value,
+        )
+        resource.ingestion_status = "QUEUED"
+        db.commit()
+        dispatcher = JobDispatcherFactory.build(settings, background_tasks)
+        dispatcher.dispatch_ingestion_job(job.job_id, resource.resource_id)
+        return ResourceIndexResponse(
+            resource_id=resource.resource_id,
+            job_id=job.job_id,
+            status=job.status,
+            indexing_mode=job.indexing_mode,
+            message=f"{job.indexing_mode} indexing queued for existing resource.",
+        )
+    except NotImplementedError as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Unexpected resource indexing failure")
+        raise HTTPException(status_code=500, detail=f"Unexpected indexing error: {type(exc).__name__}") from exc
 
 
 @router.delete("/dev/resources/{resource_id}", response_model=DevDeleteResourceResponse)

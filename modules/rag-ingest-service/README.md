@@ -138,6 +138,16 @@ The upload metadata accepts `indexing_mode`; if it is omitted, the service uses 
 | `GRAPH` | Runs the shared extraction/chunking flow and Graph RAG indexing. Chunk embeddings are skipped by default. |
 | `BOTH` | Runs both standard chunk embeddings and Graph RAG indexing. |
 
+For fast local library loading, use `indexing_mode=NONE` during upload. This stores resource metadata, extracts text, creates chunks, and skips expensive indexing. Later, queue indexing for the same resource without uploading the file again:
+
+```bash
+curl -s -X POST "http://localhost:8000/rag/ingest/resources/<resource-id>/index" \
+  -H "Content-Type: application/json" \
+  -d '{"indexing_mode":"STANDARD"}'
+```
+
+Use `{"indexing_mode":"GRAPH"}` for Graph RAG indexing or `{"indexing_mode":"BOTH"}` for both. The index endpoint reuses existing chunks, so it still works when the original uploaded file has already been deleted after successful ingestion.
+
 For graph-only ingestion, chunk embedding creation is controlled by:
 
 ```text

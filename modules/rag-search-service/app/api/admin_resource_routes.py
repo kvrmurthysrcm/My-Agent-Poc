@@ -10,6 +10,8 @@ from app.schemas.admin_resources import (
     AdminDeleteResourcesResponse,
     AdminGraphRagSettingsRequest,
     AdminGraphRagSettingsResponse,
+    AdminIndexResourceRequest,
+    AdminIndexResourceResponse,
     AdminRetryResourceResponse,
     AdminResourceListResponse,
 )
@@ -98,6 +100,38 @@ def retry_resource(
         status=body.get("status", "QUEUED"),
         indexing_mode=body.get("indexing_mode"),
         message=body.get("message", "Retry queued."),
+    )
+
+
+@router.post("/resources/{resource_id}/index", response_model=AdminIndexResourceResponse, status_code=202)
+def index_resource(
+    resource_id: str,
+    request: AdminIndexResourceRequest,
+    settings: Settings = Depends(get_settings),
+) -> AdminIndexResourceResponse:
+    require_admin_enabled(settings)
+    index_url = f"{settings.rag_ingest_base_url.rstrip('/')}/rag/ingest/resources/{resource_id}/index"
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(index_url, json=request.model_dump())
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Unable to contact rag-ingest-service: {exc}") from exc
+
+    try:
+        body = response.json()
+    except ValueError:
+        body = {"detail": response.text}
+
+    if response.status_code >= 400:
+        detail = body.get("detail") if isinstance(body, dict) else str(body)
+        raise HTTPException(status_code=response.status_code, detail=detail or "Index request failed")
+
+    return AdminIndexResourceResponse(
+        resource_id=body.get("resource_id", resource_id),
+        job_id=body.get("job_id"),
+        status=body.get("status", "QUEUED"),
+        indexing_mode=body.get("indexing_mode"),
+        message=body.get("message", "Indexing queued."),
     )
 
 

@@ -45,7 +45,7 @@ http://localhost:8080
 - Protected RAG gateway routes
 - Protected Library Search gateway route backed by `online_library_agent`
 - Admin-only Library Tools gateway routes backed by `online_library_mcp`
-- Resource list, delete, and retry gateway routes for the UI
+- Resource list, delete, retry, and indexing gateway routes for the UI
 - Multipart upload forwarding for RAG ingest
 - Downstream calls using `X-API-Key`
 - User context forwarding with `X-User-Id`, `X-Username`, and `X-User-Roles`
@@ -114,7 +114,7 @@ The UI starts with a login screen, stores the access token in browser local stor
 - Compare model answers
 - Library Search for natural-language Online Library questions
 - Admin-only ingest
-- Admin-only delete and retry actions
+- Admin-only delete, retry, and indexing actions
 - Admin-only Library Tools, backed by the Online Library MCP tools service
 
 Admin actions are shown only when the signed-in user has `rag_admin` or `system_admin`.
@@ -424,6 +424,7 @@ Downstream target URLs:
 | `GET /rag/resources` | any valid token | `http://localhost:8001/rag/admin/resources` |
 | `POST /rag/resources/delete` | `rag_admin` or `system_admin` | `http://localhost:8001/rag/admin/resources/delete` |
 | `POST /rag/resources/{resource_id}/retry` | `rag_admin` or `system_admin` | `http://localhost:8001/rag/admin/resources/{resource_id}/retry` |
+| `POST /rag/resources/{resource_id}/index` | `rag_admin` or `system_admin` | `http://localhost:8001/rag/admin/resources/{resource_id}/index` |
 
 Headers sent downstream:
 
@@ -513,6 +514,7 @@ Related downstream search URLs currently not proxied by the wrapper:
 | `http://localhost:8001/rag/admin/resources` | GET | none | List resources; only available when search admin is enabled |
 | `http://localhost:8001/rag/admin/resources/delete` | POST | `{"resource_ids":["..."],"force":false}` | Delete resources; only available when search admin is enabled |
 | `http://localhost:8001/rag/admin/resources/{resource_id}/retry` | POST | none | Retry a resource by calling ingest retry; only available when search admin is enabled |
+| `http://localhost:8001/rag/admin/resources/{resource_id}/index` | POST | `{"indexing_mode":"STANDARD"}` or `{"indexing_mode":"GRAPH"}` | Queue indexing for an existing uploaded/chunked resource |
 | `http://localhost:8001/rag/admin/settings/graph-rag` | GET/PUT | `{"entity_batch_size":10,"relationship_batch_size":10}` for PUT | Read or update Graph RAG runtime settings via search admin |
 
 ### RAG Ingest
@@ -557,7 +559,7 @@ Metadata JSON fields:
 | `chunking.strategy` | string | no | `INTELLIGENT_RECURSIVE` or `SEMANTIC_RECURSIVE` |
 | `chunking.chunk_size_tokens` | integer | no | Minimum `100` |
 | `chunking.chunk_overlap_tokens` | integer | no | Minimum `0` |
-| `indexing_mode` | string | no | `NONE`, `STANDARD`, `GRAPH`, or `BOTH`; defaults to `STANDARD` |
+| `indexing_mode` | string | no | `NONE`, `STANDARD`, `GRAPH`, or `BOTH`; defaults to `STANDARD` downstream. The secure_api UI defaults to `NONE` for fast upload-only ingestion. |
 
 Validate with `ragadmin`:
 
@@ -569,7 +571,7 @@ TOKEN=$(curl -s -X POST "http://localhost:8010/auth/login" \
 curl -s -X POST "http://localhost:8010/rag/ingest" \
   -H "Authorization: Bearer $TOKEN" \
   -F 'file=@README.md;type=text/markdown' \
-  -F 'metadata={"title":"Demo README","resource_type":"DOCUMENT","tags":["demo"],"indexing_mode":"STANDARD"}'
+  -F 'metadata={"title":"Demo README","resource_type":"DOCUMENT","tags":["demo"],"indexing_mode":"NONE"}'
 ```
 
 Expected response:
@@ -590,7 +592,26 @@ Related downstream ingest URLs currently not proxied by the wrapper:
 | `http://localhost:8000/rag/ingest/jobs/{job_id}` | GET | Check ingestion job status |
 | `http://localhost:8000/rag/ingest/jobs/{job_id}/errors` | GET | List processing errors |
 | `http://localhost:8000/rag/ingest/resources/{resource_id}/retry` | POST | Retry failed resource ingestion |
+| `http://localhost:8000/rag/ingest/resources/{resource_id}/index` | POST | Queue `STANDARD`, `GRAPH`, or `BOTH` indexing for an existing resource that already has chunks |
 | `http://localhost:8000/rag/settings/graph-rag` | GET/PUT | Read or update Graph RAG runtime settings |
+
+### Two-Step Upload And Index
+
+For fast library loading, upload with `indexing_mode=NONE`. The ingest service parses and chunks the file, marks the resource `READY`, and skips embeddings and Graph RAG. Admins can later use the Books tab buttons:
+
+- `Create Embeddings` queues `STANDARD` indexing for existing chunks.
+- `Create Graph Index` queues `GRAPH` indexing for existing chunks.
+
+The buttons call:
+
+```bash
+curl -s -X POST "http://localhost:8010/rag/resources/<resource-id>/index" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"indexing_mode":"STANDARD"}'
+```
+
+Use `{"indexing_mode":"GRAPH"}` for Graph RAG indexing.
 
 ### RAG Answer
 

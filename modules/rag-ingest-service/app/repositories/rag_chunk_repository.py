@@ -35,3 +35,12 @@ class RagChunkRepository:
                 .order_by(RagDocumentChunk.chunk_index)
             )
         )
+
+    def list_chunks_for_resource(self, resource_id: str) -> list[RagDocumentChunk]:
+        return list(
+            self.db.scalars(
+                select(RagDocumentChunk)
+                .where(RagDocumentChunk.resource_id == resource_id)
+                .order_by(RagDocumentChunk.chunk_index)
+            )
+        )

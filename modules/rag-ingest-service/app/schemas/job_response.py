@@ -1,6 +1,9 @@
 from datetime import datetime
 
 from pydantic import BaseModel
+from pydantic import Field
+
+from app.schemas.ingest_request import IndexingMode
 
 
 class ProfilingStep(BaseModel):
@@ -43,6 +46,18 @@ class JobErrorResponse(BaseModel):
 
 
 class JobRetryResponse(BaseModel):
+    resource_id: str
+    job_id: str
+    status: str
+    indexing_mode: str
+    message: str
+
+
+class ResourceIndexRequest(BaseModel):
+    indexing_mode: IndexingMode = Field(..., description="Indexing mode to run for existing chunks.")
+
+
+class ResourceIndexResponse(BaseModel):
     resource_id: str
     job_id: str
     status: str

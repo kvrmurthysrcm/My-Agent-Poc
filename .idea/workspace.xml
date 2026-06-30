@@ -4,18 +4,20 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="submit missing files">
+    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="Implemented UI copy cleanup for secure_api.&#10;Summary:&#10;•&#10;Removed misleading pre-filled default queries from Search, Answer, Compare, and Library Search.&#10;•&#10;Added concise placeholders instead of default submitted text.&#10;•&#10;Added helper instructions under Search, Answer, Compare, Ingest, Library Search, and Library Tools.&#10;•&#10;Clarified Library Tools as admin diagnostics, with Library Search as the normal user flow.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/online_library/Readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/online_library/Readme.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/online_library_agent/Readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/online_library_agent/Readme.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/online_library_mcp/Readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/online_library_mcp/Readme.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/.env" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/api/rag_ingest_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/api/rag_ingest_routes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/rag_chunk_repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/rag_chunk_repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/schemas/job_response.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/schemas/job_response.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/workers/rag_ingestion_worker.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/workers/rag_ingestion_worker.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/api/admin_resource_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/api/admin_resource_routes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/schemas/admin_resources.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/schemas/admin_resources.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/secure_api/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/routes/rag_gateway_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/routes/rag_gateway_routes.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/secure_api/app/ui/gateway.html" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/ui/gateway.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modules/secure_api/docs/UI_impl.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/docs/UI_impl.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/secure_api/tests/test_rag_gateway_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/tests/test_rag_gateway_routes.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -320,11 +322,18 @@
       <option name="project" value="LOCAL" />
       <updated>1782825692608</updated>
     </task>
-    <option name="localTasksCounter" value="30" />
+    <task id="LOCAL-00030" summary="Implemented UI copy cleanup for secure_api.&#10;Summary:&#10;•&#10;Removed misleading pre-filled default queries from Search, Answer, Compare, and Library Search.&#10;•&#10;Added concise placeholders instead of default submitted text.&#10;•&#10;Added helper instructions under Search, Answer, Compare, Ingest, Library Search, and Library Tools.&#10;•&#10;Clarified Library Tools as admin diagnostics, with Library Search as the normal user flow.">
+      <option name="closed" value="true" />
+      <created>1782832789372</created>
+      <option name="number" value="00030" />
+      <option name="presentableId" value="LOCAL-00030" />
+      <option name="project" value="LOCAL" />
+      <updated>1782832789372</updated>
+    </task>
+    <option name="localTasksCounter" value="31" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="rag-ingest-service: added the following :&#10;add browser /ui to upload a file, meta data.&#10;add profiling support&#10;add configurable parser" />
     <MESSAGE value="rag-ingest-service: added the following :&#10;add browser /ui to upload a file, meta data.&#10;add profiling support&#10;add configurable parser&#10;&#10;Add missing files" />
     <MESSAGE value="Add missing .env files" />
     <MESSAGE value="Add the following:&#10;persists teh profiling details.&#10;use semantic recursive embeddings so the search results will be accurate.&#10;use a batch to send the embeddings to LLM so vectors can be created.&#10;Tried both 32, 64 as batch size, both work similar.&#10;add delete API end point ot delete a file, embeddings. This is only for the LOCAL profile similar ot Spring boot profile.&#10;add instructions to find the data/embeddings when a new file is saved." />
@@ -349,6 +358,7 @@
     <MESSAGE value="add dark mode to UI.&#10;add Compare button also in the top bar." />
     <MESSAGE value="fixed chunking strategies,  added more solid filters." />
     <MESSAGE value="submit missing files" />
-    <option name="LAST_COMMIT_MESSAGE" value="submit missing files" />
+    <MESSAGE value="Implemented UI copy cleanup for secure_api.&#10;Summary:&#10;•&#10;Removed misleading pre-filled default queries from Search, Answer, Compare, and Library Search.&#10;•&#10;Added concise placeholders instead of default submitted text.&#10;•&#10;Added helper instructions under Search, Answer, Compare, Ingest, Library Search, and Library Tools.&#10;•&#10;Clarified Library Tools as admin diagnostics, with Library Search as the normal user flow." />
+    <option name="LAST_COMMIT_MESSAGE" value="Implemented UI copy cleanup for secure_api.&#10;Summary:&#10;•&#10;Removed misleading pre-filled default queries from Search, Answer, Compare, and Library Search.&#10;•&#10;Added concise placeholders instead of default submitted text.&#10;•&#10;Added helper instructions under Search, Answer, Compare, Ingest, Library Search, and Library Tools.&#10;•&#10;Clarified Library Tools as admin diagnostics, with Library Search as the normal user flow." />
   </component>
 </project>
