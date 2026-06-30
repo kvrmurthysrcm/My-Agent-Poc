@@ -49,6 +49,9 @@ Create:
 - run_local.ps1
 - README.md
 - tests/test_health.py
+- bat file to start the service.
+  use this bat file in future to start the service.
+  print the PIID of the service to kill later.
 
 Requirements:
 - Python 3.11+
