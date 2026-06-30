@@ -4,16 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="add dark mode to UI.&#10;add Compare button also in the top bar.">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/.env.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/core/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/core/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunk_quality.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunk_quality.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunking_strategies/semantic_recursive.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/chunking_strategies/semantic_recursive.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/docs/CHUNK_QUALITY_FILTERS.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/docs/CHUNK_QUALITY_FILTERS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_chunking_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_chunking_service.py" afterDir="false" />
-    </list>
+    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="fixed chunking strategies,  added more solid filters." />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -293,11 +284,26 @@
       <option name="project" value="LOCAL" />
       <updated>1782815236813</updated>
     </task>
-    <option name="localTasksCounter" value="27" />
+    <task id="LOCAL-00027" summary="fixed chunking strategies,  added more solid filters.">
+      <option name="closed" value="true" />
+      <created>1782817057356</created>
+      <option name="number" value="00027" />
+      <option name="presentableId" value="LOCAL-00027" />
+      <option name="project" value="LOCAL" />
+      <updated>1782817057356</updated>
+    </task>
+    <task id="LOCAL-00028" summary="fixed chunking strategies,  added more solid filters.">
+      <option name="closed" value="true" />
+      <created>1782817111364</created>
+      <option name="number" value="00028" />
+      <option name="presentableId" value="LOCAL-00028" />
+      <option name="project" value="LOCAL" />
+      <updated>1782817111364</updated>
+    </task>
+    <option name="localTasksCounter" value="29" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="rag-ingest-service: use the meta data from the epub, pdf file to use incase title or some other meta data is not supplied." />
     <MESSAGE value="rag-ingest-service: added the following config:&#10;DELETE_ORIGINAL_FILE_AFTER_INGESTION=true" />
     <MESSAGE value="rag-ingest-service: added the following :&#10;add browser /ui to upload a file, meta data.&#10;add profiling support&#10;add configurable parser" />
     <MESSAGE value="rag-ingest-service: added the following :&#10;add browser /ui to upload a file, meta data.&#10;add profiling support&#10;add configurable parser&#10;&#10;Add missing files" />
@@ -322,6 +328,7 @@
     <MESSAGE value="Phase 5 — RAG Gateway API_KEY Calls&#10;&#10;Goal:&#10;&#10;Protected wrapper endpoints call downstream services using X-API-Key.&#10;JWT is not forwarded.&#10;&#10;Deliverables:&#10;&#10;app/services/downstream_client.py&#10;app/routes/rag_gateway_routes.py&#10;tests/test_rag_gateway_routes.py&#10;&#10;Success criteria:&#10;&#10;/rag/search calls http://localhost:8001/rag/search&#10;/rag/ingest calls http://localhost:8000/rag/ingest&#10;/rag/ask calls http://localhost:8002/rag/ask&#10;Downstream receives X-API-Key.&#10;Downstream does not receive Authorization header.&#10;&#10;Prompt:&#10;&#10;Now add RAG Gateway routes to the existing FastAPI Keycloak Auth Gateway.&#10;&#10;Downstream services:&#10;- RAG Ingest: http://localhost:8000&#10;- RAG Search: http://localhost:8001&#10;- RAG Answer: http://localhost:8002&#10;&#10;Internal API key:&#10;DOWNSTREAM_API_KEY=local-poc-internal-api-key&#10;&#10;Implement:&#10;- app/services/downstream_client.py&#10;- app/routes/rag_gateway_routes.py&#10;&#10;Routes:&#10;POST /rag/ingest&#10;- Requires role rag_ingest_user OR rag_admin.&#10;- Accept generic dict payload.&#10;- Calls http://localhost:8000/rag/ingest.&#10;&#10;POST /rag/search&#10;- Requires role rag_search_user OR rag_user OR rag_admin.&#10;- Accept generic dict payload.&#10;- Calls http://localhost:8001/rag/search.&#10;&#10;POST /rag/ask&#10;- Requires role rag_user OR rag_admin.&#10;- Accept generic dict payload.&#10;- Calls http://localhost:8002/rag/ask.&#10;&#10;GET /rag/test-downstream&#10;- Requires valid JWT.&#10;- Calls /health on each downstream service if available.&#10;- Does not fail entire endpoint if one service is unavailable.&#10;&#10;For downstream calls:&#10;- Add X-API-Key.&#10;- Add X-User-Id.&#10;- Add X-Username.&#10;- Add X-User-Roles.&#10;- Do not forward Authorization header.&#10;- Do not forward JWT.&#10;- Convert downstream errors to 502 with safe details.&#10;- Do not expose secrets.&#10;&#10;Add tests verifying:&#10;- Correct downstream URLs.&#10;- X-API-Key is sent.&#10;- User context headers are sent.&#10;- Authorization header is not forwarded.&#10;- Role checks work." />
     <MESSAGE value="add postman colelction for secure_api module.&#10;increase teh session timeoutfor JWT on keycloak to 7 days since its only a POC" />
     <MESSAGE value="add dark mode to UI.&#10;add Compare button also in the top bar." />
-    <option name="LAST_COMMIT_MESSAGE" value="add dark mode to UI.&#10;add Compare button also in the top bar." />
+    <MESSAGE value="fixed chunking strategies,  added more solid filters." />
+    <option name="LAST_COMMIT_MESSAGE" value="fixed chunking strategies,  added more solid filters." />
   </component>
 </project>
