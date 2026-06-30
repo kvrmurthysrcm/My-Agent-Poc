@@ -124,6 +124,8 @@ This is reused from the RAG Search Service admin resource API.
 
 The Books tab refreshes this list automatically whenever the user clicks back into the tab. The top-bar `Refresh` button and the Books tab `Refresh Books` button use the same wrapper call for manual reloads. The UI guards concurrent reloads so rapid clicks do not send duplicate resource-list requests.
 
+Every UI request also sends `traceparent`, `X-Trace-Id`, and `X-Span-Id` headers. See `TRACE_ID_IMPLEMENTATION.md` for how to search logs by trace.
+
 ### Delete Books
 
 UI calls:

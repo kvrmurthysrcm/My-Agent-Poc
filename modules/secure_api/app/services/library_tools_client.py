@@ -3,6 +3,7 @@ from typing import Any
 import httpx
 
 from app.config import Settings
+from app.trace_context import outbound_trace_headers
 
 
 class LibraryToolsServiceError(Exception):
@@ -50,6 +51,7 @@ class LibraryToolsClient:
             "Content-Type": "application/json",
             "X-API-Key": self._settings.downstream_api_key,
         }
+        headers.update(outbound_trace_headers())
         try:
             async with httpx.AsyncClient(timeout=self._settings.downstream_timeout_seconds) as client:
                 response = await client.post(self._url, json=payload, headers=headers)

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import html
+import logging
+import sys
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -9,8 +11,17 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from .config import load_config
 from .models import AskRequest
 from .planner import OnlineLibraryPlanner
+from .trace_context import install_log_record_factory, trace_context_middleware
 
+install_log_record_factory()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s trace_id=%(trace_id)s span_id=%(span_id)s request_id=%(request_id)s %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True,
+)
 app = FastAPI(title="Online Library NLQ Agent")
+app.middleware("http")(trace_context_middleware)
 
 
 GUIDED_QUESTIONS: dict[str, list[str]] = {

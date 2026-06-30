@@ -11,10 +11,12 @@ from app.routes.library_search_routes import router as library_search_router
 from app.routes.library_tools_routes import router as library_tools_router
 from app.routes.rag_gateway_routes import router as rag_gateway_router
 from app.routes.ui_routes import router as ui_router
+from app.trace_context import install_log_record_factory
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    install_log_record_factory()
     configure_logging(settings.log_level)
 
     app = FastAPI(

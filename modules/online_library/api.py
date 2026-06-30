@@ -1,12 +1,23 @@
 from __future__ import annotations
 
+import logging
+import sys
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 
 from .repository import check_db_health, fetch_table_rows, list_available_tables
+from .trace_context import install_log_record_factory, trace_context_middleware
 
+install_log_record_factory()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s trace_id=%(trace_id)s span_id=%(span_id)s request_id=%(request_id)s %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True,
+)
 app = FastAPI(title="Online Library API POC")
+app.middleware("http")(trace_context_middleware)
 
 
 # FastAPI injects these query parameters into every table endpoint through Depends.

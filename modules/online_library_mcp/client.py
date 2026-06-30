@@ -5,6 +5,7 @@ from typing import Any
 import httpx
 
 from .config import OnlineLibraryMCPConfig, load_config
+from .trace_context import outbound_trace_headers
 
 
 class OnlineLibraryAPIClient:
@@ -19,7 +20,7 @@ class OnlineLibraryAPIClient:
         url = f"{self.config.api_base_url}{path}"
         try:
             async with httpx.AsyncClient(timeout=self.config.request_timeout_seconds) as client:
-                response = await client.get(url, params=params)
+                response = await client.get(url, params=params, headers=outbound_trace_headers())
                 response.raise_for_status()
                 payload = response.json()
         except httpx.HTTPStatusError as exc:

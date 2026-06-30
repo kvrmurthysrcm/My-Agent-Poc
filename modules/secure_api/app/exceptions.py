@@ -39,6 +39,7 @@ def _error_response(
             "code": error_code,
             "message": message,
             "request_id": getattr(request.state, "request_id", None),
+            "trace_id": getattr(request.state, "trace_id", None),
         }
     }
 
@@ -80,7 +81,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
-        logger.exception("Unhandled request error", extra={"request_id": getattr(request.state, "request_id", None)})
+        logger.exception("Unhandled request error")
         return _error_response(
             request,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

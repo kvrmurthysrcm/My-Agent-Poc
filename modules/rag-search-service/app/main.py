@@ -1,6 +1,8 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+import logging
 from pathlib import Path
+import sys
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
@@ -12,6 +14,7 @@ from app.core.config import get_settings
 from app.db import models  # noqa: F401
 from app.db.session import Base, engine
 from app.services.embedding_model_registry import validate_embedding_model
+from app.trace_context import install_log_record_factory, trace_context_middleware
 
 
 @asynccontextmanager
@@ -23,7 +26,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
+    install_log_record_factory()
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s trace_id=%(trace_id)s span_id=%(span_id)s request_id=%(request_id)s %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+        force=True,
+    )
     app = FastAPI(title="RAG Search Service", version="0.1.0", lifespan=lifespan)
+    app.middleware("http")(trace_context_middleware)
     app.include_router(rag_search_router)
     app.include_router(admin_resource_router)
 

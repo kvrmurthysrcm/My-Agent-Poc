@@ -1,6 +1,8 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+import logging
 from pathlib import Path
+import sys
 from threading import Thread
 
 from fastapi import FastAPI
@@ -15,6 +17,7 @@ from app.db.session import Base, SessionLocal, engine
 from app.repositories.rag_job_repository import RagJobRepository
 from app.repositories.runtime_settings_repository import RuntimeSettingsRepository
 from app.services.embedding_model_registry import validate_embedding_model
+from app.trace_context import install_log_record_factory, trace_context_middleware
 from app.workers.rag_ingestion_worker import process_queued_jobs
 
 
@@ -63,7 +66,15 @@ def _ensure_runtime_settings_table() -> None:
 
 
 def create_app() -> FastAPI:
+    install_log_record_factory()
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s trace_id=%(trace_id)s span_id=%(span_id)s request_id=%(request_id)s %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+        force=True,
+    )
     app = FastAPI(title="RAG Ingestion Service", version="0.1.0", lifespan=lifespan)
+    app.middleware("http")(trace_context_middleware)
     app.include_router(rag_router)
 
     @app.get("/", response_class=HTMLResponse)

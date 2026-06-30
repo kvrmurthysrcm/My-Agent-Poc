@@ -8,6 +8,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
 from .config import AgentConfig, load_config
+from .trace_context import outbound_trace_headers
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,7 +29,11 @@ class OnlineLibraryMCPClient:
     async def list_tools(self) -> list[ToolInfo]:
         """Open an MCP session, initialize it, and read tool metadata."""
 
-        async with streamablehttp_client(self.config.mcp_url, timeout=self.config.timeout_seconds) as (
+        async with streamablehttp_client(
+            self.config.mcp_url,
+            headers=outbound_trace_headers(),
+            timeout=self.config.timeout_seconds,
+        ) as (
             read_stream,
             write_stream,
             _get_session_id,
@@ -48,7 +53,11 @@ class OnlineLibraryMCPClient:
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Call one MCP tool and parse the JSON text result returned by FastMCP."""
 
-        async with streamablehttp_client(self.config.mcp_url, timeout=self.config.timeout_seconds) as (
+        async with streamablehttp_client(
+            self.config.mcp_url,
+            headers=outbound_trace_headers(),
+            timeout=self.config.timeout_seconds,
+        ) as (
             read_stream,
             write_stream,
             _get_session_id,

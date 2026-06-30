@@ -31,6 +31,7 @@ http://localhost:8080
 - FastAPI app startup in `app/main.py`
 - Environment-driven config in `app/config.py`
 - Request logging middleware with `X-Request-ID`
+- Trace propagation with W3C `traceparent` and `X-Trace-Id`; see `docs/TRACE_ID_IMPLEMENTATION.md`
 - Consistent JSON error responses
 - CORS for local frontend origins
 - `GET /health`

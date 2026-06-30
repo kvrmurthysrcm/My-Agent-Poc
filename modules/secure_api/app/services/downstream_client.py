@@ -5,6 +5,7 @@ from fastapi import UploadFile
 
 from app.config import Settings
 from app.schemas import CurrentUser
+from app.trace_context import outbound_trace_headers
 
 
 class DownstreamServiceError(Exception):
@@ -147,7 +148,9 @@ class DownstreamClient:
         }
 
     def _api_key_header(self) -> dict[str, str]:
-        return {"X-API-Key": self._settings.downstream_api_key}
+        headers = {"X-API-Key": self._settings.downstream_api_key}
+        headers.update(outbound_trace_headers())
+        return headers
 
     def _user_context_headers(self, user: CurrentUser) -> dict[str, str]:
         headers = self._api_key_header()

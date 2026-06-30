@@ -3,6 +3,7 @@ from typing import Any
 import httpx
 
 from app.config import Settings
+from app.trace_context import outbound_trace_headers
 
 
 class LibrarySearchServiceError(Exception):
@@ -71,7 +72,9 @@ class LibrarySearchClient:
         return _response_body(response)
 
     def _api_key_header(self) -> dict[str, str]:
-        return {"X-API-Key": self._settings.downstream_api_key}
+        headers = {"X-API-Key": self._settings.downstream_api_key}
+        headers.update(outbound_trace_headers())
+        return headers
 
 
 def _response_body(response: httpx.Response) -> Any:

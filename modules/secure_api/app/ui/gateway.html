@@ -545,9 +545,11 @@
       const message = document.getElementById("loginMessage");
       message.className = "message";
       message.textContent = "Signing in...";
+      const headers = new Headers({ "Content-Type": "application/json" });
+      applyTraceHeaders(headers);
       const response = await fetch("/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ username: username.value, password: password.value })
       });
       const body = await readBody(response);
@@ -600,9 +602,11 @@
 
     async function logout() {
       if (state.refreshToken) {
+        const headers = new Headers({ "Content-Type": "application/json" });
+        applyTraceHeaders(headers);
         await fetch("/auth/logout", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ refresh_token: state.refreshToken })
         }).catch(() => null);
       }
@@ -974,7 +978,16 @@
     async function apiFetch(url, options = {}) {
       const headers = new Headers(options.headers || {});
       headers.set("Authorization", `Bearer ${state.token}`);
+      applyTraceHeaders(headers);
       return fetch(url, { ...options, headers });
+    }
+
+    function applyTraceHeaders(headers) {
+      const traceId = crypto.randomUUID().replace(/-/g, "");
+      const spanId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+      headers.set("traceparent", `00-${traceId}-${spanId}-01`);
+      headers.set("X-Trace-Id", traceId);
+      headers.set("X-Span-Id", spanId);
     }
 
     async function readBody(response) {

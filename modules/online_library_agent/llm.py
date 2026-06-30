@@ -6,6 +6,7 @@ from typing import Any
 import httpx
 
 from .config import AgentConfig, load_config
+from .trace_context import outbound_trace_headers
 
 
 class OllamaClient:
@@ -27,7 +28,11 @@ class OllamaClient:
             },
         }
         async with httpx.AsyncClient(timeout=self.config.timeout_seconds) as client:
-            response = await client.post(f"{self.config.ollama_base_url}/api/generate", json=payload)
+            response = await client.post(
+                f"{self.config.ollama_base_url}/api/generate",
+                json=payload,
+                headers=outbound_trace_headers(),
+            )
             response.raise_for_status()
             data = response.json()
         return str(data.get("response", "")).strip()

@@ -16,6 +16,7 @@ from app.schemas.admin_resources import (
     AdminResourceListResponse,
 )
 from app.services.admin_resource_service import AdminResourceService
+from app.trace_context import outbound_trace_headers
 
 router = APIRouter(prefix="/rag/admin", tags=["rag-admin"])
 
@@ -81,7 +82,7 @@ def retry_resource(
     retry_url = f"{settings.rag_ingest_base_url.rstrip('/')}/rag/ingest/resources/{resource_id}/retry"
     try:
         with httpx.Client(timeout=30.0) as client:
-            response = client.post(retry_url)
+            response = client.post(retry_url, headers=outbound_trace_headers())
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Unable to contact rag-ingest-service: {exc}") from exc
 
@@ -113,7 +114,7 @@ def index_resource(
     index_url = f"{settings.rag_ingest_base_url.rstrip('/')}/rag/ingest/resources/{resource_id}/index"
     try:
         with httpx.Client(timeout=30.0) as client:
-            response = client.post(index_url, json=request.model_dump())
+            response = client.post(index_url, json=request.model_dump(), headers=outbound_trace_headers())
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Unable to contact rag-ingest-service: {exc}") from exc
 
@@ -166,7 +167,7 @@ def _call_ingest_settings(settings: Settings, method: str, json: dict | None = N
     url = f"{settings.rag_ingest_base_url.rstrip('/')}/rag/settings/graph-rag"
     try:
         with httpx.Client(timeout=30.0) as client:
-            response = client.request(method, url, json=json)
+            response = client.request(method, url, json=json, headers=outbound_trace_headers())
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Unable to contact rag-ingest-service: {exc}") from exc
     try:
