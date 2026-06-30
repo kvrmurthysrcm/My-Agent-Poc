@@ -125,7 +125,83 @@ def test_chunking_keeps_long_front_matter_with_metadata_flags():
     assert chunks[0].metadata["quality"] == "front_matter"
     assert chunks[0].metadata["front_matter"] is True
     assert chunks[0].metadata["boilerplate"] is False
-    assert chunks[0].metadata["searchable"] is True
+    assert chunks[0].metadata["searchable"] is False
+
+
+def test_chunking_marks_holybooks_front_matter_not_searchable():
+    chunks = ChunkingService().chunk(
+        (
+            "This free e-book was downloaded from www.holybooks.com\n"
+            "http://www.holybooks.com/ashtavakra-gita/\n"
+            "Ashtavakra Gita\n"
+            "Translator's Preface\n"
+            "This preface explains the publication context before the main text begins."
+        ),
+        80,
+        5,
+        strategy="SEMANTIC_RECURSIVE",
+    )
+
+    assert len(chunks) == 1
+    assert chunks[0].metadata["quality"] == "front_matter"
+    assert chunks[0].metadata["searchable"] is False
+    assert chunks[0].metadata["boilerplate"] is True
+
+
+def test_semantic_recursive_keeps_verse_marker_with_body():
+    chunks = ChunkingService().chunk(
+        (
+            "Ashtavakra said:\n"
+            "1.8\n"
+            "The thought: I am the doer is bondage.\n"
+            "1.9\n"
+            "I am the One Awareness, consumes all suffering in the fire of an instant.\n"
+            "Be happy."
+        ),
+        18,
+        0,
+        strategy="SEMANTIC_RECURSIVE",
+    )
+
+    assert chunks
+    assert not any(chunk.chunk_text.rstrip().endswith("1.9") for chunk in chunks)
+    assert any("1.9" in chunk.chunk_text and "I am the One Awareness" in chunk.chunk_text for chunk in chunks)
+    assert chunks[-1].metadata["verse_end"] == "1.9"
+
+
+def test_semantic_recursive_moves_trailing_chapter_heading_to_next_metadata():
+    chunks = ChunkingService().chunk(
+        (
+            "Janaka said:\n"
+            "1.20\n"
+            "The timeless, all-pervasive One exists as Totality. 2: Joy of Self-Realization\n"
+            "2.1\n"
+            "I am now spotless and at peace, aware, silent, and free."
+        ),
+        40,
+        0,
+        strategy="SEMANTIC_RECURSIVE",
+    )
+
+    assert len(chunks) == 2
+    assert "2: Joy of Self-Realization" not in chunks[0].chunk_text
+    assert chunks[1].metadata["chapter_number"] == 2
+    assert chunks[1].metadata["chapter_title"] == "Joy of Self-Realization"
+    assert chunks[1].metadata["verse_start"] == "2.1"
+
+
+def test_semantic_recursive_splits_long_verse_groups_without_orphaning_markers():
+    text = "Ashtavakra said:\n" + "\n".join(
+        f"18.{index}\n" + " ".join(f"word{index}_{word}" for word in range(8))
+        for index in range(1, 13)
+    )
+
+    chunks = ChunkingService().chunk(text, 35, 0, strategy="SEMANTIC_RECURSIVE")
+
+    assert len(chunks) > 1
+    assert all(not chunk.chunk_text.rstrip().endswith(tuple(f"18.{index}" for index in range(1, 13))) for chunk in chunks)
+    assert chunks[0].metadata["verse_start"] == "18.1"
+    assert chunks[-1].metadata["verse_end"] == "18.12"
 
 
 def test_chunk_quality_keeps_numeric_table_heavy_chunks_when_enabled():

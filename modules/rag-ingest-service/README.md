@@ -115,12 +115,15 @@ Request metadata can override the default per upload:
 }
 ```
 
-Chunk quality filtering marks retained chunks with `quality`, `searchable`, `front_matter`, `boilerplate`, and `numeric_table_heavy` metadata. Short boilerplate is skipped. Longer front matter is kept and marked for search-side downranking. Numeric/table-heavy chunks are kept by default:
+Chunk quality filtering marks retained chunks with `quality`, `content_type`, `searchable`, `front_matter`, `toc`, `boilerplate`, and `numeric_table_heavy` metadata. Short boilerplate is skipped. Front matter and table-of-contents style chunks are stored for traceability but marked `searchable=false` so the search service excludes them from normal answer context. Numeric/table-heavy chunks are kept by default:
 
 ```text
 CHUNK_QUALITY_KEEP_NUMERIC_TABLE_CHUNKS=true
 CHUNK_QUALITY_MIN_ALPHA_RATIO=0.45
+CHUNK_QUALITY_RULES_PATH=app/config/chunk_quality_rules.json
 ```
+
+Boilerplate, front-matter, and table-of-contents phrase lists live in `app/config/chunk_quality_rules.json`. Update that file, or point `CHUNK_QUALITY_RULES_PATH` at another JSON file, when a new PDF source introduces repeated publisher/download text.
 
 Details are in `docs/CHUNK_QUALITY_FILTERS.md`.
 

@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     minimum_chunk_tokens: int = Field(80, alias="MINIMUM_CHUNK_TOKENS")
     chunk_quality_keep_numeric_table_chunks: bool = Field(True, alias="CHUNK_QUALITY_KEEP_NUMERIC_TABLE_CHUNKS")
     chunk_quality_min_alpha_ratio: float = Field(0.45, alias="CHUNK_QUALITY_MIN_ALPHA_RATIO")
+    chunk_quality_rules_path: Path = Field(
+        Path("app/config/chunk_quality_rules.json"),
+        alias="CHUNK_QUALITY_RULES_PATH",
+    )
     chunk_heading_allow_single_letter: bool = Field(False, alias="CHUNK_HEADING_ALLOW_SINGLE_LETTER")
     pdf_parser: str = Field("pymupdf", alias="PDF_PARSER")
     pdf_repair_drop_caps: bool = Field(True, alias="PDF_REPAIR_DROP_CAPS")

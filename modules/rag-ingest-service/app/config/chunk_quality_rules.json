@@ -1,0 +1,39 @@
+{
+  "boilerplate_phrases": [
+    "all rights reserved",
+    "copyright",
+    "download free ebooks",
+    "executive officer",
+    "free ebooks at",
+    "holybooks.com",
+    "http://www.holybooks.com",
+    "isbn",
+    "planet ebook",
+    "publications division",
+    "printed at",
+    "publisher",
+    "this free e-book was downloaded",
+    "tirumala tirupati devasthanams press"
+  ],
+  "front_matter_phrases": [
+    "all rights reserved",
+    "copyright",
+    "dedication",
+    "edition",
+    "impression",
+    "isbn",
+    "preface",
+    "printed at",
+    "publisher",
+    "table of contents",
+    "translator's preface",
+    "translator\u2019s preface"
+  ],
+  "toc_phrases": [
+    "chapter 1:",
+    "chapter 2:",
+    "chapter 3:",
+    "contents",
+    "table of contents"
+  ]
+}
