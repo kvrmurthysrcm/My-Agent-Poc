@@ -84,6 +84,16 @@ Confirm the `local-keycloak` container is running before calling the Keycloak UR
 
 Start the wrapper service with `modules/secure_api/run_local.ps1` or `modules/secure_api/run_local.bat`.
 
+## Postman Collection
+
+The wrapper Postman collection is available at:
+
+```text
+modules/secure_api/postman/Secure_API_Gateway.postman_collection.json
+```
+
+Run `POST /auth/login - raguser` or `POST /auth/login - ragadmin` first. The collection test script saves `access_token` and `refresh_token`; protected wrapper requests use `Authorization: Bearer {{access_token}}`.
+
 ## Validate Phase 1: Keycloak Directly
 
 Run `scripts/keycloak/02-keycloak-verify.ps1` from the repository root, or use the curl checks below.

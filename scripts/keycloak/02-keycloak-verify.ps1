@@ -5,6 +5,7 @@ $KeycloakUrl = "http://localhost:8080"
 $Realm = "rag-auth-gateway"
 $ClientId = "fastapi-auth-gateway"
 $ClientSecret = "fastapi-auth-gateway-secret"
+$ExpectedAccessTokenLifespanSeconds = 604800
 
 $IssuerUrl = "$KeycloakUrl/realms/$Realm"
 $DiscoveryUrl = "$IssuerUrl/.well-known/openid-configuration"
@@ -132,6 +133,26 @@ function Assert-TokenRoles {
     }
 }
 
+function Assert-TokenLifespan {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Username,
+
+        [Parameter(Mandatory = $true)]
+        [string] $Token
+    )
+
+    $payload = ConvertFrom-Base64UrlJson -Value ($Token.Split(".")[1])
+    if ($null -eq $payload.exp -or $null -eq $payload.iat) {
+        throw "Access token for '$Username' does not contain exp and iat claims."
+    }
+
+    $lifespanSeconds = [int64]$payload.exp - [int64]$payload.iat
+    if ([Math]::Abs($lifespanSeconds - $ExpectedAccessTokenLifespanSeconds) -gt 5) {
+        throw "Access token for '$Username' has lifespan $lifespanSeconds seconds; expected about $ExpectedAccessTokenLifespanSeconds seconds."
+    }
+}
+
 Assert-HttpGetJson -Name "discovery document" -Url $DiscoveryUrl | Out-Null
 $jwks = Assert-HttpGetJson -Name "JWKS document" -Url $JwksUrl
 
@@ -151,7 +172,8 @@ foreach ($user in $Users) {
 
     $preview = Get-TokenPreview -Token $tokenResponse.access_token
     Assert-TokenRoles -Username $user.Username -Token $tokenResponse.access_token -ExpectedRoles $user.ExpectedRoles
-    Write-Host "  OK: $($user.Username) received access_token with expected realm roles: $preview..."
+    Assert-TokenLifespan -Username $user.Username -Token $tokenResponse.access_token
+    Write-Host "  OK: $($user.Username) received access_token with expected realm roles and 7-day lifespan: $preview..."
 }
 
 Write-Host ""
@@ -159,3 +181,4 @@ Write-Host "Keycloak verification complete."
 Write-Host "Issuer URL: $IssuerUrl"
 Write-Host "Token URL:  $TokenUrl"
 Write-Host "JWKS URL:   $JwksUrl"
+Write-Host "JWT lifespan: $ExpectedAccessTokenLifespanSeconds seconds (7 days, local POC only)"

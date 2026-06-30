@@ -12,6 +12,7 @@ $Realm = "rag-auth-gateway"
 $ClientId = "fastapi-auth-gateway"
 $ClientSecret = "fastapi-auth-gateway-secret"
 $WrapperUrl = "http://localhost:8010"
+$SevenDaysInSeconds = 604800
 
 $Roles = @(
     "rag_user",
@@ -129,6 +130,18 @@ function Ensure-Realm {
         "-s", "realm=$Realm",
         "-s", "enabled=true",
         "-s", "displayName=RAG Auth Gateway"
+    ) | Out-Null
+}
+
+function Ensure-LocalTokenLifespans {
+    Write-Host "Configuring local POC token/session lifespans to 7 days..."
+    Invoke-KeycloakAdmin -Arguments @(
+        "update", "realms/$Realm",
+        "-s", "accessTokenLifespan=$SevenDaysInSeconds",
+        "-s", "ssoSessionIdleTimeout=$SevenDaysInSeconds",
+        "-s", "ssoSessionMaxLifespan=$SevenDaysInSeconds",
+        "-s", "clientSessionIdleTimeout=$SevenDaysInSeconds",
+        "-s", "clientSessionMaxLifespan=$SevenDaysInSeconds"
     ) | Out-Null
 }
 
@@ -290,6 +303,7 @@ function Ensure-User {
 Write-Host "Using transient Keycloak admin CLI authentication..."
 
 Ensure-Realm
+Ensure-LocalTokenLifespans
 
 foreach ($role in $Roles) {
     Ensure-RealmRole -RoleName $role
@@ -314,6 +328,7 @@ Write-Host "Issuer URL:   $IssuerUrl"
 Write-Host "Discovery:    $DiscoveryUrl"
 Write-Host "Token URL:    $TokenUrl"
 Write-Host "JWKS URL:     $JwksUrl"
+Write-Host "JWT lifespan: $SevenDaysInSeconds seconds (7 days, local POC only)"
 Write-Host ""
 Write-Host "Sample users:"
 Write-Host "  raguser / raguser123"

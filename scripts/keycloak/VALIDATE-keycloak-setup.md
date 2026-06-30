@@ -35,9 +35,9 @@ Checking JWKS document...
   OK: http://localhost:8080/realms/rag-auth-gateway/protocol/openid-connect/certs
 
 Requesting user tokens...
-  OK: raguser received access_token with expected realm roles: eyJhbGciOiJSUzI1NiIsInR5cCIgOi...
-  OK: ragadmin received access_token with expected realm roles: eyJhbGciOiJSUzI1NiIsInR5cCIgOi...
-  OK: searchuser received access_token with expected realm roles: eyJhbGciOiJSUzI1NiIsInR5cCIgOi...
+  OK: raguser received access_token with expected realm roles and 7-day lifespan: eyJhbGciOiJSUzI1NiIsInR5cCIgOi...
+  OK: ragadmin received access_token with expected realm roles and 7-day lifespan: eyJhbGciOiJSUzI1NiIsInR5cCIgOi...
+  OK: searchuser received access_token with expected realm roles and 7-day lifespan: eyJhbGciOiJSUzI1NiIsInR5cCIgOi...
 
 Keycloak verification complete.
 ```
@@ -49,7 +49,28 @@ The script validates:
 - Password grant works for all POC users
 - Access tokens are returned
 - Tokens contain expected `realm_access.roles`
+- Access token `exp - iat` is about `604800` seconds / 7 days
 - Full JWTs are not printed
+
+## Reapply 7-Day Local JWT Lifespan
+
+If tokens are expiring too quickly, run:
+
+```powershell
+.\scripts\keycloak\03-keycloak-token-lifespan-7-days.ps1
+```
+
+Expected values after the script runs:
+
+```text
+accessTokenLifespan:       604800
+ssoSessionIdleTimeout:     604800
+ssoSessionMaxLifespan:     604800
+clientSessionIdleTimeout:  604800
+clientSessionMaxLifespan:  604800
+```
+
+This is only for the local laptop POC.
 
 ## 3. Validate URLs Manually
 
