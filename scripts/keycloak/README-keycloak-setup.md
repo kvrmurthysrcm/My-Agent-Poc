@@ -11,10 +11,27 @@ This phase creates the Keycloak resources needed by the future FastAPI wrapper s
 | Admin user | `admin` |
 | Realm | `rag-auth-gateway` |
 | Client ID | `fastapi-auth-gateway` |
+| Admin service-account client ID | `secure-gateway-admin` |
 | Wrapper URL | `http://localhost:8010` |
 | Access token lifespan | `604800` seconds / 7 days |
 
 The local POC passwords and 7-day JWT lifespan are stored in the scripts because this is a development-only laptop setup. Do not use these values in production.
+
+## Created Clients
+
+| Client ID | Purpose | Secret |
+| --- | --- | --- |
+| `fastapi-auth-gateway` | Browser/API login using password grant for the local POC | `fastapi-auth-gateway-secret` |
+| `secure-gateway-admin` | Secure gateway service account for automated user registration | `secure-gateway-admin-secret` |
+
+The `secure-gateway-admin` client is confidential, has service accounts enabled, and has these `realm-management` client roles:
+
+- `manage-users`
+- `view-users`
+- `query-users`
+- `view-realm`
+
+These permissions allow the secure gateway to create users, look up users, and assign realm roles during registration.
 
 ## Created Realm Roles
 
@@ -48,6 +65,8 @@ docker exec local-keycloak /opt/keycloak/bin/kcadm.sh
 ```
 
 It is idempotent for normal local POC use: it creates missing resources and updates the client, users, passwords, and role assignments.
+
+It also creates or updates the `secure-gateway-admin` service-account client used by the gateway registration flow.
 
 The setup script also configures these realm token/session values for local testing:
 

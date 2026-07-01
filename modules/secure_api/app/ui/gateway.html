@@ -94,6 +94,15 @@
     .login-panel h1 { margin: 0 0 6px; font-size: 22px; }
     .login-panel p { margin: 0 0 18px; color: var(--muted); }
     .login-form { display: grid; gap: 12px; }
+    .login-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .link-button {
+      border: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--accent-2);
+      font-weight: 800;
+    }
+    .link-button:hover { transform: none; text-decoration: underline; }
     label { display: grid; gap: 6px; color: var(--muted); font-weight: 700; font-size: 13px; }
     .hint { color: var(--muted); font-size: 12px; font-weight: 600; margin-top: -4px; }
     .app-shell { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; }
@@ -255,8 +264,26 @@
       <form id="loginForm" class="login-form">
         <label>Username <input id="username" autocomplete="username" value="raguser" required></label>
         <label>Password <input id="password" type="password" autocomplete="current-password" value="raguser123" required></label>
-        <button class="primary" type="submit">Sign In</button>
+        <div class="login-actions">
+          <button class="primary" type="submit">Sign In</button>
+          <button id="showRegisterButton" class="link-button" type="button">Register</button>
+        </div>
         <div id="loginMessage" class="message hidden"></div>
+      </form>
+      <form id="registerForm" class="login-form hidden">
+        <label>Full Name <input id="registerFullName" autocomplete="name" required></label>
+        <label>Email <input id="registerEmail" type="email" autocomplete="email" required></label>
+        <label>Username <input id="registerUsername" autocomplete="username" required minlength="3"></label>
+        <label>Password <input id="registerPassword" type="password" autocomplete="new-password" required minlength="8"></label>
+        <label>Subscription
+          <select id="registerSubscriptionTier"></select>
+        </label>
+        <div id="registerRoleHint" class="hint"></div>
+        <div class="login-actions">
+          <button class="primary" type="submit">Create Account</button>
+          <button id="showLoginButton" class="link-button" type="button">Back to Sign In</button>
+        </div>
+        <div id="registerMessage" class="message hidden"></div>
       </form>
     </div>
   </section>
@@ -510,6 +537,9 @@
     const adminEls = () => document.querySelectorAll(".admin-only");
 
     document.getElementById("loginForm").addEventListener("submit", login);
+    document.getElementById("registerForm").addEventListener("submit", registerUser);
+    document.getElementById("showRegisterButton").addEventListener("click", showRegister);
+    document.getElementById("showLoginButton").addEventListener("click", showLoginForm);
     document.getElementById("logoutButton").addEventListener("click", logout);
     document.getElementById("themeButton").addEventListener("click", toggleTheme);
     document.getElementById("refreshButton").addEventListener("click", refreshBooks);
@@ -563,6 +593,71 @@
       localStorage.setItem("secure_api_access_token", state.token);
       localStorage.setItem("secure_api_refresh_token", state.refreshToken);
       await bootstrapSession();
+    }
+
+    async function showRegister() {
+      loginForm.classList.add("hidden");
+      registerForm.classList.remove("hidden");
+      await loadRegistrationOptions();
+    }
+
+    function showLoginForm() {
+      registerForm.classList.add("hidden");
+      loginForm.classList.remove("hidden");
+    }
+
+    async function loadRegistrationOptions() {
+      const message = document.getElementById("registerMessage");
+      message.classList.add("hidden");
+      const headers = new Headers();
+      applyTraceHeaders(headers);
+      const response = await fetch("/auth/register/options", { headers });
+      const body = await readBody(response);
+      if (!response.ok) {
+        message.className = "message error";
+        message.textContent = body.error?.message || "Unable to load registration options";
+        return;
+      }
+      const tiers = body.subscription_tiers || [];
+      registerSubscriptionTier.innerHTML = tiers.map((tier) => (
+        `<option value="${esc(tier.tier_code)}">${esc(tier.tier_name || tier.tier_code)}</option>`
+      )).join("");
+      if (!tiers.length) {
+        registerSubscriptionTier.innerHTML = `<option value="FREE">FREE</option>`;
+      }
+      registerRoleHint.textContent = `Assigned roles: ${(body.assigned_roles || []).join(", ") || "rag_user"}`;
+    }
+
+    async function registerUser(event) {
+      event.preventDefault();
+      const message = document.getElementById("registerMessage");
+      message.className = "message";
+      message.textContent = "Creating account...";
+      const headers = new Headers({ "Content-Type": "application/json" });
+      applyTraceHeaders(headers);
+      const response = await fetch("/auth/register", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          full_name: registerFullName.value,
+          email: registerEmail.value,
+          username: registerUsername.value,
+          password: registerPassword.value,
+          subscription_tier: registerSubscriptionTier.value || "FREE"
+        })
+      });
+      const body = await readBody(response);
+      if (!response.ok) {
+        message.className = "message error";
+        message.textContent = body.error?.message || "Registration failed";
+        return;
+      }
+      message.className = "message ok";
+      message.textContent = "Account created. Sign in with your new username and password.";
+      username.value = registerUsername.value;
+      password.value = "";
+      registerPassword.value = "";
+      setTimeout(showLoginForm, 900);
     }
 
     async function bootstrapSession() {

@@ -3,10 +3,11 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 from app.auth.dependencies import get_current_user
-from app.auth.keycloak_client import KeycloakAuthenticationError, KeycloakUnavailableError
+from app.auth.keycloak_client import KeycloakAuthenticationError, KeycloakConflictError, KeycloakUnavailableError
 from app.main import app
-from app.routes.auth_routes import get_keycloak_client
+from app.routes.auth_routes import get_keycloak_admin_client, get_keycloak_client, get_registration_repository
 from app.schemas import CurrentUser
+from app.services.library_registration_repository import DuplicateLibraryUserError
 
 
 class FakeKeycloakClient:
@@ -52,6 +53,73 @@ class FakeKeycloakClient:
             raise KeycloakAuthenticationError("invalid")
 
 
+class FakeKeycloakAdminClient:
+    def __init__(self, *, conflict: bool = False) -> None:
+        self.conflict = conflict
+        self.deleted: list[str] = []
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def create_registered_user(
+        self,
+        *,
+        username: str,
+        email: str,
+        full_name: str,
+        password: str,
+        roles: list[str],
+    ) -> str:
+        self.calls.append(
+            (
+                "create_registered_user",
+                {
+                    "username": username,
+                    "email": email,
+                    "full_name": full_name,
+                    "password": password,
+                    "roles": roles,
+                },
+            )
+        )
+        if self.conflict:
+            raise KeycloakConflictError("exists")
+        return "kc-user-123"
+
+    async def delete_user(self, *, user_id: str) -> None:
+        self.deleted.append(user_id)
+
+
+class FakeRegistrationRepository:
+    def __init__(self, *, duplicate: bool = False) -> None:
+        self.duplicate = duplicate
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    def list_subscription_tiers(self) -> list[dict[str, Any]]:
+        return [{"tier_code": "FREE", "tier_name": "Free", "description": "Default free access tier"}]
+
+    def create_approved_user_subscription(
+        self,
+        *,
+        full_name: str,
+        email: str,
+        keycloak_user_id: str,
+        tier_code: str,
+    ) -> str:
+        self.calls.append(
+            (
+                "create_approved_user_subscription",
+                {
+                    "full_name": full_name,
+                    "email": email,
+                    "keycloak_user_id": keycloak_user_id,
+                    "tier_code": tier_code,
+                },
+            )
+        )
+        if self.duplicate:
+            raise DuplicateLibraryUserError("exists")
+        return "library-user-123"
+
+
 def client_with_keycloak(fake_client: FakeKeycloakClient) -> TestClient:
     app.dependency_overrides[get_keycloak_client] = lambda: fake_client
     return TestClient(app)
@@ -90,6 +158,89 @@ def test_login_when_keycloak_unavailable_returns_503() -> None:
 
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "keycloak_unavailable"
+
+
+def test_registration_options_returns_tiers_and_default_roles() -> None:
+    repository = FakeRegistrationRepository()
+    app.dependency_overrides[get_registration_repository] = lambda: repository
+    client = TestClient(app)
+
+    response = client.get("/auth/register/options")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["subscription_tiers"][0]["tier_code"] == "FREE"
+    assert body["assigned_roles"] == ["rag_user", "rag_search_user"]
+    assert body["role_assignment_mode"] == "automatic"
+
+
+def test_register_creates_keycloak_and_library_user() -> None:
+    keycloak_admin = FakeKeycloakAdminClient()
+    repository = FakeRegistrationRepository()
+    app.dependency_overrides[get_keycloak_admin_client] = lambda: keycloak_admin
+    app.dependency_overrides[get_registration_repository] = lambda: repository
+    client = TestClient(app)
+
+    response = client.post(
+        "/auth/register",
+        json={
+            "full_name": "New User",
+            "email": "new@example.local",
+            "username": "newuser",
+            "password": "newpass123",
+            "subscription_tier": "FREE",
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["keycloak_user_id"] == "kc-user-123"
+    assert body["library_user_id"] == "library-user-123"
+    assert body["assigned_roles"] == ["rag_user", "rag_search_user"]
+    assert keycloak_admin.calls[0][1]["roles"] == ["rag_user", "rag_search_user"]
+    assert repository.calls[0][1]["keycloak_user_id"] == "kc-user-123"
+
+
+def test_register_duplicate_keycloak_user_returns_409() -> None:
+    app.dependency_overrides[get_keycloak_admin_client] = lambda: FakeKeycloakAdminClient(conflict=True)
+    app.dependency_overrides[get_registration_repository] = lambda: FakeRegistrationRepository()
+    client = TestClient(app)
+
+    response = client.post(
+        "/auth/register",
+        json={
+            "full_name": "New User",
+            "email": "new@example.local",
+            "username": "newuser",
+            "password": "newpass123",
+            "subscription_tier": "FREE",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "registration_user_exists"
+
+
+def test_register_rolls_back_keycloak_user_when_library_duplicate() -> None:
+    keycloak_admin = FakeKeycloakAdminClient()
+    app.dependency_overrides[get_keycloak_admin_client] = lambda: keycloak_admin
+    app.dependency_overrides[get_registration_repository] = lambda: FakeRegistrationRepository(duplicate=True)
+    client = TestClient(app)
+
+    response = client.post(
+        "/auth/register",
+        json={
+            "full_name": "New User",
+            "email": "new@example.local",
+            "username": "newuser",
+            "password": "newpass123",
+            "subscription_tier": "FREE",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "library_user_exists"
+    assert keycloak_admin.deleted == ["kc-user-123"]
 
 
 def test_refresh_returns_new_access_token() -> None:

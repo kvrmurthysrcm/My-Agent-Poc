@@ -11,6 +11,8 @@ $AdminPassword = "admin123"
 $Realm = "rag-auth-gateway"
 $ClientId = "fastapi-auth-gateway"
 $ClientSecret = "fastapi-auth-gateway-secret"
+$AdminClientId = "secure-gateway-admin"
+$AdminClientSecret = "secure-gateway-admin-secret"
 $WrapperUrl = "http://localhost:8010"
 $SevenDaysInSeconds = 604800
 
@@ -161,14 +163,23 @@ function Ensure-RealmRole {
     Invoke-KeycloakAdmin -Arguments @("create", "roles", "-r", $Realm, "-s", "name=$RoleName") | Out-Null
 }
 
-function Get-ClientUuid {
-    $clientList = Invoke-KeycloakAdmin -Arguments @("get", "clients", "-r", $Realm, "-q", "clientId=$ClientId")
+function Get-ClientUuidByClientId {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $LookupClientId
+    )
+
+    $clientList = Invoke-KeycloakAdmin -Arguments @("get", "clients", "-r", $Realm, "-q", "clientId=$LookupClientId")
     $clients = $clientList.StdOut | ConvertFrom-Json
     if ($clients.Count -eq 0) {
         return $null
     }
 
     return $clients[0].id
+}
+
+function Get-ClientUuid {
+    return Get-ClientUuidByClientId -LookupClientId $ClientId
 }
 
 function Ensure-Client {
@@ -218,6 +229,91 @@ function Ensure-Client {
     }
 
     Write-Host "Client secret configured for: $ClientId"
+}
+
+function Ensure-AdminClient {
+    $clientUuid = Get-ClientUuidByClientId -LookupClientId $AdminClientId
+
+    if ([string]::IsNullOrWhiteSpace($clientUuid)) {
+        Write-Host "Creating admin service-account client: $AdminClientId"
+        $result = Invoke-KeycloakAdmin -Arguments @(
+            "create", "clients",
+            "-r", $Realm,
+            "-s", "clientId=$AdminClientId",
+            "-s", "enabled=true",
+            "-s", "protocol=openid-connect",
+            "-s", "publicClient=false",
+            "-s", "standardFlowEnabled=false",
+            "-s", "directAccessGrantsEnabled=false",
+            "-s", "serviceAccountsEnabled=true",
+            "-s", "authorizationServicesEnabled=false",
+            "-s", "secret=$AdminClientSecret"
+        )
+
+        $clientUuid = Get-KeycloakIdFromOutput -Output ($result.Output -join "`n")
+        if ([string]::IsNullOrWhiteSpace($clientUuid)) {
+            $clientUuid = Get-ClientUuidByClientId -LookupClientId $AdminClientId
+        }
+    }
+    else {
+        Write-Host "Updating admin service-account client: $AdminClientId"
+        Invoke-KeycloakAdmin -Arguments @(
+            "update", "clients/$clientUuid",
+            "-r", $Realm,
+            "-s", "enabled=true",
+            "-s", "protocol=openid-connect",
+            "-s", "publicClient=false",
+            "-s", "standardFlowEnabled=false",
+            "-s", "directAccessGrantsEnabled=false",
+            "-s", "serviceAccountsEnabled=true",
+            "-s", "authorizationServicesEnabled=false",
+            "-s", "secret=$AdminClientSecret"
+        ) | Out-Null
+    }
+
+    if ([string]::IsNullOrWhiteSpace($clientUuid)) {
+        throw "Unable to resolve client UUID for $AdminClientId"
+    }
+
+    Ensure-AdminClientRoleMappings -AdminClientUuid $clientUuid
+    Write-Host "Admin client secret configured for: $AdminClientId"
+}
+
+function Ensure-AdminClientRoleMappings {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $AdminClientUuid
+    )
+
+    $realmManagementClientUuid = Get-ClientUuidByClientId -LookupClientId "realm-management"
+    if ([string]::IsNullOrWhiteSpace($realmManagementClientUuid)) {
+        throw "Unable to resolve realm-management client UUID"
+    }
+
+    $serviceAccountUser = Invoke-KeycloakAdmin -Arguments @("get", "clients/$AdminClientUuid/service-account-user", "-r", $Realm)
+    $serviceAccount = $serviceAccountUser.StdOut | ConvertFrom-Json
+    $serviceAccountUserId = $serviceAccount.id
+    if ([string]::IsNullOrWhiteSpace($serviceAccountUserId)) {
+        throw "Unable to resolve service account user for $AdminClientId"
+    }
+
+    $managementRoles = @(
+        "manage-users",
+        "view-users",
+        "query-users",
+        "view-realm"
+    )
+
+    foreach ($roleName in $managementRoles) {
+        Write-Host "Assigning realm-management role '$roleName' to service account: $AdminClientId"
+        Invoke-KeycloakAdmin -Arguments @(
+            "add-roles",
+            "-r", $Realm,
+            "--uid", $serviceAccountUserId,
+            "--cclientid", "realm-management",
+            "--rolename", $roleName
+        ) | Out-Null
+    }
 }
 
 function Get-UserId {
@@ -310,6 +406,7 @@ foreach ($role in $Roles) {
 }
 
 Ensure-Client
+Ensure-AdminClient
 
 foreach ($user in $Users) {
     Ensure-User -User $user
@@ -324,6 +421,7 @@ Write-Host ""
 Write-Host "Keycloak setup complete."
 Write-Host "Realm:        $Realm"
 Write-Host "Client ID:    $ClientId"
+Write-Host "Admin Client: $AdminClientId"
 Write-Host "Issuer URL:   $IssuerUrl"
 Write-Host "Discovery:    $DiscoveryUrl"
 Write-Host "Token URL:    $TokenUrl"

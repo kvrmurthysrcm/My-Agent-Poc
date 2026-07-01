@@ -26,7 +26,22 @@ class Settings(BaseSettings):
         "fastapi-auth-gateway-secret",
         alias="KEYCLOAK_CLIENT_SECRET",
     )
+    keycloak_admin_client_id: str = Field("secure-gateway-admin", alias="KEYCLOAK_ADMIN_CLIENT_ID")
+    keycloak_admin_client_secret: str = Field(
+        "secure-gateway-admin-secret",
+        alias="KEYCLOAK_ADMIN_CLIENT_SECRET",
+    )
     keycloak_timeout_seconds: float = Field(10.0, alias="KEYCLOAK_TIMEOUT_SECONDS")
+    default_registration_roles: list[str] = Field(
+        default_factory=lambda: ["rag_user", "rag_search_user"],
+        alias="DEFAULT_REGISTRATION_ROLES",
+    )
+    default_subscription_tier: str = Field("FREE", alias="DEFAULT_SUBSCRIPTION_TIER")
+    online_library_db_host: str = Field("localhost", alias="ONLINE_LIBRARY_DB_HOST")
+    online_library_db_port: int = Field(5432, alias="ONLINE_LIBRARY_DB_PORT")
+    online_library_db_name: str = Field("online_library", alias="ONLINE_LIBRARY_DB_NAME")
+    online_library_db_user: str = Field("library_user", alias="ONLINE_LIBRARY_DB_USER")
+    online_library_db_password: str = Field("library_pass", alias="ONLINE_LIBRARY_DB_PASSWORD")
     token_audience_validation_enabled: bool = Field(
         False,
         alias="TOKEN_AUDIENCE_VALIDATION_ENABLED",
@@ -56,6 +71,16 @@ class Settings(BaseSettings):
     def keycloak_token_url(self) -> str:
         base_url = self.keycloak_url.rstrip("/")
         return f"{base_url}/realms/{self.keycloak_realm}/protocol/openid-connect/token"
+
+    @property
+    def keycloak_admin_users_url(self) -> str:
+        base_url = self.keycloak_url.rstrip("/")
+        return f"{base_url}/admin/realms/{self.keycloak_realm}/users"
+
+    @property
+    def keycloak_admin_roles_url(self) -> str:
+        base_url = self.keycloak_url.rstrip("/")
+        return f"{base_url}/admin/realms/{self.keycloak_realm}/roles"
 
     @property
     def keycloak_logout_url(self) -> str:
