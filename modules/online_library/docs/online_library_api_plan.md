@@ -446,6 +446,18 @@ Draft Postman collection:
 modules/online_library/postman/Online_Library.postman_collection.json
 ```
 
+The Postman collection now includes a `Catalog Search` folder with:
+
+- catalog list
+- text search
+- author search
+- genre/category search
+- tag search
+- tier/status filter
+- published date range filter
+- facets
+- resource detail by `resourceId` collection variable
+
 ## Approval Needed
 
 Please confirm whether to proceed with this read-only FastAPI implementation.

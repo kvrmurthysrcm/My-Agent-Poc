@@ -109,3 +109,36 @@ Table endpoints support:
 ```text
 ?limit=20&offset=0
 ```
+
+## Postman Validation
+
+Import:
+
+```text
+modules/online_library/postman/Online_Library.postman_collection.json
+```
+
+Collection variables:
+
+- `baseUrl`: defaults to `http://127.0.0.1:8003`
+- `resourceId`: set this after running `Catalog - List Resources`
+
+Recommended validation order:
+
+1. Run `Health - DB`.
+2. Run `Catalog Search / Catalog - Facets`.
+3. Run `Catalog Search / Catalog - List Resources`.
+4. Copy any returned `resource_id` into the `resourceId` collection variable.
+5. Run `Catalog Search / Catalog - Resource Detail`.
+6. Run filter examples:
+   - `Catalog - Search by Text`
+   - `Catalog - Search by Author`
+   - `Catalog - Search by Genre`
+   - `Catalog - Search by Tag`
+   - `Catalog - Filter by Tier and Status`
+
+Expected catalog response behavior:
+
+- `authors` and `tags` are arrays.
+- `category` and `genre` are both present.
+- Binary fields such as `file_content` and `preview_content` are not returned.

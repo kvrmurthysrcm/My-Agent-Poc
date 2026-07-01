@@ -1,13 +1,17 @@
 {
   "info": {
     "name": "Online Library API POC",
-    "description": "Postman collection for read-only SELECT APIs over non-empty Online Library tables.",
+    "description": "Postman collection for Online Library catalog search APIs and read-only SELECT APIs over non-empty Online Library tables.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
       "value": "http://127.0.0.1:8003"
+    },
+    {
+      "key": "resourceId",
+      "value": "replace-with-resource-id-from-catalog-list"
     }
   ],
   "item": [
@@ -24,6 +28,83 @@
         "method": "GET",
         "url": "{{baseUrl}}/tables"
       }
+    },
+    {
+      "name": "Catalog Search",
+      "item": [
+        {
+          "name": "Catalog - List Resources",
+          "request": {
+            "method": "GET",
+            "description": "List catalog resources with joined authors/tags and binary content excluded.",
+            "url": "{{baseUrl}}/catalog/resources?limit=5&offset=0"
+          }
+        },
+        {
+          "name": "Catalog - Search by Text",
+          "request": {
+            "method": "GET",
+            "description": "Search title, description, publisher, ISBN, author, tag, and category using q.",
+            "url": "{{baseUrl}}/catalog/resources?q=christmas&limit=5&offset=0"
+          }
+        },
+        {
+          "name": "Catalog - Search by Author",
+          "request": {
+            "method": "GET",
+            "description": "Search resources by author name.",
+            "url": "{{baseUrl}}/catalog/resources?author=Charles%20Dickens&limit=5&offset=0"
+          }
+        },
+        {
+          "name": "Catalog - Search by Genre",
+          "request": {
+            "method": "GET",
+            "description": "Search resources by genre. Genre is an alias for category.",
+            "url": "{{baseUrl}}/catalog/resources?genre=Drama&limit=5&offset=0"
+          }
+        },
+        {
+          "name": "Catalog - Search by Tag",
+          "request": {
+            "method": "GET",
+            "description": "Search resources by tag name.",
+            "url": "{{baseUrl}}/catalog/resources?tag=classic&limit=5&offset=0"
+          }
+        },
+        {
+          "name": "Catalog - Filter by Tier and Status",
+          "request": {
+            "method": "GET",
+            "description": "Filter resources by subscription tier and resource status.",
+            "url": "{{baseUrl}}/catalog/resources?tier=FREE&status=ACTIVE&limit=5&offset=0"
+          }
+        },
+        {
+          "name": "Catalog - Published Date Range",
+          "request": {
+            "method": "GET",
+            "description": "Filter resources by published_date range and sort by latest published date.",
+            "url": "{{baseUrl}}/catalog/resources?published_from=1800-01-01&published_to=1900-12-31&sort=published_desc&limit=5&offset=0"
+          }
+        },
+        {
+          "name": "Catalog - Facets",
+          "request": {
+            "method": "GET",
+            "description": "Return lookup values for catalog filters: categories, genres, authors, tags, languages, and subscription tiers.",
+            "url": "{{baseUrl}}/catalog/facets"
+          }
+        },
+        {
+          "name": "Catalog - Resource Detail",
+          "request": {
+            "method": "GET",
+            "description": "Replace the resource id with one copied from Catalog - List Resources.",
+            "url": "{{baseUrl}}/catalog/resources/{{resourceId}}"
+          }
+        }
+      ]
     },
     {
       "name": "SELECT authors",
