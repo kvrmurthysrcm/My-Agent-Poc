@@ -210,6 +210,8 @@ Tests:
 
 Goal: search the online library catalog by structured fields such as author, genre/category, tag, publisher, language, tier, and status.
 
+Implementation status: completed for the `online_library` API module.
+
 Recommendation:
 
 - Implement catalog search in `online_library` first because it owns library/catalog data.
@@ -221,6 +223,17 @@ New endpoints:
 - `GET /catalog/resources/{resource_id}`
 - `GET /catalog/facets`
 - Optional later: `POST /catalog/search` for richer filter payloads.
+
+Implemented notes:
+
+- Added explicit catalog search functions in `modules/online_library/repository.py`.
+- Added `/catalog/*` routes in `modules/online_library/api.py`.
+- Search is metadata/catalog search only; it does not search RAG chunks.
+- Responses exclude binary content and include joined `authors` and `tags` arrays.
+- `genre` is treated as an alias for category.
+- Optional RAG-enriched columns such as `ingestion_status`, `rag_enabled`, `metadata_json`, and `storage_path` are returned when the database has them and returned as null/defaults when it does not.
+- Added route tests in `modules/online_library/tests/test_catalog_api.py`.
+- Live local SQL smoke test passed against `online_library`.
 
 Supported filters:
 

@@ -6,7 +6,14 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 
-from .repository import check_db_health, fetch_table_rows, list_available_tables
+from .repository import (
+    check_db_health,
+    fetch_table_rows,
+    get_catalog_facets,
+    get_catalog_resource_detail,
+    list_available_tables,
+    search_catalog_resources,
+)
 from .trace_context import install_log_record_factory, trace_context_middleware
 
 install_log_record_factory()
@@ -45,6 +52,61 @@ def _rows_response(table_name: str, limit: int, offset: int) -> dict[str, Any]:
         "count": len(rows),
         "rows": rows,
     }
+
+
+@app.get("/catalog/resources")
+def catalog_resources(
+    q: str | None = Query(None, description="Search title, description, author, category, tag, publisher, or ISBN."),
+    author: str | None = Query(None),
+    category: str | None = Query(None),
+    genre: str | None = Query(None, description="Alias for category."),
+    tag: str | None = Query(None),
+    publisher: str | None = Query(None),
+    language: str | None = Query(None),
+    tier: str | None = Query(None),
+    status: str | None = Query("ACTIVE"),
+    published_from: str | None = Query(None),
+    published_to: str | None = Query(None),
+    sort: str = Query("title"),
+    pagination: tuple[int, int] = Depends(_limit_query),
+) -> dict[str, Any]:
+    """Search online library catalog metadata without searching document chunks."""
+
+    limit, offset = pagination
+    return search_catalog_resources(
+        q=q,
+        author=author,
+        category=category,
+        genre=genre,
+        tag=tag,
+        publisher=publisher,
+        language=language,
+        tier=tier,
+        status=status,
+        published_from=published_from,
+        published_to=published_to,
+        sort=sort,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@app.get("/catalog/resources/{resource_id}")
+def catalog_resource_detail(resource_id: str) -> dict[str, Any]:
+    """Return one online library catalog resource with authors and tags."""
+
+    resource = get_catalog_resource_detail(resource_id)
+    if resource is None:
+        raise HTTPException(status_code=404, detail="Catalog resource not found.")
+    return {"resource": resource}
+
+
+@app.get("/catalog/facets")
+def catalog_facets() -> dict[str, Any]:
+    """Return lookup values for catalog filters."""
+
+    facets = get_catalog_facets()
+    return {"facets": facets}
 
 
 @app.get("/health/db")

@@ -1,6 +1,6 @@
 # Online Library API POC
 
-Read-only FastAPI module for exposing non-empty Online Library database tables as JSON.
+Read-only FastAPI module for exposing Online Library catalog data and selected database tables as JSON.
 
 ## Run
 
@@ -33,6 +33,50 @@ ONLINE_LIBRARY_DB_PASSWORD=library_pass
 ```
 
 ## Endpoints
+
+Catalog search endpoints:
+
+- `GET /catalog/resources`
+- `GET /catalog/resources/{resource_id}`
+- `GET /catalog/facets`
+
+`GET /catalog/resources` supports structured metadata search:
+
+```text
+?q=frankenstein&author=Mary&genre=Gothic&tag=classic&tier=FREE&limit=20&offset=0&sort=title
+```
+
+Supported filters:
+
+- `q`
+- `author`
+- `category`
+- `genre` alias for category
+- `tag`
+- `publisher`
+- `language`
+- `tier`
+- `status`
+- `published_from`
+- `published_to`
+- `limit`
+- `offset`
+- `sort`
+
+Supported sort values:
+
+- `title`
+- `created_desc`
+- `created_asc`
+- `published_desc`
+- `published_asc`
+
+Catalog responses exclude binary content and include joined metadata arrays:
+
+- `authors`
+- `tags`
+- `category`
+- `genre`
 
 Only tables with rows at implementation time are exposed.
 

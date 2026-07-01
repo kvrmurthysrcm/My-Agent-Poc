@@ -4,6 +4,8 @@
 
 Approved and implemented as a read-only POC.
 
+Phase 4 update: structured catalog search endpoints are now implemented.
+
 ## Module Name
 
 Use Python-standard lowercase package naming:
@@ -103,6 +105,103 @@ Those fields are `bytea` and can be large. The first API should return metadata 
 
 ## Implemented Endpoints
 
+### Catalog Search
+
+```text
+GET /catalog/resources
+```
+
+Purpose:
+
+- Search online library catalog metadata from structured columns and lookup tables.
+- This is separate from RAG content/chunk search.
+- Binary resource columns are not returned.
+
+Supported filters:
+
+```text
+q
+author
+category
+genre
+tag
+publisher
+language
+tier
+status
+published_from
+published_to
+limit
+offset
+sort
+```
+
+`genre` is treated as an alias for category.
+
+Supported sort values:
+
+```text
+title
+created_desc
+created_asc
+published_desc
+published_asc
+```
+
+Returned resource fields include:
+
+```text
+resource_id
+title
+resource_type
+description
+category
+genre
+authors
+tags
+publisher
+published_date
+language
+isbn
+page_count
+file_url
+preview_file_url
+cover_image_url
+file_name
+file_content_type
+file_size_bytes
+is_premium
+minimum_tier_code
+status
+ingestion_status, when available
+rag_enabled, when available
+metadata_json, when available
+```
+
+```text
+GET /catalog/resources/{resource_id}
+```
+
+Purpose:
+
+- Return detail for one catalog resource.
+- Include authors and tags as arrays.
+- Exclude binary content.
+
+```text
+GET /catalog/facets
+```
+
+Purpose:
+
+- Return lookup values for search UI filters:
+  - categories
+  - genres
+  - authors
+  - tags
+  - languages
+  - subscription tiers
+
 ### Health
 
 ```text
@@ -162,12 +261,14 @@ All table endpoints support:
 
 ### Earlier Resource-Oriented API Ideas
 
-These richer endpoint ideas are intentionally deferred. The current implementation is a simpler table-select API layer for MCP/tool experimentation.
+These richer endpoint ideas were deferred in the first implementation and are now partially implemented by the `/catalog/*` endpoints.
 
 ### Resources
 
+The original resource-oriented idea is implemented as:
+
 ```text
-GET /resources?search=&category_id=&resource_type=&status=ACTIVE&limit=20&offset=0
+GET /catalog/resources?q=&category=&resource_type=&status=ACTIVE&limit=20&offset=0
 ```
 
 Purpose:
@@ -198,7 +299,7 @@ Recommended fields:
 - `status`
 
 ```text
-GET /resources/{resource_id}
+GET /catalog/resources/{resource_id}
 ```
 
 Purpose:
