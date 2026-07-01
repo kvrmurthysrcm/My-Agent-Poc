@@ -8,7 +8,7 @@ from sqlalchemy import select
 from starlette.datastructures import UploadFile
 
 from app.core.config import get_settings
-from app.db.models import RagChunkEmbedding, RagDocumentChunk, RagIngestionJob, RagProcessingError, Resource
+from app.db.models import Author, Category, RagChunkEmbedding, RagDocumentChunk, RagIngestionJob, RagProcessingError, Resource, ResourceAuthor, ResourceTag, Tag
 from app.db import models  # noqa: F401
 from app.db.session import Base, SessionLocal, engine
 from app.main import app
@@ -204,6 +204,61 @@ def test_ingestion_embeds_context_enriched_chunk_text(monkeypatch):
     assert "Category: Scifi" in first_input
     assert "Tags: classic, gothic" in first_input
     assert "[Page 1]" not in first_input
+
+
+def test_ingest_persists_catalog_metadata_to_columns_and_joins():
+    metadata = {
+        "title": "  Catalog   Search Handbook  ",
+        "genre": "  Reference  ",
+        "author": "  Ada   Lovelace  ",
+        "publisher": "  Analytical Press  ",
+        "published_date": "1843-01-01T00:00:00",
+        "isbn": "  ISBN-12345  ",
+        "page_count": 321,
+        "tags": ["catalog", " Catalog ", "metadata", ""],
+        "custom_metadata": {"shelf": "A1"},
+        "indexing_mode": "NONE",
+    }
+    with TestClient(app) as client:
+        response = client.post(
+            "/rag/ingest",
+            files={"file": ("catalog.txt", b"Catalog metadata should be queryable from columns.", "text/plain")},
+            data={"metadata": json.dumps(metadata)},
+        )
+
+    assert response.status_code == 202
+    resource_id = response.json()["resource_id"]
+
+    db = SessionLocal()
+    try:
+        resource = db.scalar(select(Resource).where(Resource.resource_id == resource_id))
+        category = db.scalar(select(Category).where(Category.category_id == resource.category_id))
+        author = db.scalar(
+            select(Author)
+            .join(ResourceAuthor, ResourceAuthor.author_id == Author.author_id)
+            .where(ResourceAuthor.resource_id == resource_id)
+        )
+        tags = list(
+            db.scalars(
+                select(Tag.tag_name)
+                .join(ResourceTag, ResourceTag.tag_id == Tag.tag_id)
+                .where(ResourceTag.resource_id == resource_id)
+                .order_by(Tag.tag_name)
+            )
+        )
+
+        assert resource.title == "Catalog Search Handbook"
+        assert resource.publisher == "Analytical Press"
+        assert resource.isbn == "ISBN-12345"
+        assert resource.page_count == 321
+        assert category.category_name == "Reference"
+        assert author.author_name == "Ada Lovelace"
+        assert tags == ["catalog", "metadata"]
+        assert resource.resource_metadata["genre"] == "  Reference  "
+        assert resource.resource_metadata["category_name"] == "Reference"
+        assert resource.resource_metadata["custom_metadata"]["shelf"] == "A1"
+    finally:
+        db.close()
 
 
 def test_temp_file_paths_are_unique_when_filenames_match():

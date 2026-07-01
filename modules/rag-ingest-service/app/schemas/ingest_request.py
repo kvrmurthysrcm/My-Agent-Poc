@@ -33,12 +33,15 @@ class IngestMetadata(BaseModel):
     description: str | None = None
     resource_type: str = "DOCUMENT"
     category_name: str | None = None
+    genre: str | None = None
     business_domain: str | None = None
     source_system: str = "manual_upload"
     author: str | None = None
     language: str | None = None
     publisher: str | None = None
     published_date: datetime | None = None
+    isbn: str | None = Field(default=None, max_length=50)
+    page_count: int | None = Field(default=None, ge=0)
     tags: list[str] = Field(default_factory=list)
     created_date_from_file: datetime | None = None
     custom_metadata: dict[str, Any] = Field(default_factory=dict)

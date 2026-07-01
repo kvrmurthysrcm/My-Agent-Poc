@@ -88,6 +88,12 @@ class Tag(Base):
 
 class Resource(Base):
     __tablename__ = "resources"
+    __table_args__ = (
+        Index("ix_resources_title", "title"),
+        Index("ix_resources_publisher", "publisher"),
+        Index("ix_resources_isbn", "isbn"),
+        Index("ix_resources_published_date", "published_date"),
+    )
 
     resource_id: Mapped[str] = mapped_column(GUID, primary_key=True, default=uuid_str)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
@@ -97,6 +103,9 @@ class Resource(Base):
     publisher: Mapped[str | None] = mapped_column(String(200))
     published_date: Mapped[date | None] = mapped_column(Date)
     language: Mapped[str] = mapped_column(String(80), nullable=False, default="English")
+    isbn: Mapped[str | None] = mapped_column(String(50))
+    page_count: Mapped[int | None] = mapped_column(Integer)
+    cover_image_url: Mapped[str | None] = mapped_column(Text)
     file_url: Mapped[str | None] = mapped_column(Text)
     file_name: Mapped[str | None] = mapped_column(String(500))
     file_content_type: Mapped[str | None] = mapped_column(String(200))

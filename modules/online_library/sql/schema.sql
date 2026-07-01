@@ -221,3 +221,11 @@ CREATE TABLE public.user_subscriptions (
     CONSTRAINT user_subscriptions_tier_code_fkey FOREIGN KEY (tier_code) REFERENCES public.subscription_tiers(tier_code),
     CONSTRAINT user_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.library_users(user_id)
 );
+
+CREATE INDEX ix_resources_title ON public.resources (title);
+CREATE INDEX ix_resources_publisher ON public.resources (publisher);
+CREATE INDEX ix_resources_isbn ON public.resources (isbn);
+CREATE INDEX ix_resources_published_date ON public.resources (published_date);
+CREATE INDEX ix_authors_author_name ON public.authors (author_name);
+CREATE INDEX ix_categories_category_name ON public.categories (category_name);
+CREATE INDEX ix_tags_tag_name ON public.tags (tag_name);

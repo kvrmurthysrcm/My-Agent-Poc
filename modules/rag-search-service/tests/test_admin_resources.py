@@ -20,21 +20,26 @@ def test_admin_resources_ui_endpoint():
 
 
 def test_admin_resource_list_includes_counts():
+    resource_id = "00000000-0000-0000-0000-000000000101"
+    job_id = "00000000-0000-0000-0000-000000000102"
+    chunk_id = "00000000-0000-0000-0000-000000000103"
+    embedding_id = "00000000-0000-0000-0000-000000000104"
     db = SessionLocal()
     try:
         resource = Resource(
-            resource_id="resource-1",
+            resource_id=resource_id,
             title="Frankenstein",
             rag_enabled=True,
             ingestion_status="READY",
             resource_metadata={"author": "Mary Shelley", "category_name": "Scifi", "tags": ["classic"]},
         )
         db.add(resource)
-        db.add(RagIngestionJob(job_id="job-1", resource_id=resource.resource_id, status="COMPLETED", async_backend="test"))
+        db.add(RagIngestionJob(job_id=job_id, resource_id=resource.resource_id, status="COMPLETED", async_backend="test"))
+        db.flush()
         chunk = RagDocumentChunk(
-            chunk_id="chunk-1",
+            chunk_id=chunk_id,
             resource_id=resource.resource_id,
-            job_id="job-1",
+            job_id=job_id,
             chunk_index=0,
             chunk_text="Frankenstein by Mary Shelley.",
             chunk_hash_sha256="hash",
@@ -42,9 +47,10 @@ def test_admin_resource_list_includes_counts():
             char_count=28,
         )
         db.add(chunk)
+        db.flush()
         db.add(
             RagChunkEmbedding(
-                embedding_id="embedding-1",
+                embedding_id=embedding_id,
                 chunk_id=chunk.chunk_id,
                 embedding_provider="openai",
                 embedding_model="text-embedding-3-small",
@@ -73,15 +79,20 @@ def test_admin_resource_list_includes_counts():
 
 
 def test_admin_bulk_delete_removes_selected_resource_rows():
+    resource_id = "00000000-0000-0000-0000-000000000201"
+    job_id = "00000000-0000-0000-0000-000000000202"
+    chunk_id = "00000000-0000-0000-0000-000000000203"
+    embedding_id = "00000000-0000-0000-0000-000000000204"
     db = SessionLocal()
     try:
-        resource = Resource(resource_id="resource-delete", title="Delete Me", rag_enabled=True, ingestion_status="READY")
+        resource = Resource(resource_id=resource_id, title="Delete Me", rag_enabled=True, ingestion_status="READY")
         db.add(resource)
-        db.add(RagIngestionJob(job_id="job-delete", resource_id=resource.resource_id, status="COMPLETED", async_backend="test"))
+        db.add(RagIngestionJob(job_id=job_id, resource_id=resource.resource_id, status="COMPLETED", async_backend="test"))
+        db.flush()
         chunk = RagDocumentChunk(
-            chunk_id="chunk-delete",
+            chunk_id=chunk_id,
             resource_id=resource.resource_id,
-            job_id="job-delete",
+            job_id=job_id,
             chunk_index=0,
             chunk_text="Delete text.",
             chunk_hash_sha256="delete-hash",
@@ -89,9 +100,10 @@ def test_admin_bulk_delete_removes_selected_resource_rows():
             char_count=12,
         )
         db.add(chunk)
+        db.flush()
         db.add(
             RagChunkEmbedding(
-                embedding_id="embedding-delete",
+                embedding_id=embedding_id,
                 chunk_id=chunk.chunk_id,
                 embedding_provider="openai",
                 embedding_model="text-embedding-3-small",
@@ -105,7 +117,7 @@ def test_admin_bulk_delete_removes_selected_resource_rows():
         db.close()
 
     with TestClient(app) as client:
-        response = client.post("/rag/admin/resources/delete", json={"resource_ids": ["resource-delete"]})
+        response = client.post("/rag/admin/resources/delete", json={"resource_ids": [resource_id]})
 
     assert response.status_code == 200
     body = response.json()
@@ -117,8 +129,8 @@ def test_admin_bulk_delete_removes_selected_resource_rows():
 
     db = SessionLocal()
     try:
-        assert db.get(Resource, "resource-delete") is None
-        assert db.get(RagDocumentChunk, "chunk-delete") is None
-        assert db.get(RagChunkEmbedding, "embedding-delete") is None
+        assert db.get(Resource, resource_id) is None
+        assert db.get(RagDocumentChunk, chunk_id) is None
+        assert db.get(RagChunkEmbedding, embedding_id) is None
     finally:
         db.close()

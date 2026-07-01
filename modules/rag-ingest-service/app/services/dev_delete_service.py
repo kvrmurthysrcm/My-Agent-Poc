@@ -66,9 +66,16 @@ class DevDeleteService:
 
         counts = {}
         for table_name in ("user_bookshelf", "reviews", "reading_progress", "downloads"):
+            if not self._table_exists(table_name):
+                counts[table_name] = 0
+                continue
             result = self.db.execute(text(f"DELETE FROM public.{table_name} WHERE resource_id = :resource_id"), {"resource_id": resource_id})
             counts[table_name] = int(result.rowcount or 0)
         return counts
+
+    def _table_exists(self, table_name: str) -> bool:
+        result = self.db.execute(text("select to_regclass(:table_name)"), {"table_name": f"public.{table_name}"})
+        return result.scalar() is not None
 
     def _delete_file(self, file_path: str | None) -> str | None:
         if not file_path:

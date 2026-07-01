@@ -131,6 +131,8 @@ Tests:
 
 Goal: ensure book/document metadata is searchable from real columns and joins, not only from JSON metadata.
 
+Implementation status: completed.
+
 Current useful persistence:
 
 - `resources.title`
@@ -161,6 +163,21 @@ Implementation:
 - Call this service from `IngestService.create_resource_and_job`.
 - Keep full request and extracted file metadata in `metadata_json`.
 - Keep structured searchable values in columns and join tables.
+
+Implemented notes:
+
+- Added `LibraryMetadataPersistenceService`.
+- Added first-class ingest metadata fields:
+  - `genre`
+  - `isbn`
+  - `page_count`
+- `genre` maps to `categories.category_name` when `category_name` is not supplied.
+- `isbn` and `page_count` persist to `resources` columns.
+- Author/category/tag values are whitespace-normalized before lookup row creation.
+- Tags are deduplicated case-insensitively while preserving the first supplied spelling.
+- Original request metadata remains in `resources.metadata_json`.
+- Base SQL schema snapshots now include catalog lookup indexes.
+- Dev/admin delete paths now skip optional library tables when a lean test DB does not include them.
 
 Genre handling recommendation:
 

@@ -1,41 +1,15 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Author, Category, Resource, ResourceAuthor, ResourceTag, Tag
+from app.db.models import Resource
 from app.schemas.ingest_request import IngestMetadata
+from app.services.library_metadata_persistence_service import LibraryMetadataPersistenceService
 
 
 class ResourceRepository:
     def __init__(self, db: Session):
         self.db = db
-
-    def _get_or_create_category(self, name: str | None) -> Category | None:
-        if not name:
-            return None
-        category = self.db.scalar(select(Category).where(Category.category_name == name))
-        if category is None:
-            category = Category(category_name=name)
-            self.db.add(category)
-            self.db.flush()
-        return category
-
-    def _get_or_create_author(self, name: str | None) -> Author | None:
-        if not name:
-            return None
-        author = self.db.scalar(select(Author).where(Author.author_name == name))
-        if author is None:
-            author = Author(author_name=name)
-            self.db.add(author)
-            self.db.flush()
-        return author
-
-    def _get_or_create_tag(self, name: str) -> Tag:
-        tag = self.db.scalar(select(Tag).where(Tag.tag_name == name))
-        if tag is None:
-            tag = Tag(tag_name=name)
-            self.db.add(tag)
-            self.db.flush()
-        return tag
+        self.library_metadata = LibraryMetadataPersistenceService(db)
 
     def create_resource(
         self,
@@ -50,15 +24,20 @@ class ResourceRepository:
         embedding_model: str,
         embedding_version: str,
     ) -> Resource:
-        category = self._get_or_create_category(metadata.category_name)
+        persisted_metadata = self.library_metadata.prepare(
+            metadata=metadata,
+            fallback_title=file_name,
+        )
         resource = Resource(
-            title=metadata.title or file_name,
-            description=metadata.description,
-            resource_type=metadata.resource_type,
-            category_id=category.category_id if category else None,
-            publisher=metadata.publisher,
-            published_date=metadata.published_date.date() if metadata.published_date else None,
-            language=metadata.language,
+            title=persisted_metadata.title,
+            description=persisted_metadata.description,
+            resource_type=persisted_metadata.resource_type,
+            category_id=persisted_metadata.category_id,
+            publisher=persisted_metadata.publisher,
+            published_date=persisted_metadata.published_date,
+            language=persisted_metadata.language,
+            isbn=persisted_metadata.isbn,
+            page_count=persisted_metadata.page_count,
             file_url=storage_path,
             file_name=file_name,
             file_content_type=content_type,
@@ -68,7 +47,7 @@ class ResourceRepository:
             file_extension=extension,
             rag_enabled=True,
             ingestion_status="QUEUED",
-            resource_metadata=metadata.model_dump(mode="json"),
+            resource_metadata=persisted_metadata.metadata_json,
             storage_path=storage_path,
             embedding_provider=embedding_provider,
             embedding_model=embedding_model,
@@ -77,13 +56,10 @@ class ResourceRepository:
         self.db.add(resource)
         self.db.flush()
 
-        author = self._get_or_create_author(metadata.author)
-        if author:
-            self.db.add(ResourceAuthor(resource_id=resource.resource_id, author_id=author.author_id))
-        for tag_name in {tag.strip() for tag in metadata.tags if tag.strip()}:
-            tag = self._get_or_create_tag(tag_name)
-            self.db.add(ResourceTag(resource_id=resource.resource_id, tag_id=tag.tag_id))
-        self.db.flush()
+        self.library_metadata.attach_resource_metadata(
+            resource_id=resource.resource_id,
+            metadata=persisted_metadata,
+        )
         return resource
 
     def find_existing_by_file_hash(self, file_hash: str) -> Resource | None:

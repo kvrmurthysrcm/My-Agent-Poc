@@ -4,17 +4,18 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="Implemented TRACE_ID Pattern">
+    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="Implemented Phase 1 registration.&#10;What changed:&#10;•&#10;Added Keycloak admin registration support in keycloak_client.py&#10;•&#10;Added /auth/register/options and /auth/register in auth_routes.py&#10;•&#10;Added library DB registration persistence in library_registration_repository.py&#10;•&#10;Added registration schemas/config and psycopg dependency&#10;•&#10;Added Register form to gateway.html&#10;•&#10;Updated Keycloak setup docs/scripts and implementation notes:&#10;◦&#10;README-keycloak-setup.md&#10;◦&#10;phase1_registration_implementation_note.md&#10;◦&#10;product_feature_expansion_phase_plan.md&#10;Product decision implemented:&#10;•&#10;Public registration does not allow role selection.&#10;•&#10;New users are auto-approved and get safe default roles:&#10;◦&#10;rag_user&#10;◦&#10;rag_search_user">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/auth/keycloak_client.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/auth/keycloak_client.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/routes/auth_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/routes/auth_routes.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/schemas.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/ui/gateway.html" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/ui/gateway.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/tests/test_auth.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/tests/test_auth.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/keycloak/01-keycloak-setup.ps1" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/keycloak/01-keycloak-setup.ps1" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/keycloak/README-keycloak-setup.md" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/keycloak/README-keycloak-setup.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/TODO/product_feature_expansion_phase_plan.md" beforeDir="false" afterPath="$PROJECT_DIR$/TODO/product_feature_expansion_phase_plan.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/online_library/sql/schema.sql" beforeDir="false" afterPath="$PROJECT_DIR$/modules/online_library/sql/schema.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/db/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/db/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/resource_repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/repositories/resource_repository.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/schemas/ingest_request.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/schemas/ingest_request.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/dev_delete_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/app/services/dev_delete_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/sql/schema.sql" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/sql/schema.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_rag_ingest_api.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-ingest-service/tests/test_rag_ingest_api.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/services/admin_resource_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/services/admin_resource_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/tests/test_admin_resources.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/tests/test_admin_resources.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -343,11 +344,18 @@
       <option name="project" value="LOCAL" />
       <updated>1782836828177</updated>
     </task>
-    <option name="localTasksCounter" value="33" />
+    <task id="LOCAL-00033" summary="Implemented Phase 1 registration.&#10;What changed:&#10;•&#10;Added Keycloak admin registration support in keycloak_client.py&#10;•&#10;Added /auth/register/options and /auth/register in auth_routes.py&#10;•&#10;Added library DB registration persistence in library_registration_repository.py&#10;•&#10;Added registration schemas/config and psycopg dependency&#10;•&#10;Added Register form to gateway.html&#10;•&#10;Updated Keycloak setup docs/scripts and implementation notes:&#10;◦&#10;README-keycloak-setup.md&#10;◦&#10;phase1_registration_implementation_note.md&#10;◦&#10;product_feature_expansion_phase_plan.md&#10;Product decision implemented:&#10;•&#10;Public registration does not allow role selection.&#10;•&#10;New users are auto-approved and get safe default roles:&#10;◦&#10;rag_user&#10;◦&#10;rag_search_user">
+      <option name="closed" value="true" />
+      <created>1782885220948</created>
+      <option name="number" value="00033" />
+      <option name="presentableId" value="LOCAL-00033" />
+      <option name="project" value="LOCAL" />
+      <updated>1782885220948</updated>
+    </task>
+    <option name="localTasksCounter" value="34" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Add the following:&#10;persists teh profiling details.&#10;use semantic recursive embeddings so the search results will be accurate.&#10;use a batch to send the embeddings to LLM so vectors can be created.&#10;Tried both 32, 64 as batch size, both work similar.&#10;add delete API end point ot delete a file, embeddings. This is only for the LOCAL profile similar ot Spring boot profile.&#10;add instructions to find the data/embeddings when a new file is saved." />
     <MESSAGE value="added rad-search-serice module&#10;updated he rag-ingest-service to handle lot of edge cases and fixes for issues found in regression." />
     <MESSAGE value="added rad-search-serice module&#10;updated he rag-ingest-service to handle lot of edge cases and fixes for issues found in regression.&#10;&#10;add missing files" />
     <MESSAGE value="added rag-answer-service module related files:" />
@@ -372,6 +380,7 @@
     <MESSAGE value="Implemented UI copy cleanup for secure_api.&#10;Summary:&#10;•&#10;Removed misleading pre-filled default queries from Search, Answer, Compare, and Library Search.&#10;•&#10;Added concise placeholders instead of default submitted text.&#10;•&#10;Added helper instructions under Search, Answer, Compare, Ingest, Library Search, and Library Tools.&#10;•&#10;Clarified Library Tools as admin diagnostics, with Library Search as the normal user flow." />
     <MESSAGE value="Add two-step RAG ingestion and improve Books UI refresh&#10;&#10;- Allow upload-only ingestion with indexing_mode NONE&#10;- Add admin indexing actions for existing uploaded books&#10;- Reuse existing chunks for deferred STANDARD and GRAPH indexing&#10;- Add secure_api and rag-search proxy routes for indexing requests&#10;- Refresh Books automatically when returning to the Books tab&#10;- Update secure_api and rag-ingest documentation&#10;- Add secure_api route tests for resource indexing" />
     <MESSAGE value="Implemented TRACE_ID Pattern" />
-    <option name="LAST_COMMIT_MESSAGE" value="Implemented TRACE_ID Pattern" />
+    <MESSAGE value="Implemented Phase 1 registration.&#10;What changed:&#10;•&#10;Added Keycloak admin registration support in keycloak_client.py&#10;•&#10;Added /auth/register/options and /auth/register in auth_routes.py&#10;•&#10;Added library DB registration persistence in library_registration_repository.py&#10;•&#10;Added registration schemas/config and psycopg dependency&#10;•&#10;Added Register form to gateway.html&#10;•&#10;Updated Keycloak setup docs/scripts and implementation notes:&#10;◦&#10;README-keycloak-setup.md&#10;◦&#10;phase1_registration_implementation_note.md&#10;◦&#10;product_feature_expansion_phase_plan.md&#10;Product decision implemented:&#10;•&#10;Public registration does not allow role selection.&#10;•&#10;New users are auto-approved and get safe default roles:&#10;◦&#10;rag_user&#10;◦&#10;rag_search_user" />
+    <option name="LAST_COMMIT_MESSAGE" value="Implemented Phase 1 registration.&#10;What changed:&#10;•&#10;Added Keycloak admin registration support in keycloak_client.py&#10;•&#10;Added /auth/register/options and /auth/register in auth_routes.py&#10;•&#10;Added library DB registration persistence in library_registration_repository.py&#10;•&#10;Added registration schemas/config and psycopg dependency&#10;•&#10;Added Register form to gateway.html&#10;•&#10;Updated Keycloak setup docs/scripts and implementation notes:&#10;◦&#10;README-keycloak-setup.md&#10;◦&#10;phase1_registration_implementation_note.md&#10;◦&#10;product_feature_expansion_phase_plan.md&#10;Product decision implemented:&#10;•&#10;Public registration does not allow role selection.&#10;•&#10;New users are auto-approved and get safe default roles:&#10;◦&#10;rag_user&#10;◦&#10;rag_search_user" />
   </component>
 </project>
