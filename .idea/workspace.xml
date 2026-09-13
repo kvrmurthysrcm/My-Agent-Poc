@@ -4,148 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="phase 4 changes, postman collection, readme.md changes included">
-      <change afterPath="$PROJECT_DIR$/PROJECT_OVERVIEW.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/TODO/phase5_gateway_library_ui_implementation_note.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/.editorconfig" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/.prettierrc" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/.vscode/extensions.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/.vscode/launch.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/.vscode/tasks.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/angular.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/ANGULAR_CONCEPTS_USED.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/API_ENDPOINT_MAPPING.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/ARCHITECTURE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/AUTHENTICATION_AND_AUTHORIZATION.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/ERROR_HANDLING.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/EXISTING_UI_FUNCTIONALITY_INVENTORY.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/FUNCTIONAL_PARITY_MATRIX.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/HTTP_AND_INTERCEPTORS.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/IMPLEMENTATION_REPORT.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/INTERVIEW_GUIDE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/PROPOSED_ARCHITECTURE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/ROUTING_AND_GUARDS.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/RUNBOOK.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/SECURITY_NOTES.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/SSE_STREAMING.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/STATE_MANAGEMENT.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/docs/TESTING_STRATEGY.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/package-lock.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/package.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/prompts/00-master-angular-poc-prompt.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/prompts/01-repository-analysis-prompt.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/prompts/02-authentication-prompt.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/prompts/03-books-catalog-prompt.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/prompts/04-search-prompt.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/prompts/05-answer-prompt.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/prompts/06-model-compare-sse-prompt.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/prompts/07-ingestion-admin-prompt.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/prompts/08-library-agent-prompt.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/prompts/09-testing-prompt.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/prompts/10-angular-interview-review-prompt.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/prompts/11-routing-api-integration-prompt.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/prompts/12-code-review-prompt.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/proxy.conf.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/public/favicon.ico" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/app.config.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/app.css" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/app.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/app.routes.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/app.spec.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/app.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/auth/auth.service.spec.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/auth/auth.service.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/auth/token-storage.service.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/config/app-environment.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/guards/auth.guard.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/guards/guards.spec.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/guards/role.guard.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/http/api-error.spec.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/http/api-error.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/http/http-context.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/interceptors/auth.interceptor.spec.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/interceptors/auth.interceptor.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/interceptors/correlation.interceptor.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/interceptors/error.interceptor.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/models/api.models.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/observability/trace.service.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/services/admin-api.service.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/services/answer-api.service.spec.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/services/answer-api.service.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/services/api-services.spec.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/services/catalog-api.service.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/services/health-api.service.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/services/ingest-api.service.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/services/library-agent-api.service.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/services/library-tools-api.service.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/services/resource-api.service.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/services/search-api.service.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/core/theme/theme.service.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/features/admin/resource-admin-page.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/features/answer/answer-page.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/features/auth/login-page.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/features/auth/register-page.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/features/books/books-page.component.spec.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/features/books/books-page.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/features/catalog/catalog-page.component.spec.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/features/catalog/catalog-page.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/features/compare/compare-page.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/features/ingest/ingest-page.component.spec.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/features/ingest/ingest-page.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/features/library-search/library-search-page.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/features/library-tools/library-tools-page.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/features/search/search-page.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/layout/shell/shell.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/shared/components/confirm-dialog.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/shared/components/diagnostics-panel.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/shared/components/json-viewer.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/shared/components/search-results.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/shared/components/state-panel.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/shared/components/status-badge.component.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/app/shared/pipes/bytes.pipe.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/index.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/main.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/src/styles.css" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/tsconfig.app.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/tsconfig.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/angular-ui/tsconfig.spec.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/secure_api/app/routes/library_catalog_routes.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/secure_api/app/services/library_catalog_client.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/modules/secure_api/tests/test_library_catalog_routes.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/prompts/angular-pr-review-prompt.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/TODO/product_feature_expansion_phase_plan.md" beforeDir="false" afterPath="$PROJECT_DIR$/TODO/product_feature_expansion_phase_plan.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/online_library/Readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/online_library/Readme.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/online_library/api.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/online_library/api.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/online_library/postman/Online_Library.postman_collection.json" beforeDir="false" afterPath="$PROJECT_DIR$/modules/online_library/postman/Online_Library.postman_collection.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/online_library/repository.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/online_library/repository.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/online_library_agent/Readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/online_library_agent/Readme.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/online_library_agent/planner.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/online_library_agent/planner.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/online_library_mcp/Readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/online_library_mcp/Readme.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/online_library_mcp/tools.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/online_library_mcp/tools.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/api/rag_answer_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/api/rag_answer_routes.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/services/llm_providers/ollama_provider.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/services/llm_providers/ollama_provider.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/app/services/search_client.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/app/services/search_client.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-answer-service/tests/test_rag_answer.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-answer-service/tests/test_rag_answer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/api/rag_search_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/api/rag_search_routes.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/app/services/embedding_providers/ollama_provider.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/app/services/embedding_providers/ollama_provider.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/rag-search-service/tests/test_rag_search.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/rag-search-service/tests/test_rag_search.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/routes/rag_gateway_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/routes/rag_gateway_routes.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/services/downstream_client.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/services/downstream_client.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/app/ui/gateway.html" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/app/ui/gateway.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/docs/UI_impl.md" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/docs/UI_impl.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/postman/Secure_API_Gateway.postman_collection.json" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/postman/Secure_API_Gateway.postman_collection.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules/secure_api/tests/test_rag_gateway_routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules/secure_api/tests/test_rag_gateway_routes.py" afterDir="false" />
-    </list>
+    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="phase 4 changes, postman collection, readme.md changes included" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -505,7 +364,15 @@
       <option name="project" value="LOCAL" />
       <updated>1782921092483</updated>
     </task>
-    <option name="localTasksCounter" value="37" />
+    <task id="LOCAL-00037" summary="phase 4 changes, postman collection, readme.md changes included">
+      <option name="closed" value="true" />
+      <created>1789316754923</created>
+      <option name="number" value="00037" />
+      <option name="presentableId" value="LOCAL-00037" />
+      <option name="project" value="LOCAL" />
+      <updated>1789316754923</updated>
+    </task>
+    <option name="localTasksCounter" value="38" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
