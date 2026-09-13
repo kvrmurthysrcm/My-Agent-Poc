@@ -44,6 +44,7 @@ http://localhost:8080
 - Realm and client role extraction
 - Protected `GET /auth/me`
 - Protected RAG gateway routes
+- Protected Library Catalog gateway routes backed by `online_library`
 - Protected Library Search gateway route backed by `online_library_agent`
 - Admin-only Library Tools gateway routes backed by `online_library_mcp`
 - Resource list, delete, retry, and indexing gateway routes for the UI
@@ -75,6 +76,7 @@ RAG_INGEST_BASE_URL=http://localhost:8000
 RAG_SEARCH_BASE_URL=http://localhost:8001
 RAG_ANSWER_BASE_URL=http://localhost:8002
 ONLINE_LIBRARY_AGENT_BASE_URL=http://localhost:8005
+ONLINE_LIBRARY_API_BASE_URL=http://localhost:8003
 ONLINE_LIBRARY_MCP_URL=http://localhost:8004/mcp
 DOWNSTREAM_TIMEOUT_SECONDS=600
 ```
@@ -97,6 +99,7 @@ Service dependencies by feature:
 | --- | --- | --- |
 | Login/auth and `/auth/me` | Keycloak | `scripts/keycloak` setup scripts; Keycloak container `local-keycloak` |
 | Books dashboard, search, answer, ingest | `rag-ingest-service`, `rag-search-service`, `rag-answer-service` | `modules/rag-ingest-service/run-ingest-service.bat`, `modules/rag-search-service/run-search-service.bat`, `modules/rag-answer-service/run-answer-service.bat` |
+| Library Catalog UI | `online_library` API | `modules/online_library/run-library-api-service.bat` |
 | Library Search UI | `online_library` API, `online_library_mcp` tools service, `online_library_agent` NLQ service, Ollama | `modules/online_library/run-library-api-service.bat`, `modules/online_library_mcp/run-library-tools-service.bat`, `modules/online_library_agent/run-library-agent-service.bat` |
 | Admin Library Tools UI | `online_library` API and `online_library_mcp` tools service | `modules/online_library/run-library-api-service.bat`, `modules/online_library_mcp/run-library-tools-service.bat` |
 | Secure browser UI and wrapper API | `secure_api` | `modules/secure_api/run-secure-api-service.bat` |
@@ -113,6 +116,7 @@ The UI starts with a login screen, stores the access token in browser local stor
 - Search
 - Answer generation
 - Compare model answers
+- Library catalog browse/search by author, genre, tag, tier, and text
 - Library Search for natural-language Online Library questions
 - Admin-only ingest
 - Admin-only delete, retry, and indexing actions
@@ -129,6 +133,15 @@ modules/secure_api/postman/Secure_API_Gateway.postman_collection.json
 ```
 
 Run `POST /auth/login - raguser` or `POST /auth/login - ragadmin` first. The collection test script saves `access_token` and `refresh_token`; protected wrapper requests use `Authorization: Bearer {{access_token}}`.
+
+The collection includes a `Library Catalog` folder for:
+
+- `GET /library/catalog/resources`
+- `GET /library/catalog/facets`
+- `GET /library/catalog/resources/{{library_resource_id}}`
+- `GET /library/catalog/health`
+
+Set `library_resource_id` from the catalog list response before running the detail request.
 
 ## Validate Phase 1: Keycloak Directly
 
@@ -743,6 +756,17 @@ The endpoint returns a per-service status and does not fail the entire response 
 ## Validate Library Search And Admin Tools
 
 The user-facing UI label is **Library Search** because users ask natural-language questions. It calls `online_library_agent`, which chooses and invokes MCP tools internally.
+
+Current business-level Library Search examples:
+
+- `Show books by Sri Aurobindo.` -> `get_books_by_author` -> `online_library /catalog/books/by-author`
+- `Show books in genre Drama.` -> `get_books_by_genre` -> `online_library /catalog/books/by-genre`
+- `Show books tagged Yoga.` -> `get_books_by_tag` -> `online_library /catalog/books/by-tag`
+- `What available authors and genres can I search?` -> `get_available_facets` -> `online_library /catalog/facets`
+- `Show active FREE subscriptions.` -> `search_subscriptions` -> `online_library /subscriptions/search`
+- `Show pending approval requests.` -> `search_approval_requests` -> `online_library /approvals/search`
+
+The raw table tools remain available for admin/debug exploration, but the business-level tools are the preferred NLQ surface because they accept structured filter parameters.
 
 The admin/debug UI label is **Library Tools**. It exposes raw MCP tool discovery and tool invocation only for users with `rag_admin` or `system_admin`.
 

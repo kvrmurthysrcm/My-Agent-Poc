@@ -57,6 +57,10 @@ class Settings(BaseSettings):
         "http://localhost:8005",
         alias="ONLINE_LIBRARY_AGENT_BASE_URL",
     )
+    online_library_api_base_url: str = Field(
+        "http://localhost:8003",
+        alias="ONLINE_LIBRARY_API_BASE_URL",
+    )
     online_library_mcp_url: str = Field("http://localhost:8004/mcp", alias="ONLINE_LIBRARY_MCP_URL")
     downstream_timeout_seconds: float = Field(600.0, alias="DOWNSTREAM_TIMEOUT_SECONDS")
     cors_origins: list[str] = Field(

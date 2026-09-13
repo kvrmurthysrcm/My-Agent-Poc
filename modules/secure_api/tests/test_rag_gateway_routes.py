@@ -36,6 +36,9 @@ def teardown_function() -> None:
     ("path", "role", "expected_url"),
     [
         ("/rag/search", "rag_search_user", "http://localhost:8001/rag/search"),
+        ("/rag/graph/search", "rag_search_user", "http://localhost:8001/rag/graph/search"),
+        ("/rag/search/combined", "rag_search_user", "http://localhost:8001/rag/search/combined"),
+        ("/rag/search/debug", "rag_search_user", "http://localhost:8001/rag/search/debug"),
         ("/rag/answer", "rag_user", "http://localhost:8002/rag/answer"),
         ("/rag/answer/compare", "rag_user", "http://localhost:8002/rag/answer/compare"),
         ("/rag/ask", "rag_user", "http://localhost:8002/rag/answer"),
@@ -171,6 +174,50 @@ def test_downstream_error_maps_to_502_without_secret_details() -> None:
     assert "local-poc-internal-api-key" not in response.text
 
 
+def test_actionable_ollama_dependency_error_is_forwarded_without_untrusted_details() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            503,
+            json={
+                "detail": {
+                    "code": "ollama_unavailable",
+                    "message": "Ollama is unavailable at http://127.0.0.1:11434. Start Ollama.",
+                    "details": {
+                        "dependency": "ollama",
+                        "model": "gemma4",
+                        "secret": "do-not-return",
+                    },
+                }
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    original_async_client = httpx.AsyncClient
+    httpx.AsyncClient = lambda *args, **kwargs: original_async_client(transport=transport)
+    try:
+        client = _client_for_user(_user("rag_user"))
+        response = client.post("/rag/answer", json={"query": "test"})
+    finally:
+        httpx.AsyncClient = original_async_client
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["error"] == {
+        "code": "ollama_unavailable",
+        "message": "Ollama is unavailable at http://127.0.0.1:11434. Start Ollama.",
+        "request_id": body["error"]["request_id"],
+        "trace_id": body["error"]["trace_id"],
+        "details": {
+            "service": "rag-answer",
+            "error_type": "http_status_error",
+            "status_code": 503,
+            "dependency": "ollama",
+            "model": "gemma4",
+        },
+    }
+    assert "do-not-return" not in response.text
+
+
 def test_test_downstream_returns_each_service_status_without_failing_all() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         if str(request.url) == "http://localhost:8001/health":
@@ -283,6 +330,95 @@ def test_index_resource_rejects_invalid_mode() -> None:
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "invalid_indexing_mode"
+
+
+def test_ingestion_job_proxy_keeps_internal_credentials_server_side() -> None:
+    captured: dict[str, Any] = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        captured["headers"] = dict(request.headers)
+        return httpx.Response(200, json={"job_id": "job-1", "status": "PROCESSING"})
+
+    transport = httpx.MockTransport(handler)
+    original_async_client = httpx.AsyncClient
+    httpx.AsyncClient = lambda *args, **kwargs: original_async_client(transport=transport)
+    try:
+        client = _client_for_user(_user("rag_ingest_user"))
+        response = client.get("/rag/ingest/jobs/job-1")
+    finally:
+        httpx.AsyncClient = original_async_client
+
+    assert response.status_code == 200
+    assert captured["url"] == "http://localhost:8000/rag/ingest/jobs/job-1"
+    assert captured["headers"]["x-api-key"] == "local-poc-internal-api-key"
+    assert "authorization" not in captured["headers"]
+
+
+def test_graph_rag_settings_proxy_requires_admin_and_forwards_put() -> None:
+    captured: dict[str, Any] = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        captured["method"] = request.method
+        captured["headers"] = dict(request.headers)
+        captured["body"] = request.content.decode()
+        return httpx.Response(200, json={"entity_batch_size": 4, "relationship_batch_size": 3})
+
+    transport = httpx.MockTransport(handler)
+    original_async_client = httpx.AsyncClient
+    httpx.AsyncClient = lambda *args, **kwargs: original_async_client(transport=transport)
+    try:
+        client = _client_for_user(_user("rag_admin"))
+        response = client.put(
+            "/rag/admin/settings/graph-rag",
+            json={"entity_batch_size": 4, "relationship_batch_size": 3},
+        )
+    finally:
+        httpx.AsyncClient = original_async_client
+
+    assert response.status_code == 200
+    assert captured["url"] == "http://localhost:8001/rag/admin/settings/graph-rag"
+    assert captured["method"] == "PUT"
+    assert captured["body"] == '{"entity_batch_size":4,"relationship_batch_size":3}'
+    assert captured["headers"]["x-api-key"] == "local-poc-internal-api-key"
+    assert "authorization" not in captured["headers"]
+
+
+def test_sse_compare_proxy_streams_events_without_exposing_internal_credentials() -> None:
+    captured: dict[str, Any] = {}
+
+    class EventStream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield b'event: search_complete\ndata: {"event":"search_complete"}\n\n'
+
+        async def aclose(self) -> None:
+            return None
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        captured["headers"] = dict(request.headers)
+        return httpx.Response(
+            200,
+            stream=EventStream(),
+            headers={"content-type": "text/event-stream"},
+        )
+
+    transport = httpx.MockTransport(handler)
+    original_async_client = httpx.AsyncClient
+    httpx.AsyncClient = lambda *args, **kwargs: original_async_client(transport=transport)
+    try:
+        client = _client_for_user(_user("rag_user"))
+        response = client.post("/rag/answer/compare/stream", json={"query": "test"})
+    finally:
+        httpx.AsyncClient = original_async_client
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert "search_complete" in response.text
+    assert captured["url"] == "http://localhost:8002/rag/answer/compare/stream"
+    assert captured["headers"]["x-api-key"] == "local-poc-internal-api-key"
+    assert "authorization" not in captured["headers"]
 
 
 @pytest.mark.anyio

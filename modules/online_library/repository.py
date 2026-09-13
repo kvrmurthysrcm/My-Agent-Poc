@@ -221,6 +221,190 @@ def get_catalog_facets() -> dict[str, Any]:
     }
 
 
+def search_authors(
+    *,
+    q: str | None = None,
+    status: str | None = "ACTIVE",
+    limit: int = 20,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """Search author lookup records by name, bio, country, and status."""
+
+    conditions: list[str] = []
+    params: list[Any] = []
+    if _clean(q):
+        pattern = f"%{_clean(q)}%"
+        conditions.append("(author_name ilike %s or coalesce(bio, '') ilike %s or coalesce(country, '') ilike %s)")
+        params.extend([pattern, pattern, pattern])
+    if _clean(status):
+        conditions.append("status = %s")
+        params.append(_clean(status).upper())
+
+    return _search_rows(
+        table="authors",
+        select_sql="select author_id, author_name, bio, country, status, created_at, updated_at from public.authors",
+        where_clause=" and ".join(conditions) if conditions else "true",
+        order_clause="author_name asc",
+        params=params,
+        limit=limit,
+        offset=offset,
+        rows_key="authors",
+    )
+
+
+def search_library_users(
+    *,
+    q: str | None = None,
+    status: str | None = None,
+    approval_status: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """Search library users by name, email, Keycloak id, status, or approval status."""
+
+    conditions: list[str] = []
+    params: list[Any] = []
+    if _clean(q):
+        pattern = f"%{_clean(q)}%"
+        conditions.append("(full_name ilike %s or email ilike %s or coalesce(keycloak_user_id, '') ilike %s)")
+        params.extend([pattern, pattern, pattern])
+    if _clean(status):
+        conditions.append("status = %s")
+        params.append(_clean(status).upper())
+    if _clean(approval_status):
+        conditions.append("approval_status = %s")
+        params.append(_clean(approval_status).upper())
+
+    return _search_rows(
+        table="library_users",
+        select_sql="""
+            select user_id, full_name, email, keycloak_user_id, status, approval_status,
+                   approved_by, approved_at, rejected_reason, created_at, updated_at
+            from public.library_users
+        """,
+        where_clause=" and ".join(conditions) if conditions else "true",
+        order_clause="created_at desc, full_name asc",
+        params=params,
+        limit=limit,
+        offset=offset,
+        rows_key="users",
+    )
+
+
+def search_user_subscriptions(
+    *,
+    q: str | None = None,
+    tier: str | None = None,
+    status: str | None = None,
+    user_email: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """Search user subscriptions with joined user and tier metadata."""
+
+    conditions: list[str] = []
+    params: list[Any] = []
+    if _clean(q):
+        pattern = f"%{_clean(q)}%"
+        conditions.append("(u.full_name ilike %s or u.email ilike %s or us.tier_code ilike %s or st.tier_name ilike %s)")
+        params.extend([pattern, pattern, pattern, pattern])
+    if _clean(tier):
+        conditions.append("us.tier_code = %s")
+        params.append(_clean(tier).upper())
+    if _clean(status):
+        conditions.append("us.status = %s")
+        params.append(_clean(status).upper())
+    if _clean(user_email):
+        conditions.append("u.email ilike %s")
+        params.append(f"%{_clean(user_email)}%")
+
+    return _search_rows(
+        table="user_subscriptions",
+        select_sql="""
+            select us.subscription_id, us.user_id, u.full_name, u.email,
+                   us.tier_code, st.tier_name, us.start_date, us.end_date,
+                   us.status, us.created_at, us.updated_at
+            from public.user_subscriptions us
+            join public.library_users u on u.user_id = us.user_id
+            join public.subscription_tiers st on st.tier_code = us.tier_code
+        """,
+        where_clause=" and ".join(conditions) if conditions else "true",
+        order_clause="us.created_at desc, u.email asc",
+        params=params,
+        limit=limit,
+        offset=offset,
+        rows_key="subscriptions",
+    )
+
+
+def search_approval_requests(
+    *,
+    q: str | None = None,
+    status: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """Search user approval requests with joined user metadata."""
+
+    conditions: list[str] = []
+    params: list[Any] = []
+    if _clean(q):
+        pattern = f"%{_clean(q)}%"
+        conditions.append("(u.full_name ilike %s or u.email ilike %s or coalesce(ar.review_comments, '') ilike %s)")
+        params.extend([pattern, pattern, pattern])
+    if _clean(status):
+        conditions.append("ar.request_status = %s")
+        params.append(_clean(status).upper())
+
+    return _search_rows(
+        table="user_approval_requests",
+        select_sql="""
+            select ar.approval_request_id, ar.user_id, u.full_name, u.email,
+                   ar.request_status, ar.reviewed_by, ar.reviewed_at,
+                   ar.review_comments, ar.created_at, ar.updated_at
+            from public.user_approval_requests ar
+            join public.library_users u on u.user_id = ar.user_id
+        """,
+        where_clause=" and ".join(conditions) if conditions else "true",
+        order_clause="ar.created_at desc, u.email asc",
+        params=params,
+        limit=limit,
+        offset=offset,
+        rows_key="approval_requests",
+    )
+
+
+def _search_rows(
+    *,
+    table: str,
+    select_sql: str,
+    where_clause: str,
+    order_clause: str,
+    params: list[Any],
+    limit: int,
+    offset: int,
+    rows_key: str,
+) -> dict[str, Any]:
+    count_query = f"select count(*) as total from ({select_sql} where {where_clause}) filtered"
+    query = f"{select_sql} where {where_clause} order by {order_clause} limit %s offset %s"
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(count_query, params)
+            total = int(cur.fetchone()["total"])
+            cur.execute(query, [*params, limit, offset])
+            rows = cur.fetchall()
+    safe_rows = [_json_safe(row) for row in rows]
+    return {
+        "table": table,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "count": len(safe_rows),
+        rows_key: safe_rows,
+        "rows": safe_rows,
+    }
+
+
 def _json_safe(value: Any) -> Any:
     """Convert PostgreSQL/Python values into JSON-safe values."""
 

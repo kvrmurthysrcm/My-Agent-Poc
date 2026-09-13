@@ -1,12 +1,19 @@
+import logging
+
+import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
-from app.main import app
+from app.main import _log_ollama_startup_check, app
 from app.schemas.answer_request import AnswerRequest
 from app.services.answer_service import AnswerService
 from app.services.context_builder import ContextBuilder
 from app.services.llm_providers.factory import LlmProviderFactory
 from app.services.llm_providers.gemini_provider import GeminiLlmProvider
+from app.services.llm_providers.ollama_provider import OllamaLlmProvider
+from app.services.ollama_dependency import DependencyUnavailableError, OllamaUnavailableError
+from app.services.search_client import RagSearchClient
 
 
 def _fake_search_response():
@@ -75,6 +82,98 @@ def test_health_endpoint():
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_answer_endpoint_returns_actionable_dependency_error(monkeypatch):
+    def fail_answer(self, request):
+        del self, request
+        raise DependencyUnavailableError(
+            code="ollama_unavailable",
+            message="Ollama is unavailable at http://127.0.0.1:11434. Start Ollama.",
+            details={"dependency": "ollama", "model": "gemma4"},
+        )
+
+    monkeypatch.setattr("app.api.rag_answer_routes.AnswerService.answer", fail_answer)
+    monkeypatch.setattr("app.main.check_ollama_available", lambda **kwargs: None)
+
+    with TestClient(app) as client:
+        response = client.post("/rag/answer", json={"query": "What happened?"})
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == {
+        "code": "ollama_unavailable",
+        "message": "Ollama is unavailable at http://127.0.0.1:11434. Start Ollama.",
+        "details": {"dependency": "ollama", "model": "gemma4"},
+    }
+
+
+def test_ollama_provider_converts_connection_failure_to_actionable_error(monkeypatch):
+    request = httpx.Request("POST", "http://127.0.0.1:11434/api/generate")
+
+    class FailingClient:
+        def __init__(self, timeout):
+            del timeout
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, url, json):
+            del url, json
+            raise httpx.ConnectError("connection refused", request=request)
+
+    monkeypatch.setattr("app.services.llm_providers.ollama_provider.httpx.Client", FailingClient)
+    provider = OllamaLlmProvider(
+        base_url="http://127.0.0.1:11434",
+        model="gemma4",
+        temperature=0.1,
+        timeout_seconds=10,
+    )
+
+    with pytest.raises(OllamaUnavailableError, match="ollama pull gemma4"):
+        provider.generate("Answer the question")
+
+
+def test_answer_startup_check_logs_actionable_ollama_failure(monkeypatch, caplog):
+    def unavailable(**kwargs):
+        raise OllamaUnavailableError(base_url=kwargs["base_url"], model=kwargs["model"])
+
+    monkeypatch.setattr("app.main.check_ollama_available", unavailable)
+    settings = Settings(LLM_PROVIDER="ollama", LLM_MODEL="gemma4")
+
+    with caplog.at_level(logging.ERROR, logger="app.main"):
+        _log_ollama_startup_check(settings)
+
+    assert "Ollama answer startup check failed" in caplog.text
+    assert "ollama pull gemma4" in caplog.text
+
+
+def test_search_client_preserves_safe_ollama_dependency_error(monkeypatch):
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            503,
+            json={
+                "detail": {
+                    "code": "ollama_unavailable",
+                    "message": "Ollama is unavailable at http://127.0.0.1:11434. Start Ollama.",
+                    "details": {"dependency": "ollama", "model": "nomic-embed-text", "secret": "not-forwarded"},
+                }
+            },
+            request=request,
+        )
+    )
+    original_client = httpx.Client
+    monkeypatch.setattr("app.services.search_client.httpx.Client", lambda *args, **kwargs: original_client(transport=transport))
+
+    client = RagSearchClient(Settings(RAG_SEARCH_BASE_URL="http://rag-search.test"))
+
+    with pytest.raises(DependencyUnavailableError) as raised:
+        client.search(AnswerRequest(query="What happened?"))
+
+    assert raised.value.code == "ollama_unavailable"
+    assert raised.value.details == {"dependency": "ollama", "model": "nomic-embed-text"}
 
 
 def test_answer_service_uses_search_context_and_returns_sources(monkeypatch):

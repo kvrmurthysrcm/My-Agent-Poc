@@ -79,7 +79,7 @@ ONLINE_LIBRARY_MCP_TIMEOUT_SECONDS=10
 
 ## Tools
 
-The MCP server exposes all 13 non-empty Online Library table endpoints as tools:
+The MCP server exposes the non-empty Online Library table endpoints as raw/debug tools:
 
 - `get_authors`
 - `get_categories`
@@ -98,6 +98,27 @@ The MCP server exposes all 13 non-empty Online Library table endpoints as tools:
 It also exposes:
 
 - `list_available_tables`
+
+For user-facing NLQ, prefer the business-level tools below. These map to filtered Online Library API endpoints and avoid unfiltered raw table scans:
+
+- `search_catalog_resources(q, author, genre, tag, tier, status, sort, limit, offset)`
+- `get_resource_detail(resource_id)`
+- `get_books_by_author(author, limit, offset)`
+- `get_books_by_genre(genre, limit, offset)`
+- `get_books_by_tag(tag, limit, offset)`
+- `search_authors(q, status, limit, offset)`
+- `get_available_facets()`
+- `search_users(q, status, approval_status, limit, offset)`
+- `search_subscriptions(q, tier, status, user_email, limit, offset)`
+- `search_approval_requests(q, status, limit, offset)`
+
+Example NLQ mapping:
+
+```text
+Show books by Sri Aurobindo.
+-> get_books_by_author(author="Sri Aurobindo", limit=10, offset=0)
+-> online_library GET /catalog/books/by-author
+```
 
 All table tools accept:
 

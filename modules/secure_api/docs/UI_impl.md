@@ -99,6 +99,7 @@ Admin-only controls:
 Regular authenticated users can still:
 
 - View books/resources
+- Browse and filter the Library catalog
 - Search books
 - Ask questions
 
@@ -125,6 +126,30 @@ This is reused from the RAG Search Service admin resource API.
 The Books tab refreshes this list automatically whenever the user clicks back into the tab. The top-bar `Refresh` button and the Books tab `Refresh Books` button use the same wrapper call for manual reloads. The UI guards concurrent reloads so rapid clicks do not send duplicate resource-list requests.
 
 Every UI request also sends `traceparent`, `X-Trace-Id`, and `X-Span-Id` headers. See `TRACE_ID_IMPLEMENTATION.md` for how to search logs by trace.
+
+### Library Catalog
+
+UI calls:
+
+```text
+GET http://localhost:8010/library/catalog/facets
+GET http://localhost:8010/library/catalog/resources
+GET http://localhost:8010/library/catalog/resources/{resource_id}
+```
+
+Wrapper forwards to:
+
+```text
+GET http://localhost:8003/catalog/facets
+GET http://localhost:8003/catalog/resources
+GET http://localhost:8003/catalog/resources/{resource_id}
+```
+
+The Library tab is structured catalog browsing. It searches metadata such as title, author, genre/category, tags, subscription tier, publisher, language, ISBN, and dates. It does not search book chunk contents; chunk/content search remains in the Search and Answer tabs.
+
+Normal users see catalog fields such as title, authors, genre, tags, tier, ISBN, page count, language, and publication date.
+
+Admins additionally see technical fields in the detail panel, including resource id, RAG status, file name, file size, and whether RAG is enabled.
 
 ### Delete Books
 

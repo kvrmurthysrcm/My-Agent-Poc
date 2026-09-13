@@ -247,11 +247,17 @@
     .tool-list { display: grid; gap: 6px; align-content: start; }
     .tool-list button { text-align: left; font-weight: 700; }
     .tool-list button.active { border-color: var(--accent-2); background: var(--soft); color: var(--accent-2); }
+    .library-layout { display: grid; grid-template-columns: minmax(320px, 0.4fr) minmax(0, 0.6fr); gap: 14px; align-items: start; }
+    .library-results { display: grid; gap: 14px; min-width: 0; }
+    .library-filter-form .form-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .library-filter-form .wide { grid-column: span 2; }
+    .library-table { min-width: 760px; }
     .hidden { display: none !important; }
     @media (max-width: 900px) {
       .topbar-inner { align-items: stretch; flex-direction: column; }
       .userbar { flex-wrap: wrap; }
-      .metrics, .grid-2, .form-grid, .tool-grid { grid-template-columns: 1fr; }
+      .metrics, .grid-2, .form-grid, .tool-grid, .library-layout, .library-filter-form .form-grid { grid-template-columns: 1fr; }
+      .library-filter-form .wide { grid-column: 1; }
       nav button { flex: 1 1 auto; }
     }
   </style>
@@ -300,6 +306,7 @@
           <button type="button" data-view="search">Search</button>
           <button type="button" data-view="answer">Answer</button>
           <button type="button" data-view="compare">Compare</button>
+          <button type="button" data-view="library">Library</button>
           <button type="button" data-view="librarySearch">Library Search</button>
           <button id="ingestNav" type="button" data-view="ingest" class="hidden">Ingest</button>
           <button id="libraryToolsNav" type="button" data-view="libraryTools" class="hidden">Library Tools</button>
@@ -470,6 +477,73 @@
         </div>
       </section>
 
+      <section id="libraryView" class="view hidden">
+        <div class="library-layout">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Library Catalog</h2>
+              <span id="librarySummary" class="muted"></span>
+            </div>
+            <form id="libraryCatalogForm" class="panel-body library-filter-form">
+              <div class="form-grid">
+                <label class="full">Search <input id="catalogQuery" placeholder="Title, author, tag, category, publisher, ISBN"></label>
+                <label class="wide">Author <input id="catalogAuthor" list="catalogAuthorList" placeholder="optional"></label>
+                <label class="wide">Tag <input id="catalogTag" list="catalogTagList" placeholder="optional"></label>
+                <label>Genre <input id="catalogGenre" list="catalogGenreList" placeholder="optional"></label>
+                <label>Tier
+                  <select id="catalogTier"><option value="">Any</option></select>
+                </label>
+                <label>Sort
+                  <select id="catalogSort">
+                    <option value="title">Title</option>
+                    <option value="created_desc">Newest Added</option>
+                    <option value="published_desc">Newest Published</option>
+                    <option value="published_asc">Oldest Published</option>
+                  </select>
+                </label>
+                <label>Limit <input id="catalogLimit" type="number" min="1" max="100" value="20"></label>
+              </div>
+              <datalist id="catalogAuthorList"></datalist>
+              <datalist id="catalogGenreList"></datalist>
+              <datalist id="catalogTagList"></datalist>
+              <div class="toolbar">
+                <button class="blue" type="submit">Search Catalog</button>
+                <button type="button" id="catalogResetButton">Reset</button>
+                <button type="button" id="catalogPrevButton" disabled>Previous</button>
+                <button type="button" id="catalogNextButton" disabled>Next</button>
+              </div>
+            </form>
+          </div>
+          <div class="library-results">
+            <div class="panel">
+              <div class="panel-head"><h2>Resources</h2></div>
+              <div class="panel-body">
+                <div id="catalogMessage" class="message">Enter catalog filters, then run Search Catalog.</div>
+                <div class="table-wrap">
+                  <table class="library-table">
+                    <thead>
+                      <tr>
+                        <th>Title</th>
+                        <th>Authors</th>
+                        <th>Genre</th>
+                        <th>Tags</th>
+                        <th>Tier</th>
+                        <th class="admin-only hidden">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="catalogRows"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h2>Details</h2></div>
+              <div id="catalogDetail" class="panel-body"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="librarySearchView" class="view hidden">
         <div class="grid-2">
           <div class="panel">
@@ -530,7 +604,7 @@
   </section>
 
   <script>
-    const state = { token: localStorage.getItem("secure_api_access_token") || "", refreshToken: localStorage.getItem("secure_api_refresh_token") || "", user: null, resources: [], libraryTools: [], resourcesLoading: false };
+    const state = { token: localStorage.getItem("secure_api_access_token") || "", refreshToken: localStorage.getItem("secure_api_refresh_token") || "", user: null, resources: [], libraryTools: [], catalogResources: [], catalogOffset: 0, catalogTotal: 0, catalogLoading: false, resourcesLoading: false };
     const loginScreen = document.getElementById("loginScreen");
     const appScreen = document.getElementById("appScreen");
     const globalMessage = document.getElementById("globalMessage");
@@ -551,6 +625,14 @@
     document.getElementById("answerForm").addEventListener("submit", answerQuestion);
     document.getElementById("compareForm").addEventListener("submit", compareAnswers);
     document.getElementById("ingestForm").addEventListener("submit", ingestBook);
+    document.getElementById("libraryCatalogForm").addEventListener("submit", searchCatalog);
+    document.getElementById("catalogResetButton").addEventListener("click", resetCatalog);
+    document.getElementById("catalogPrevButton").addEventListener("click", () => pageCatalog(-1));
+    document.getElementById("catalogNextButton").addEventListener("click", () => pageCatalog(1));
+    document.getElementById("catalogRows").addEventListener("click", (event) => {
+      const row = event.target.closest("tr[data-resource-id]");
+      if (row) loadCatalogDetail(row.dataset.resourceId);
+    });
     document.getElementById("librarySearchForm").addEventListener("submit", askLibrary);
     document.querySelectorAll("button[data-library-question]").forEach((button) => {
       button.addEventListener("click", () => { librarySearchQuestion.value = button.dataset.libraryQuestion; });
@@ -672,6 +754,7 @@
       }
       state.user = body;
       showApp();
+      await loadCatalogFacets();
       await refreshBooks();
     }
 
@@ -871,7 +954,7 @@
       const response = await apiFetch("/rag/answer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const body = await readBody(response);
       if (!response.ok) {
-        answerResult.innerHTML = `<pre>${esc(JSON.stringify(body, null, 2))}</pre>`;
+        answerResult.innerHTML = `<div class="message error"><strong>Unable to generate an answer.</strong><p>${esc(body.error?.message || "The Answer service is unavailable. Please try again shortly.")}</p></div>`;
         return;
       }
       answerResult.innerHTML = `<article class="result-item"><strong>${esc(body.answer_status)}</strong><p>${esc(body.answer)}</p></article><pre>${esc(JSON.stringify(body.sources || [], null, 2))}</pre>`;
@@ -893,7 +976,7 @@
       const response = await apiFetch("/rag/answer/compare", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const body = await readBody(response);
       if (!response.ok) {
-        compareResult.innerHTML = `<pre>${esc(JSON.stringify(body, null, 2))}</pre>`;
+        compareResult.innerHTML = `<div class="message error"><strong>Unable to compare answers.</strong><p>${esc(body.error?.message || "The Answer service is unavailable. Please try again shortly.")}</p></div>`;
         return;
       }
       compareResult.innerHTML = `
@@ -939,6 +1022,129 @@
       if (response.ok) await refreshBooks();
     }
 
+    async function loadCatalogFacets() {
+      const response = await apiFetch("/library/catalog/facets");
+      const body = await readBody(response);
+      if (!response.ok) return;
+      const facets = body.facets || {};
+      fillDatalist(catalogAuthorList, facets.authors || []);
+      fillDatalist(catalogGenreList, facets.genres || facets.categories || []);
+      fillDatalist(catalogTagList, facets.tags || []);
+      catalogTier.innerHTML = `<option value="">Any</option>${(facets.subscription_tiers || []).map((tier) => `<option value="${esc(tier.tier_code)}">${esc(tier.tier_name || tier.tier_code)}</option>`).join("")}`;
+    }
+
+    function fillDatalist(list, values) {
+      list.innerHTML = values.map((value) => `<option value="${esc(value)}"></option>`).join("");
+    }
+
+    async function searchCatalog(event) {
+      if (event) event.preventDefault();
+      state.catalogOffset = event ? 0 : state.catalogOffset;
+      await loadCatalogResources();
+    }
+
+    async function loadCatalogResources() {
+      if (state.catalogLoading) return;
+      state.catalogLoading = true;
+      catalogMessage.className = "message";
+      catalogMessage.textContent = "Loading catalog...";
+      const params = new URLSearchParams();
+      const values = {
+        q: catalogQuery.value.trim(),
+        author: catalogAuthor.value.trim(),
+        genre: catalogGenre.value.trim(),
+        tag: catalogTag.value.trim(),
+        tier: catalogTier.value,
+        sort: catalogSort.value,
+        limit: catalogLimit.value || "20",
+        offset: String(state.catalogOffset),
+        status: "ACTIVE"
+      };
+      Object.entries(values).forEach(([key, value]) => { if (value) params.set(key, value); });
+      const response = await apiFetch(`/library/catalog/resources?${params.toString()}`);
+      const body = await readBody(response);
+      state.catalogLoading = false;
+      if (!response.ok) {
+        catalogMessage.className = "message error";
+        catalogMessage.textContent = body.error?.message || "Unable to load catalog";
+        return;
+      }
+      state.catalogResources = body.resources || [];
+      state.catalogTotal = body.total || 0;
+      renderCatalog(body);
+      catalogMessage.classList.add("hidden");
+    }
+
+    function renderCatalog(body) {
+      librarySummary.textContent = `${body.count || 0} shown of ${body.total || 0}`;
+      catalogRows.innerHTML = state.catalogResources.length ? state.catalogResources.map(renderCatalogRow).join("") : `<tr><td colspan="${isAdmin() ? 6 : 5}" class="muted">No catalog resources found.</td></tr>`;
+      catalogPrevButton.disabled = state.catalogOffset <= 0;
+      catalogNextButton.disabled = state.catalogOffset + Number(catalogLimit.value || 20) >= state.catalogTotal;
+      adminEls().forEach((el) => el.classList.toggle("hidden", !isAdmin()));
+      if (state.catalogResources.length) renderCatalogDetail(state.catalogResources[0]);
+      else catalogDetail.innerHTML = "";
+    }
+
+    function renderCatalogRow(item) {
+      return `
+        <tr data-resource-id="${esc(item.resource_id)}">
+          <td><div class="title">${esc(item.title || "Untitled")}</div><div class="muted">${esc(item.publisher || "")}</div></td>
+          <td>${esc((item.authors || []).join(", "))}</td>
+          <td>${esc(item.genre || item.category || "")}</td>
+          <td>${(item.tags || []).slice(0, 3).map((tag) => `<span class="badge">${esc(tag)}</span>`).join("")}</td>
+          <td>${esc(item.minimum_tier_code || "")}</td>
+          <td class="admin-only ${isAdmin() ? "" : "hidden"}">${esc(item.ingestion_status || item.status || "")}</td>
+        </tr>`;
+    }
+
+    async function loadCatalogDetail(resourceId) {
+      const response = await apiFetch(`/library/catalog/resources/${encodeURIComponent(resourceId)}`);
+      const body = await readBody(response);
+      if (!response.ok) {
+        catalogDetail.innerHTML = `<pre>${esc(JSON.stringify(body, null, 2))}</pre>`;
+        return;
+      }
+      renderCatalogDetail(body.resource || {});
+    }
+
+    function renderCatalogDetail(item) {
+      catalogDetail.innerHTML = `
+        <article class="result-item">
+          <strong>${esc(item.title || "Untitled")}</strong>
+          <p>${esc(item.description || "")}</p>
+          <div>${(item.authors || []).map((author) => `<span class="badge">${esc(author)}</span>`).join("")}</div>
+          <div>${(item.tags || []).map((tag) => `<span class="badge">${esc(tag)}</span>`).join("")}</div>
+          <div class="muted">Genre: ${esc(item.genre || item.category || "")} | Language: ${esc(item.language || "")} | Tier: ${esc(item.minimum_tier_code || "")}</div>
+          <div class="muted">ISBN: ${esc(item.isbn || "")} | Pages: ${esc(item.page_count || "")} | Published: ${esc(item.published_date || "")}</div>
+          ${isAdmin() ? `<pre>${esc(JSON.stringify({ resource_id: item.resource_id, status: item.status, ingestion_status: item.ingestion_status, rag_enabled: item.rag_enabled, file_name: item.file_name, file_size_bytes: item.file_size_bytes }, null, 2))}</pre>` : ""}
+        </article>`;
+    }
+
+    async function pageCatalog(direction) {
+      const limit = Number(catalogLimit.value || 20);
+      state.catalogOffset = Math.max(0, state.catalogOffset + direction * limit);
+      await loadCatalogResources();
+    }
+
+    async function resetCatalog() {
+      catalogQuery.value = "";
+      catalogAuthor.value = "";
+      catalogGenre.value = "";
+      catalogTag.value = "";
+      catalogTier.value = "";
+      catalogSort.value = "title";
+      state.catalogOffset = 0;
+      state.catalogTotal = 0;
+      state.catalogResources = [];
+      librarySummary.textContent = "";
+      catalogRows.innerHTML = "";
+      catalogDetail.innerHTML = "";
+      catalogPrevButton.disabled = true;
+      catalogNextButton.disabled = true;
+      catalogMessage.className = "message";
+      catalogMessage.textContent = "Enter catalog filters, then run Search Catalog.";
+    }
+
     async function askLibrary(event) {
       event.preventDefault();
       librarySearchResult.innerHTML = `<div class="message">Searching library data...</div>`;
@@ -962,7 +1168,7 @@
     }
 
     function renderLibrarySearchResponse(body) {
-      const rows = body.raw_tool_result?.rows || [];
+      const rows = body.raw_tool_result?.rows || body.raw_tool_result?.resources || [];
       return `
         <article class="result-item">
           <strong>${esc(body.selected_tool || "No tool selected")}</strong>

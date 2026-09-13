@@ -67,6 +67,19 @@ ONLINE_LIBRARY_ANSWER_NUM_PREDICT=220
 
 The `/ask` page includes guided forms for common questions and an open-ended question box.
 
+## NLQ Tool Selection
+
+The agent first discovers MCP tool metadata from `online_library_mcp`, then selects one tool and structured arguments. Raw table tools still exist, but catalog/user-facing questions should resolve to business-level tools:
+
+- `Show books by Sri Aurobindo.` -> `get_books_by_author(author="Sri Aurobindo")`
+- `Show books in genre Drama.` -> `get_books_by_genre(genre="Drama")`
+- `Show books tagged Yoga.` -> `get_books_by_tag(tag="Yoga")`
+- `What available authors and genres can I search?` -> `get_available_facets()`
+- `Show active FREE subscriptions.` -> `search_subscriptions(tier="FREE", status="ACTIVE")`
+- `Show pending approval requests.` -> `search_approval_requests(status="PENDING")`
+
+The planner includes deterministic business-rule overrides for common patterns so simple queries do not depend entirely on the local LLM generating perfect JSON.
+
 ## Developer Diagnostics
 
 The POC shows internal details in the result:

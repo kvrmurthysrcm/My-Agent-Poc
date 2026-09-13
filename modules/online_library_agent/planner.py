@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import Any
 
@@ -14,6 +15,28 @@ KEYWORD_TOOL_HINTS: dict[str, tuple[str, ...]] = {
     "list_available_tables": ("available tools", "available data", "what can you answer", "tables", "datasets"),
     "get_library_users": ("user", "users", "member", "members", "patron", "account", "approval status"),
     "get_resources": ("book", "books", "resource", "resources", "title", "isbn", "publisher", "content"),
+    "get_books_by_author": ("book by", "books by", "written by", "author"),
+    "get_books_by_genre": ("genre", "category", "section"),
+    "get_books_by_tag": ("tag", "tagged", "topic", "keyword"),
+    "get_resource_detail": ("resource detail", "resource id", "details for resource"),
+    "search_authors": ("find author", "search author", "author named"),
+    "get_available_facets": ("available authors", "available genres", "available tags", "facets", "filters"),
+    "search_users": ("search users", "find users", "user email", "approval status"),
+    "search_subscriptions": ("search subscriptions", "subscription status", "subscriptions for", "tier"),
+    "search_approval_requests": ("approval requests", "pending approvals", "rejected approvals"),
+    "search_catalog_resources": (
+        "book by",
+        "books by",
+        "resource by",
+        "resources by",
+        "title",
+        "genre",
+        "tag",
+        "catalog",
+        "search books",
+        "show books",
+        "find books",
+    ),
     "get_authors": ("author", "authors", "writer", "writers"),
     "get_categories": ("category", "categories", "genre", "genres", "section", "classification"),
     "get_tags": ("tag", "tags", "topic", "topics", "keyword", "keywords"),
@@ -132,6 +155,10 @@ class OnlineLibraryPlanner:
     async def _choose_tool(self, question: str, tools: list[ToolInfo], limit: int, offset: int) -> ToolChoice:
         """Ask the LLM to pick a tool; fallback to keyword matching if JSON is bad."""
 
+        business_override = _business_tool_choice(question, {tool.name for tool in tools}, limit, offset)
+        if business_override:
+            return business_override
+
         prompt = _tool_selection_prompt(question, tools, limit, offset)
         try:
             llm_text = await self.llm_client.generate(
@@ -146,6 +173,10 @@ class OnlineLibraryPlanner:
         if parsed:
             tool_name = str(parsed.get("tool_name", "")).strip()
             arguments = parsed.get("arguments") if isinstance(parsed.get("arguments"), dict) else {}
+            business_override = _business_tool_choice(question, {tool.name for tool in tools}, limit, offset)
+            if business_override:
+                tool_name = business_override.tool_name
+                arguments = business_override.arguments
             if tool_name == "list_available_tables":
                 arguments = {}
             else:
@@ -160,9 +191,18 @@ class OnlineLibraryPlanner:
             )
 
         fallback = _keyword_tool_choice(question, {tool.name for tool in tools})
+        business_override = _business_tool_choice(question, {tool.name for tool in tools}, limit, offset)
+        if business_override:
+            fallback = business_override.tool_name
         return ToolChoice(
             tool_name=fallback or "",
-            arguments={} if fallback == "list_available_tables" else ({"limit": limit, "offset": offset} if fallback else {}),
+            arguments=(
+                {}
+                if fallback == "list_available_tables"
+                else (business_override.arguments if business_override else {"limit": limit, "offset": offset})
+                if fallback
+                else {}
+            ),
             reason="Selected by deterministic keyword fallback.",
             selection_mode="keyword_fallback",
             fallback_used=True,
@@ -238,6 +278,11 @@ def _tool_selection_prompt(question: str, tools: list[ToolInfo], limit: int, off
         f"Default limit: {limit}\n"
         f"Default offset: {offset}\n\n"
         f"Tools:\n{json.dumps(catalog, indent=2)}\n\n"
+        "For filtered book/resource catalog questions, prefer search_catalog_resources and pass available filters such as author, q, genre, tag, tier, limit, and offset.\n"
+        "Prefer specific tools when they match: get_books_by_author, get_books_by_genre, get_books_by_tag, search_authors, search_users, search_subscriptions, search_approval_requests, get_available_facets.\n"
+        "Example for 'Show books by Sri Aurobindo': "
+        '{"tool_name":"get_books_by_author","arguments":{"author":"Sri Aurobindo","limit":10,"offset":0},"reason":"filter resources by author"}'
+        "\n\n"
         "Return this JSON shape:\n"
         '{"tool_name":"get_resources","arguments":{"limit":10,"offset":0},"reason":"short reason"}'
     )
@@ -273,10 +318,264 @@ def _keyword_tool_choice(question: str, available_tool_names: set[str]) -> str |
     return best_tool
 
 
+def _business_tool_choice(
+    question: str,
+    available_tool_names: set[str],
+    limit: int,
+    offset: int,
+) -> ToolChoice | None:
+    normalized = question.strip()
+    if not normalized:
+        return None
+
+    resource_id = _extract_uuid(normalized)
+    if resource_id and "get_resource_detail" in available_tool_names:
+        return ToolChoice(
+            tool_name="get_resource_detail",
+            arguments={"resource_id": resource_id},
+            reason="Detected a resource id detail request.",
+            selection_mode="deterministic_business_rule",
+            fallback_used=False,
+        )
+
+    author = _extract_after_phrase(
+        normalized,
+        ("books by", "book by", "resources by", "resource by", "documents by", "document by", "written by"),
+    )
+    if author and "get_books_by_author" in available_tool_names:
+        return ToolChoice(
+            tool_name="get_books_by_author",
+            arguments={"author": author, "limit": limit, "offset": offset},
+            reason="Detected a book/resource search by author.",
+            selection_mode="deterministic_business_rule",
+            fallback_used=False,
+        )
+
+    genre = _extract_after_phrase(normalized, ("genre", "category", "section"))
+    if genre and "get_books_by_genre" in available_tool_names:
+        return ToolChoice(
+            tool_name="get_books_by_genre",
+            arguments={"genre": genre, "limit": limit, "offset": offset},
+            reason="Detected a book/resource search by genre.",
+            selection_mode="deterministic_business_rule",
+            fallback_used=False,
+        )
+
+    tag = _extract_after_phrase(normalized, ("tagged", "tag", "topic", "keyword"))
+    if tag and "get_books_by_tag" in available_tool_names:
+        return ToolChoice(
+            tool_name="get_books_by_tag",
+            arguments={"tag": tag, "limit": limit, "offset": offset},
+            reason="Detected a book/resource search by tag.",
+            selection_mode="deterministic_business_rule",
+            fallback_used=False,
+        )
+
+    lowered = normalized.lower()
+    if "get_available_facets" in available_tool_names and (
+        "available authors" in lowered
+        or "available genres" in lowered
+        or "available tags" in lowered
+        or "catalog filters" in lowered
+        or "facets" in lowered
+    ):
+        return ToolChoice(
+            tool_name="get_available_facets",
+            arguments={},
+            reason="Detected a catalog facet/filter lookup.",
+            selection_mode="deterministic_business_rule",
+            fallback_used=False,
+        )
+
+    if "search_approval_requests" in available_tool_names and ("approval" in lowered or "approvals" in lowered):
+        return ToolChoice(
+            tool_name="search_approval_requests",
+            arguments={
+                "q": _search_phrase(normalized, ("approval requests", "approvals")) or "",
+                "status": _status_from_question(normalized, ("PENDING", "APPROVED", "REJECTED")) or "",
+                "limit": limit,
+                "offset": offset,
+            },
+            reason="Detected an approval request search.",
+            selection_mode="deterministic_business_rule",
+            fallback_used=False,
+        )
+
+    if "search_subscriptions" in available_tool_names and ("subscription" in lowered or "subscriptions" in lowered or "tier" in lowered):
+        return ToolChoice(
+            tool_name="search_subscriptions",
+            arguments={
+                "q": _search_phrase(normalized, ("subscriptions", "subscription")) or "",
+                "tier": _tier_from_question(normalized) or "",
+                "status": _status_from_question(normalized, ("ACTIVE", "EXPIRED", "CANCELLED", "INACTIVE")) or "",
+                "limit": limit,
+                "offset": offset,
+            },
+            reason="Detected a subscription search.",
+            selection_mode="deterministic_business_rule",
+            fallback_used=False,
+        )
+
+    if "search_users" in available_tool_names and re.search(r"\b(users?|members?|patrons?|accounts?)\b", lowered):
+        return ToolChoice(
+            tool_name="search_users",
+            arguments={
+                "q": _search_phrase(normalized, ("users", "user", "members", "member", "patrons", "patron", "accounts", "account")) or "",
+                "status": _status_from_question(normalized, ("ACTIVE", "INACTIVE", "PENDING_APPROVAL", "REJECTED")) or "",
+                "approval_status": _status_from_question(normalized, ("PENDING_APPROVAL", "APPROVED", "REJECTED")) or "",
+                "limit": limit,
+                "offset": offset,
+            },
+            reason="Detected a library user search.",
+            selection_mode="deterministic_business_rule",
+            fallback_used=False,
+        )
+
+    if "search_authors" in available_tool_names and re.search(r"\b(find|search|show|list)\b.*\bauthors?\b", lowered):
+        return ToolChoice(
+            tool_name="search_authors",
+            arguments={
+                "q": _search_phrase(normalized, ("authors", "author")) or "",
+                "status": "ACTIVE",
+                "limit": limit,
+                "offset": offset,
+            },
+            reason="Detected an author lookup search.",
+            selection_mode="deterministic_business_rule",
+            fallback_used=False,
+        )
+
+    catalog_arguments = _catalog_search_arguments(question, limit, offset)
+    if catalog_arguments and "search_catalog_resources" in available_tool_names:
+        return ToolChoice(
+            tool_name="search_catalog_resources",
+            arguments=catalog_arguments,
+            reason="Detected a filtered catalog resource search.",
+            selection_mode="deterministic_business_rule",
+            fallback_used=False,
+        )
+
+    return None
+
+
+def _catalog_search_arguments(question: str, limit: int, offset: int) -> dict[str, Any] | None:
+    normalized = question.strip()
+    if not normalized:
+        return None
+
+    args: dict[str, Any] = {"limit": limit, "offset": offset, "status": "ACTIVE", "sort": "title"}
+    author = _extract_after_phrase(
+        normalized,
+        (
+            "books by",
+            "book by",
+            "resources by",
+            "resource by",
+            "documents by",
+            "document by",
+            "author",
+            "written by",
+        ),
+    )
+    title = _extract_after_phrase(
+        normalized,
+        (
+            "title",
+            "titled",
+            "called",
+            "named",
+        ),
+    )
+    genre = _extract_after_phrase(normalized, ("genre", "category"))
+    tag = _extract_after_phrase(normalized, ("tag", "tagged"))
+
+    if author:
+        args["author"] = author
+    if title:
+        args["q"] = title
+    if genre:
+        args["genre"] = genre
+    if tag:
+        args["tag"] = tag
+
+    has_catalog_intent = bool(
+        re.search(r"\b(book|books|resource|resources|document|documents|catalog|title|author|genre|tag)\b", normalized, re.IGNORECASE)
+    )
+    if len(args) > 4:
+        return args
+    if has_catalog_intent and re.search(r"\b(find|show|list|search)\b", normalized, re.IGNORECASE):
+        stripped = re.sub(r"^(find|show|list|search)\s+", "", normalized, flags=re.IGNORECASE)
+        stripped = re.sub(r"\b(books?|resources?|documents?|catalog)\b", "", stripped, flags=re.IGNORECASE).strip(" .:")
+        if stripped:
+            args["q"] = stripped
+            return args
+    return None
+
+
+def _extract_uuid(text: str) -> str | None:
+    match = re.search(
+        r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
+        text,
+        re.IGNORECASE,
+    )
+    return match.group(0) if match else None
+
+
+def _search_phrase(text: str, nouns: tuple[str, ...]) -> str | None:
+    cleaned = text.strip(" .,:;\"'")
+    cleaned = re.sub(r"^(find|show|list|search)\s+", "", cleaned, flags=re.IGNORECASE)
+    for noun in nouns:
+        cleaned = re.sub(rf"\b{re.escape(noun)}\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(
+        r"\b(with|where|having|status|approval status|tier|plan|active|inactive|approved|rejected|pending|pending approval|free|premium|basic)\b",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    return cleaned.strip(" .,:;\"'") or None
+
+
+def _status_from_question(text: str, statuses: tuple[str, ...]) -> str | None:
+    normalized = text.lower().replace("_", " ")
+    for status in statuses:
+        phrase = status.lower().replace("_", " ")
+        if phrase in normalized:
+            return status
+    if "pending approval" in normalized and "PENDING_APPROVAL" in statuses:
+        return "PENDING_APPROVAL"
+    if "pending" in normalized and "PENDING" in statuses:
+        return "PENDING"
+    return None
+
+
+def _tier_from_question(text: str) -> str | None:
+    normalized = text.lower()
+    for tier in ("FREE", "BASIC", "PREMIUM"):
+        if tier.lower() in normalized:
+            return tier
+    return None
+
+
+def _extract_after_phrase(text: str, phrases: tuple[str, ...]) -> str | None:
+    for phrase in phrases:
+        match = re.search(
+            rf"\b{re.escape(phrase)}\b\s*[:=-]?\s+(.+?)(?:\s+\b(?:with|where|having|and|limit|offset|sort|in)\b|[?.!,;]|$)",
+            text,
+            re.IGNORECASE,
+        )
+        if match:
+            value = match.group(1).strip(" .,:;\"'")
+            value = re.sub(r"^(the|a|an)\s+", "", value, flags=re.IGNORECASE)
+            return value or None
+    return None
+
+
 def _deterministic_summary(tool_name: str, tool_result: dict[str, Any]) -> str:
     count = tool_result.get("count")
     table = tool_result.get("table", tool_name)
-    rows = tool_result.get("rows") if isinstance(tool_result.get("rows"), list) else []
+    rows = tool_result.get("rows") if isinstance(tool_result.get("rows"), list) else None
+    if rows is None:
+        rows = tool_result.get("resources") if isinstance(tool_result.get("resources"), list) else []
     if count == 0 or not rows:
         return f"The tool `{tool_name}` returned no rows from `{table}`."
     return f"The tool `{tool_name}` returned {count} row(s) from `{table}`."

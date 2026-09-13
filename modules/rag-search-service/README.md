@@ -45,6 +45,10 @@ This POC uses SQL schema files only.
 
 PostgreSQL is required. Do not use file-based local databases when validating ingest/search behavior across services.
 
+## Ollama embedding dependency checks
+
+With `EMBEDDING_PROVIDER=ollama`, the service checks `OLLAMA_BASE_URL/api/tags` during startup and logs either a passing check or the exact `ollama pull <model>` remediation. A failed check does not stop the service, so keyword search remains usable; vector and hybrid search return an actionable `503` until Ollama and the configured embedding model are available. `/ready` also returns `503` while this dependency is unavailable.
+
 ## Search
 
 ```text

@@ -103,6 +103,67 @@
             "description": "Replace the resource id with one copied from Catalog - List Resources.",
             "url": "{{baseUrl}}/catalog/resources/{{resourceId}}"
           }
+        },
+        {
+          "name": "Catalog - Books by Author Endpoint",
+          "request": {
+            "method": "GET",
+            "description": "Business-level endpoint for books/resources by author. Used by MCP get_books_by_author.",
+            "url": "{{baseUrl}}/catalog/books/by-author?author=Sri%20Aurobindo&limit=5&offset=0"
+          }
+        },
+        {
+          "name": "Catalog - Books by Genre Endpoint",
+          "request": {
+            "method": "GET",
+            "description": "Business-level endpoint for books/resources by genre/category. Used by MCP get_books_by_genre.",
+            "url": "{{baseUrl}}/catalog/books/by-genre?genre=Drama&limit=5&offset=0"
+          }
+        },
+        {
+          "name": "Catalog - Books by Tag Endpoint",
+          "request": {
+            "method": "GET",
+            "description": "Business-level endpoint for books/resources by tag/topic. Used by MCP get_books_by_tag.",
+            "url": "{{baseUrl}}/catalog/books/by-tag?tag=Yoga&limit=5&offset=0"
+          }
+        },
+        {
+          "name": "Catalog - Search Authors",
+          "request": {
+            "method": "GET",
+            "description": "Search author lookup records. Used by MCP search_authors.",
+            "url": "{{baseUrl}}/catalog/authors?q=Sri%20Aurobindo&limit=5&offset=0"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Business Search",
+      "item": [
+        {
+          "name": "Users - Search",
+          "request": {
+            "method": "GET",
+            "description": "Search library users by name/email/status/approval status. Used by MCP search_users.",
+            "url": "{{baseUrl}}/users/search?q=rag&approval_status=APPROVED&limit=10&offset=0"
+          }
+        },
+        {
+          "name": "Subscriptions - Search",
+          "request": {
+            "method": "GET",
+            "description": "Search user subscriptions by tier/status/user. Used by MCP search_subscriptions.",
+            "url": "{{baseUrl}}/subscriptions/search?tier=FREE&status=ACTIVE&limit=10&offset=0"
+          }
+        },
+        {
+          "name": "Approvals - Search",
+          "request": {
+            "method": "GET",
+            "description": "Search approval requests by requester/status/comments. Used by MCP search_approval_requests.",
+            "url": "{{baseUrl}}/approvals/search?status=PENDING&limit=10&offset=0"
+          }
         }
       ]
     },

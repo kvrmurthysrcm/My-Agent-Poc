@@ -4,6 +4,7 @@ import httpx
 
 from app.core.config import Settings
 from app.schemas.answer_request import AnswerRequest
+from app.services.ollama_dependency import dependency_error_from_response
 from app.trace_context import outbound_trace_headers
 
 
@@ -33,7 +34,13 @@ class RagSearchClient:
                     json=payload,
                     headers=outbound_trace_headers(),
                 )
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                dependency_error = dependency_error_from_response(response)
+                if dependency_error:
+                    raise dependency_error from exc
+                raise
             return response.json()
 
     def health(self) -> dict[str, Any]:

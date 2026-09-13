@@ -12,7 +12,11 @@ from .repository import (
     get_catalog_facets,
     get_catalog_resource_detail,
     list_available_tables,
+    search_approval_requests,
+    search_authors,
     search_catalog_resources,
+    search_library_users,
+    search_user_subscriptions,
 )
 from .trace_context import install_log_record_factory, trace_context_middleware
 
@@ -101,12 +105,115 @@ def catalog_resource_detail(resource_id: str) -> dict[str, Any]:
     return {"resource": resource}
 
 
+@app.get("/catalog/books/by-author")
+def catalog_books_by_author(
+    author: str = Query(..., min_length=1),
+    status: str | None = Query("ACTIVE"),
+    sort: str = Query("title"),
+    pagination: tuple[int, int] = Depends(_limit_query),
+) -> dict[str, Any]:
+    """Search catalog resources by author name."""
+
+    limit, offset = pagination
+    return search_catalog_resources(author=author, status=status, sort=sort, limit=limit, offset=offset)
+
+
+@app.get("/catalog/books/by-genre")
+def catalog_books_by_genre(
+    genre: str = Query(..., min_length=1),
+    status: str | None = Query("ACTIVE"),
+    sort: str = Query("title"),
+    pagination: tuple[int, int] = Depends(_limit_query),
+) -> dict[str, Any]:
+    """Search catalog resources by genre/category name."""
+
+    limit, offset = pagination
+    return search_catalog_resources(genre=genre, status=status, sort=sort, limit=limit, offset=offset)
+
+
+@app.get("/catalog/books/by-tag")
+def catalog_books_by_tag(
+    tag: str = Query(..., min_length=1),
+    status: str | None = Query("ACTIVE"),
+    sort: str = Query("title"),
+    pagination: tuple[int, int] = Depends(_limit_query),
+) -> dict[str, Any]:
+    """Search catalog resources by tag name."""
+
+    limit, offset = pagination
+    return search_catalog_resources(tag=tag, status=status, sort=sort, limit=limit, offset=offset)
+
+
+@app.get("/catalog/authors")
+def catalog_authors(
+    q: str | None = Query(None),
+    status: str | None = Query("ACTIVE"),
+    pagination: tuple[int, int] = Depends(_limit_query),
+) -> dict[str, Any]:
+    """Search author lookup records for NLQ and catalog UIs."""
+
+    limit, offset = pagination
+    return search_authors(q=q, status=status, limit=limit, offset=offset)
+
+
 @app.get("/catalog/facets")
 def catalog_facets() -> dict[str, Any]:
     """Return lookup values for catalog filters."""
 
     facets = get_catalog_facets()
     return {"facets": facets}
+
+
+@app.get("/users/search")
+def users_search(
+    q: str | None = Query(None),
+    status: str | None = Query(None),
+    approval_status: str | None = Query(None),
+    pagination: tuple[int, int] = Depends(_limit_query),
+) -> dict[str, Any]:
+    """Search library users by name, email, status, or approval status."""
+
+    limit, offset = pagination
+    return search_library_users(
+        q=q,
+        status=status,
+        approval_status=approval_status,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@app.get("/subscriptions/search")
+def subscriptions_search(
+    q: str | None = Query(None),
+    tier: str | None = Query(None),
+    status: str | None = Query(None),
+    user_email: str | None = Query(None),
+    pagination: tuple[int, int] = Depends(_limit_query),
+) -> dict[str, Any]:
+    """Search user subscription records with joined user and tier metadata."""
+
+    limit, offset = pagination
+    return search_user_subscriptions(
+        q=q,
+        tier=tier,
+        status=status,
+        user_email=user_email,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@app.get("/approvals/search")
+def approvals_search(
+    q: str | None = Query(None),
+    status: str | None = Query(None),
+    pagination: tuple[int, int] = Depends(_limit_query),
+) -> dict[str, Any]:
+    """Search approval request records with joined user metadata."""
+
+    limit, offset = pagination
+    return search_approval_requests(q=q, status=status, limit=limit, offset=offset)
 
 
 @app.get("/health/db")

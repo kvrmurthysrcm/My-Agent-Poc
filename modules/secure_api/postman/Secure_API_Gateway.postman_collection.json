@@ -44,6 +44,11 @@
       "key": "sample_file_path",
       "value": "README.md",
       "type": "string"
+    },
+    {
+      "key": "library_resource_id",
+      "value": "replace-with-resource-id-from-library-catalog-list",
+      "type": "string"
     }
   ],
   "item": [
@@ -57,8 +62,12 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/health",
-              "host": ["{{base_url}}"],
-              "path": ["health"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
             },
             "description": "curl -s {{base_url}}/health"
           },
@@ -71,8 +80,13 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/health/details",
-              "host": ["{{base_url}}"],
-              "path": ["health", "details"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health",
+                "details"
+              ]
             },
             "description": "curl -s {{base_url}}/health/details"
           },
@@ -119,8 +133,13 @@
             },
             "url": {
               "raw": "{{base_url}}/auth/login",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             },
             "description": "Logs in through the wrapper and saves access_token and refresh_token collection variables.\n\ncurl -s -X POST \"{{base_url}}/auth/login\" -H \"Content-Type: application/json\" -d '{\"username\":\"raguser\",\"password\":\"raguser123\"}'"
           },
@@ -162,8 +181,13 @@
             },
             "url": {
               "raw": "{{base_url}}/auth/login",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             },
             "description": "Logs in as ragadmin for ingest/admin-role checks and saves access_token and refresh_token collection variables."
           },
@@ -205,8 +229,13 @@
             },
             "url": {
               "raw": "{{base_url}}/auth/refresh",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "refresh"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
             },
             "description": "Refreshes the token using {{refresh_token}}. The Authorization header is not required for this endpoint.\n\ncurl -s -X POST \"{{base_url}}/auth/refresh\" -H \"Content-Type: application/json\" -d '{\"refresh_token\":\"<refresh-token>\"}'"
           },
@@ -233,8 +262,13 @@
             },
             "url": {
               "raw": "{{base_url}}/auth/logout",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "logout"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
             },
             "description": "Logs out the Keycloak session associated with {{refresh_token}}. The Authorization header is not required for this endpoint.\n\ncurl -s -X POST \"{{base_url}}/auth/logout\" -H \"Content-Type: application/json\" -d '{\"refresh_token\":\"<refresh-token>\"}'"
           },
@@ -252,8 +286,13 @@
             ],
             "url": {
               "raw": "{{base_url}}/auth/me",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "me"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
             },
             "description": "Validates the current access token and returns user claims/roles.\n\ncurl -s \"{{base_url}}/auth/me\" -H \"Authorization: Bearer <access-token>\""
           },
@@ -289,8 +328,13 @@
             },
             "url": {
               "raw": "{{base_url}}/rag/search",
-              "host": ["{{base_url}}"],
-              "path": ["rag", "search"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rag",
+                "search"
+              ]
             },
             "description": "Requires rag_search_user, rag_user, or rag_admin. Wrapper forwards to rag-search-service /rag/search with X-API-Key and user context headers.\n\ncurl -s -X POST \"{{base_url}}/rag/search\" -H \"Content-Type: application/json\" -H \"Authorization: Bearer <access-token>\" -d '{\"query\":\"what is graph rag?\",\"search_mode\":\"hybrid\",\"top_k\":5,\"filters\":{\"tags\":[\"architecture\"]},\"include_metadata\":true}'"
           },
@@ -321,8 +365,13 @@
             },
             "url": {
               "raw": "{{base_url}}/rag/answer",
-              "host": ["{{base_url}}"],
-              "path": ["rag", "answer"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rag",
+                "answer"
+              ]
             },
             "description": "Requires rag_user or rag_admin. Wrapper forwards to rag-answer-service /rag/answer. top_k/context_top_k are intentionally small for local Ollama testing.\n\ncurl -s -X POST \"{{base_url}}/rag/answer\" -H \"Content-Type: application/json\" -H \"Authorization: Bearer <access-token>\" -d '{\"query\":\"Tell me about A Christmas Carol\",\"search_mode\":\"hybrid\",\"answer_mode\":\"concise\",\"include_sources\":true,\"top_k\":1,\"context_top_k\":1}'"
           },
@@ -353,8 +402,13 @@
             },
             "url": {
               "raw": "{{base_url}}/rag/ask",
-              "host": ["{{base_url}}"],
-              "path": ["rag", "ask"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rag",
+                "ask"
+              ]
             },
             "description": "Compatibility alias for /rag/answer. Prefer /rag/answer for new tests."
           },
@@ -387,8 +441,13 @@
             },
             "url": {
               "raw": "{{base_url}}/rag/ingest",
-              "host": ["{{base_url}}"],
-              "path": ["rag", "ingest"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rag",
+                "ingest"
+              ]
             },
             "description": "Requires rag_ingest_user or rag_admin. Login as ragadmin first. Wrapper forwards multipart file + metadata to rag-ingest-service /rag/ingest.\n\ncurl -s -X POST \"{{base_url}}/rag/ingest\" -H \"Authorization: Bearer <access-token>\" -F 'file=@README.md;type=text/markdown' -F 'metadata={\"title\":\"Postman Upload\",\"resource_type\":\"DOCUMENT\",\"tags\":[\"postman\"],\"indexing_mode\":\"STANDARD\"}'"
           },
@@ -406,10 +465,423 @@
             ],
             "url": {
               "raw": "{{base_url}}/rag/test-downstream",
-              "host": ["{{base_url}}"],
-              "path": ["rag", "test-downstream"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "rag",
+                "test-downstream"
+              ]
             },
             "description": "Checks /health on ingest/search/answer downstream services and returns per-service availability.\n\ncurl -s \"{{base_url}}/rag/test-downstream\" -H \"Authorization: Bearer <access-token>\""
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Library Catalog",
+      "item": [
+        {
+          "name": "GET /library/catalog/resources",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/library/catalog/resources?limit=5&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "library",
+                "catalog",
+                "resources"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "5"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Lists catalog resources through the secure gateway. Requires any valid authenticated user. Copy a returned resource_id into {{library_resource_id}} for the detail request."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /library/catalog/resources - author filter",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/library/catalog/resources?author=Charles%20Dickens&limit=5&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "library",
+                "catalog",
+                "resources"
+              ],
+              "query": [
+                {
+                  "key": "author",
+                  "value": "Charles Dickens"
+                },
+                {
+                  "key": "limit",
+                  "value": "5"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Searches catalog resources by author through the secure gateway."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /library/catalog/resources - genre filter",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/library/catalog/resources?genre=Drama&limit=5&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "library",
+                "catalog",
+                "resources"
+              ],
+              "query": [
+                {
+                  "key": "genre",
+                  "value": "Drama"
+                },
+                {
+                  "key": "limit",
+                  "value": "5"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Searches catalog resources by genre. Genre is proxied as the online-library category alias."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /library/catalog/facets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/library/catalog/facets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "library",
+                "catalog",
+                "facets"
+              ]
+            },
+            "description": "Returns catalog filter values through the secure gateway."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /library/catalog/resources/{{library_resource_id}}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/library/catalog/resources/{{library_resource_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "library",
+                "catalog",
+                "resources",
+                "{{library_resource_id}}"
+              ]
+            },
+            "description": "Returns detail for one catalog resource. Set {{library_resource_id}} from the list response first."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /library/catalog/health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/library/catalog/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "library",
+                "catalog",
+                "health"
+              ]
+            },
+            "description": "Checks online-library catalog downstream health through the secure gateway."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Library Search",
+      "item": [
+        {
+          "name": "GET /library-search/health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/library-search/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "library-search",
+                "health"
+              ]
+            },
+            "description": "Checks secure gateway connectivity to online_library_agent on port 8005."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /library-search/ask - books by author",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Show books by Sri Aurobindo.\",\n  \"limit\": 10,\n  \"offset\": 0,\n  \"include_raw\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/library-search/ask",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "library-search",
+                "ask"
+              ]
+            },
+            "description": "Library Search NLQ example: Show books by Sri Aurobindo."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /library-search/ask - books by genre",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Show books in genre Drama.\",\n  \"limit\": 10,\n  \"offset\": 0,\n  \"include_raw\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/library-search/ask",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "library-search",
+                "ask"
+              ]
+            },
+            "description": "Library Search NLQ example: Show books in genre Drama."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /library-search/ask - available facets",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"What available authors and genres can I search?\",\n  \"limit\": 10,\n  \"offset\": 0,\n  \"include_raw\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/library-search/ask",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "library-search",
+                "ask"
+              ]
+            },
+            "description": "Library Search NLQ example: What available authors and genres can I search?"
+          },
+          "response": []
+        },
+        {
+          "name": "POST /library-search/ask - active subscriptions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Show active FREE subscriptions.\",\n  \"limit\": 10,\n  \"offset\": 0,\n  \"include_raw\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/library-search/ask",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "library-search",
+                "ask"
+              ]
+            },
+            "description": "Library Search NLQ example: Show active FREE subscriptions."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /library-search/ask - pending approvals",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Show pending approval requests.\",\n  \"limit\": 10,\n  \"offset\": 0,\n  \"include_raw\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/library-search/ask",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "library-search",
+                "ask"
+              ]
+            },
+            "description": "Library Search NLQ example: Show pending approval requests."
           },
           "response": []
         }

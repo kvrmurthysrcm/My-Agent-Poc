@@ -285,11 +285,26 @@ Tests:
 
 Goal: users and admins can browse the online library catalog through the secure gateway UI.
 
+Implementation status: completed.
+
 Gateway routes:
 
 - `GET /library/catalog/resources`
 - `GET /library/catalog/resources/{resource_id}`
 - `GET /library/catalog/facets`
+
+Implemented notes:
+
+- Added secure gateway catalog client:
+  - `modules/secure_api/app/services/library_catalog_client.py`
+- Added secure gateway catalog routes:
+  - `modules/secure_api/app/routes/library_catalog_routes.py`
+- Registered routes in secure gateway app startup.
+- Added `ONLINE_LIBRARY_API_BASE_URL`, defaulting to `http://localhost:8003`.
+- Added `Library` tab in the gateway UI.
+- Library UI supports text, author, genre, tag, tier, sort, pagination, facets, result rows, and detail panel.
+- Admin users see additional technical catalog/RAG/file metadata in the detail panel.
+- Updated secure gateway Postman collection with `Library Catalog` folder.
 
 UI changes:
 
@@ -325,18 +340,54 @@ Tests:
 
 Goal: natural-language library search should use richer catalog tools instead of only generic table tools.
 
+Implementation status: completed.
+
+Online Library API endpoints added:
+
+- `GET /catalog/books/by-author`
+- `GET /catalog/books/by-genre`
+- `GET /catalog/books/by-tag`
+- `GET /catalog/authors`
+- `GET /users/search`
+- `GET /subscriptions/search`
+- `GET /approvals/search`
+
 Add MCP tools:
 
 - `search_catalog_resources`
-- `get_catalog_facets`
+- `get_available_facets`
 - `get_resource_detail`
+- `get_books_by_author`
+- `get_books_by_genre`
+- `get_books_by_tag`
+- `search_authors`
+- `search_users`
+- `search_subscriptions`
+- `search_approval_requests`
 
 Update agent planner hints:
 
-- author/writer questions select `search_catalog_resources`
-- genre/category questions select `search_catalog_resources`
-- premium/free/tier questions select `search_catalog_resources`
-- title/book/resource questions select `search_catalog_resources`
+- author/writer questions select `get_books_by_author`
+- genre/category questions select `get_books_by_genre`
+- tag/topic questions select `get_books_by_tag`
+- available author/genre/tag questions select `get_available_facets`
+- user questions select `search_users`
+- subscription/tier questions select `search_subscriptions`
+- approval workflow questions select `search_approval_requests`
+- general title/book/resource questions select `search_catalog_resources`
+
+Other module updates:
+
+- Secure Gateway Library Search UI now renders both `rows` and catalog `resources`.
+- Online Library, MCP, Agent, Secure Gateway docs updated.
+- Online Library and Secure Gateway Postman collections updated.
+
+Restart required:
+
+- `online_library` on `8003`
+- `online_library_mcp` on `8004`
+- `online_library_agent` on `8005`
+- `secure_api` on `8010` if serving the updated UI HTML
 
 Tests:
 
@@ -344,7 +395,9 @@ Tests:
 - "Find free books in machine learning."
 - "List books tagged python."
 - "Show premium books in fiction."
-- Verify the selected MCP tool is the catalog search tool.
+- "Show active FREE subscriptions."
+- "Show pending approval requests."
+- Verify the selected MCP tool is the expected business-level tool.
 
 ## Recommended Delivery Order
 

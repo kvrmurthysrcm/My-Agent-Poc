@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -7,9 +9,11 @@ from app.schemas.graph_search import CombinedSearchResponse, GraphSearchRequest,
 from app.schemas.search_request import SearchRequest
 from app.schemas.search_response import SearchResponse
 from app.services.graph_search_service import GraphSearchService
+from app.services.embedding_providers.ollama_dependency import OllamaDependencyError
 from app.services.search_service import SearchService
 
 router = APIRouter(prefix="/rag", tags=["rag-search"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/search", response_model=SearchResponse)
@@ -20,6 +24,9 @@ def search_documents(
 ) -> SearchResponse:
     try:
         return SearchService(db, settings).search(request)
+    except OllamaDependencyError as exc:
+        logger.error("Search request dependency unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=exc.to_public_detail()) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -53,6 +60,9 @@ def combined_search(
             )
         )
         return CombinedSearchResponse(standard_results=standard_results, graph_results=graph_results)
+    except OllamaDependencyError as exc:
+        logger.error("Combined search dependency unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=exc.to_public_detail()) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -70,5 +80,8 @@ def debug_search_documents(
         )
     try:
         return SearchService(db, settings).debug_search(request)
+    except OllamaDependencyError as exc:
+        logger.error("Search debug request dependency unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=exc.to_public_detail()) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

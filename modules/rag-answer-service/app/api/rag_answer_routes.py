@@ -1,4 +1,5 @@
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -7,8 +8,10 @@ from app.core.config import Settings, get_settings
 from app.schemas.answer_request import AnswerRequest
 from app.schemas.answer_response import AnswerComparisonResponse, AnswerResponse
 from app.services.answer_service import AnswerService
+from app.services.ollama_dependency import DependencyUnavailableError
 
 router = APIRouter(prefix="/rag", tags=["rag-answer"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/answer", response_model=AnswerResponse)
@@ -18,6 +21,9 @@ def answer_question(
 ) -> AnswerResponse:
     try:
         return AnswerService(settings).answer(request)
+    except DependencyUnavailableError as exc:
+        logger.error("Answer request dependency unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=exc.to_public_detail()) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -31,6 +37,9 @@ def compare_answers(
 ) -> AnswerComparisonResponse:
     try:
         return AnswerService(settings).compare(request)
+    except DependencyUnavailableError as exc:
+        logger.error("Answer comparison dependency unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail=exc.to_public_detail()) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

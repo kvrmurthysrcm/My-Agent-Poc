@@ -100,6 +100,136 @@ def register_tools(mcp: FastMCP, api_client: OnlineLibraryAPIClient | None = Non
         return await fetch_table("resources", limit, offset)
 
     @mcp.tool()
+    async def search_catalog_resources(
+        q: str = "",
+        author: str = "",
+        genre: str = "",
+        tag: str = "",
+        tier: str = "",
+        status: str = "ACTIVE",
+        sort: str = "title",
+        limit: int = 20,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Search library catalog resources by title text, author, genre/category, tag, subscription tier, or active status. Use this when the user asks for books by a specific author, title, genre, tag, or filtered catalog search."""
+
+        if limit < 1 or limit > 100:
+            return {"error": "invalid_limit", "detail": "limit must be between 1 and 100"}
+        if offset < 0:
+            return {"error": "invalid_offset", "detail": "offset must be zero or greater"}
+
+        params: dict[str, Any] = {
+            "limit": limit,
+            "offset": offset,
+            "sort": sort,
+        }
+        optional_filters = {
+            "q": q,
+            "author": author,
+            "genre": genre,
+            "tag": tag,
+            "tier": tier,
+            "status": status,
+        }
+        params.update({key: value for key, value in optional_filters.items() if value})
+        return await client.get_json("/catalog/resources", params)
+
+    @mcp.tool()
+    async def get_resource_detail(resource_id: str) -> dict[str, Any]:
+        """Get detailed catalog metadata for one library resource by resource_id. Use this when the user asks for details about a specific selected resource id."""
+
+        if not resource_id.strip():
+            return {"error": "invalid_resource_id", "detail": "resource_id is required"}
+        return await client.get_json(f"/catalog/resources/{resource_id.strip()}")
+
+    @mcp.tool()
+    async def get_books_by_author(author: str, limit: int = 20, offset: int = 0) -> dict[str, Any]:
+        """Search books and resources by author name. Use this when the user asks for books by a specific author or writer."""
+
+        if not author.strip():
+            return {"error": "invalid_author", "detail": "author is required"}
+        if limit < 1 or limit > 100:
+            return {"error": "invalid_limit", "detail": "limit must be between 1 and 100"}
+        if offset < 0:
+            return {"error": "invalid_offset", "detail": "offset must be zero or greater"}
+        return await client.get_json("/catalog/books/by-author", {"author": author, "limit": limit, "offset": offset})
+
+    @mcp.tool()
+    async def get_books_by_genre(genre: str, limit: int = 20, offset: int = 0) -> dict[str, Any]:
+        """Search books and resources by genre or category. Use this when the user asks for books in a genre, category, subject, or section."""
+
+        if not genre.strip():
+            return {"error": "invalid_genre", "detail": "genre is required"}
+        if limit < 1 or limit > 100:
+            return {"error": "invalid_limit", "detail": "limit must be between 1 and 100"}
+        if offset < 0:
+            return {"error": "invalid_offset", "detail": "offset must be zero or greater"}
+        return await client.get_json("/catalog/books/by-genre", {"genre": genre, "limit": limit, "offset": offset})
+
+    @mcp.tool()
+    async def get_books_by_tag(tag: str, limit: int = 20, offset: int = 0) -> dict[str, Any]:
+        """Search books and resources by tag, topic, label, or keyword. Use this when the user asks for tagged books or books about a catalog topic."""
+
+        if not tag.strip():
+            return {"error": "invalid_tag", "detail": "tag is required"}
+        if limit < 1 or limit > 100:
+            return {"error": "invalid_limit", "detail": "limit must be between 1 and 100"}
+        if offset < 0:
+            return {"error": "invalid_offset", "detail": "offset must be zero or greater"}
+        return await client.get_json("/catalog/books/by-tag", {"tag": tag, "limit": limit, "offset": offset})
+
+    @mcp.tool()
+    async def search_authors(q: str = "", status: str = "ACTIVE", limit: int = 20, offset: int = 0) -> dict[str, Any]:
+        """Search author lookup records by author name, country, bio, or status. Use this when the user asks to find authors or check if an author exists."""
+
+        return await client.get_json("/catalog/authors", {"q": q, "status": status, "limit": limit, "offset": offset})
+
+    @mcp.tool()
+    async def get_available_facets() -> dict[str, Any]:
+        """Get available catalog filter values such as authors, genres, categories, tags, languages, and subscription tiers."""
+
+        return await client.get_json("/catalog/facets")
+
+    @mcp.tool()
+    async def search_users(
+        q: str = "",
+        status: str = "",
+        approval_status: str = "",
+        limit: int = 20,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Search library users by name, email, Keycloak id, account status, or approval status."""
+
+        params = {"q": q, "status": status, "approval_status": approval_status, "limit": limit, "offset": offset}
+        return await client.get_json("/users/search", {key: value for key, value in params.items() if value != ""})
+
+    @mcp.tool()
+    async def search_subscriptions(
+        q: str = "",
+        tier: str = "",
+        status: str = "",
+        user_email: str = "",
+        limit: int = 20,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Search user subscription records by user name, email, tier, plan, or subscription status."""
+
+        params = {"q": q, "tier": tier, "status": status, "user_email": user_email, "limit": limit, "offset": offset}
+        return await client.get_json("/subscriptions/search", {key: value for key, value in params.items() if value != ""})
+
+    @mcp.tool()
+    async def search_approval_requests(
+        q: str = "",
+        status: str = "",
+        limit: int = 20,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Search user approval requests by requester name, email, request status, or review comments."""
+
+        params = {"q": q, "status": status, "limit": limit, "offset": offset}
+        return await client.get_json("/approvals/search", {key: value for key, value in params.items() if value != ""})
+
+    @mcp.tool()
     async def get_subscription_rules(limit: int = 20, offset: int = 0) -> dict[str, Any]:
         """List subscription entitlement rules and limits. Use this when the user asks what a subscription tier allows, what limits apply, or what rules are configured for a tier."""
 

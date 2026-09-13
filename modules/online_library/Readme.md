@@ -38,7 +38,14 @@ Catalog search endpoints:
 
 - `GET /catalog/resources`
 - `GET /catalog/resources/{resource_id}`
+- `GET /catalog/books/by-author`
+- `GET /catalog/books/by-genre`
+- `GET /catalog/books/by-tag`
+- `GET /catalog/authors`
 - `GET /catalog/facets`
+- `GET /users/search`
+- `GET /subscriptions/search`
+- `GET /approvals/search`
 
 `GET /catalog/resources` supports structured metadata search:
 
@@ -77,6 +84,18 @@ Catalog responses exclude binary content and include joined metadata arrays:
 - `tags`
 - `category`
 - `genre`
+
+Business-level search endpoints were added for NLQ/MCP use so the agent does not have to rely on raw table scans:
+
+- `GET /catalog/books/by-author?author=Sri%20Aurobindo&limit=10&offset=0`
+- `GET /catalog/books/by-genre?genre=Drama&limit=10&offset=0`
+- `GET /catalog/books/by-tag?tag=Yoga&limit=10&offset=0`
+- `GET /catalog/authors?q=Sri%20Aurobindo&status=ACTIVE&limit=10&offset=0`
+- `GET /users/search?q=email-or-name&status=ACTIVE&approval_status=APPROVED&limit=10&offset=0`
+- `GET /subscriptions/search?tier=FREE&status=ACTIVE&user_email=user@example.com&limit=10&offset=0`
+- `GET /approvals/search?status=PENDING&q=user@example.com&limit=10&offset=0`
+
+These endpoints return a normal envelope with `total`, `count`, `limit`, `offset`, and `rows`. Catalog book endpoints also return `resources`.
 
 Only tables with rows at implementation time are exposed.
 
@@ -136,6 +155,9 @@ Recommended validation order:
    - `Catalog - Search by Genre`
    - `Catalog - Search by Tag`
    - `Catalog - Filter by Tier and Status`
+   - `Catalog - Books by Author Endpoint`
+   - `Catalog - Search Authors`
+7. Run `Business Search` examples for users, subscriptions, and approvals.
 
 Expected catalog response behavior:
 

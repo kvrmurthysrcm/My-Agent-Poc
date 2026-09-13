@@ -61,6 +61,10 @@ LLM_TEMPERATURE=0.1
 LLM_TIMEOUT_SECONDS=180
 ```
 
+### Ollama dependency checks
+
+When `LLM_PROVIDER=ollama`, the service checks `OLLAMA_BASE_URL/api/tags` during startup and logs either a passing check or an actionable error with the required `ollama pull` command. A failed check does not stop the API process, but `/ready` and answer requests return `503` with an `ollama_unavailable` or `ollama_model_unavailable` message until the dependency is fixed.
+
 OpenAI configuration:
 
 ```text

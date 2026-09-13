@@ -1,12 +1,21 @@
+import logging
+
+import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
 from app.core.constants import EmbeddingProviderName
 from app.db import models  # noqa: F401
 from app.db.session import Base, SessionLocal, engine
-from app.main import app
+from app.main import _log_ollama_startup_check, app
 from app.schemas.search_request import SearchRequest
 from app.services.hybrid_search_service import HybridSearchService
+from app.services.embedding_providers.ollama_dependency import (
+    OllamaDependencyError,
+    ollama_unavailable_error,
+)
+from app.services.embedding_providers.ollama_provider import OllamaEmbeddingProvider
 from app.services.search_service import SearchService
 
 
@@ -98,6 +107,69 @@ def test_search_rejects_top_k_above_configured_max():
 
     assert response.status_code == 400
     assert "top_k" in response.json()["detail"]
+
+
+def test_search_endpoint_returns_actionable_ollama_error(monkeypatch):
+    def fail_search(self, request):
+        del self, request
+        raise ollama_unavailable_error(base_url="http://127.0.0.1:11434", model="nomic-embed-text")
+
+    monkeypatch.setattr("app.api.rag_search_routes.SearchService.search", fail_search)
+
+    with TestClient(app) as client:
+        response = client.post("/rag/search", json={"query": "claims"})
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == {
+        "code": "ollama_unavailable",
+        "message": (
+            "Ollama is unavailable at http://127.0.0.1:11434. Start Ollama, then make sure the "
+            "'nomic-embed-text' model is installed with `ollama pull nomic-embed-text`."
+        ),
+        "details": {"dependency": "ollama", "model": "nomic-embed-text"},
+    }
+
+
+def test_embedding_provider_converts_connection_failure_to_actionable_error(monkeypatch):
+    request = httpx.Request("POST", "http://127.0.0.1:11434/api/embed")
+
+    class FailingClient:
+        def __init__(self, timeout):
+            del timeout
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, url, json):
+            del url, json
+            raise httpx.ConnectError("connection refused", request=request)
+
+    monkeypatch.setattr("app.services.embedding_providers.ollama_provider.httpx.Client", FailingClient)
+    provider = OllamaEmbeddingProvider(base_url="http://127.0.0.1:11434", model="nomic-embed-text")
+
+    with pytest.raises(OllamaDependencyError, match="ollama pull nomic-embed-text"):
+        provider.embed_texts(["claims"])
+
+
+def test_embedding_startup_check_logs_actionable_ollama_failure(monkeypatch, caplog):
+    def unavailable(**kwargs):
+        raise ollama_unavailable_error(base_url=kwargs["base_url"], model=kwargs["model"])
+
+    monkeypatch.setattr("app.main.check_ollama_available", unavailable)
+    settings = _settings(
+        EMBEDDING_PROVIDER=EmbeddingProviderName.OLLAMA,
+        EMBEDDING_MODEL="nomic-embed-text",
+        EMBEDDING_DIMENSION=768,
+    )
+
+    with caplog.at_level(logging.ERROR, logger="app.main"):
+        _log_ollama_startup_check(settings)
+
+    assert "Ollama embedding startup check failed" in caplog.text
+    assert "ollama pull nomic-embed-text" in caplog.text
 
 
 def test_keyword_mode_does_not_call_embedding_provider(monkeypatch):
