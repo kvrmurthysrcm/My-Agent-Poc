@@ -2,3 +2,5 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 modules/rag-ingest-service/storage/
+artifacts/
+/.idea/workspace.xml

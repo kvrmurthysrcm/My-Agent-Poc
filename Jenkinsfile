@@ -210,14 +210,12 @@ pipeline {
                         rm -rf test-results/answer
                         mkdir -p test-results/answer
                         docker rm -f "$ANSWER_TEST_CONTAINER" >/dev/null 2>&1 || true
-                docker rm -f "$SECURE_TEST_CONTAINER" >/dev/null 2>&1 || true
                         set +e
                         docker run --name "$ANSWER_TEST_CONTAINER" "$ANSWER_TEST_IMAGE"
                         RC=$?
                         set -e
                         docker cp "$ANSWER_TEST_CONTAINER:/tmp/test-results/pytest.xml" test-results/answer/pytest.xml || true
                         docker rm -f "$ANSWER_TEST_CONTAINER" >/dev/null 2>&1 || true
-                docker rm -f "$SECURE_TEST_CONTAINER" >/dev/null 2>&1 || true
                         exit "$RC"
                     '''
                 }
@@ -399,12 +397,12 @@ pipeline {
 
     post {
         success {
-            echo "SUCCESS: ingest=${env.INGEST_IMAGE}, search=${env.SEARCH_IMAGE}, answer=${env.ANSWER_IMAGE}, secure=${env.SECURE_IMAGE}"
+            echo "SUCCESS: ingest=${env.INGEST_IMAGE}, search=${env.SEARCH_IMAGE}, answer=${env.ANSWER_IMAGE}, library=${env.LIBRARY_IMAGE}, secure=${env.SECURE_IMAGE}"
         }
         failure {
             sh '''
                 kubectl --kubeconfig "$KUBECONFIG" -n "$K8S_NAMESPACE" get all || true
-                for d in rag-ingest-service rag-search-service rag-answer-service secure-api; do
+                for d in rag-ingest-service rag-search-service rag-answer-service online-library secure-api; do
                     kubectl --kubeconfig "$KUBECONFIG" -n "$K8S_NAMESPACE" describe deployment "$d" || true
                     kubectl --kubeconfig "$KUBECONFIG" -n "$K8S_NAMESPACE" logs deployment/"$d" --tail=100 || true
                 done
@@ -415,6 +413,7 @@ pipeline {
                 docker rm -f "$INGEST_TEST_CONTAINER" >/dev/null 2>&1 || true
                 docker rm -f "$SEARCH_TEST_CONTAINER" >/dev/null 2>&1 || true
                 docker rm -f "$ANSWER_TEST_CONTAINER" >/dev/null 2>&1 || true
+                docker rm -f "$LIBRARY_TEST_CONTAINER" >/dev/null 2>&1 || true
                 docker rm -f "$SECURE_TEST_CONTAINER" >/dev/null 2>&1 || true
             '''
         }
