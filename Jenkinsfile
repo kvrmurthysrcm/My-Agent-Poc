@@ -393,6 +393,38 @@ pipeline {
                 '''
             }
         }
+
+        stage('Cleanup Old CI Images') {
+            steps {
+                // Cleanup is deliberately after all deployments and health checks.
+                // It must not turn a healthy deployment into a failed build.
+                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE', message: 'CI image retention cleanup did not complete; deployed services remain unchanged.') {
+                    sh '''
+                        set -eu
+                        if command -v pwsh >/dev/null 2>&1; then
+                            pwsh -NoProfile -File scripts/cleanup-old-cicd-images.ps1 -Keep 4 -Execute -Namespace "$K8S_NAMESPACE" -Kubeconfig "$KUBECONFIG"
+                        elif command -v powershell >/dev/null 2>&1; then
+                            powershell -NoProfile -File scripts/cleanup-old-cicd-images.ps1 -Keep 4 -Execute -Namespace "$K8S_NAMESPACE" -Kubeconfig "$KUBECONFIG"
+                        else
+                            echo 'WARNING: PowerShell (pwsh) is not installed on the Jenkins agent; skipping Docker CI image retention cleanup.'
+                            exit 1
+                        fi
+                    '''
+                }
+
+                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE', message: 'Docker build-cache cleanup did not complete; deployed services remain unchanged.') {
+                    sh '''
+                        set -u
+                        if docker builder prune -f --filter "until=24h"; then
+                            echo 'Pruned Docker build cache older than 24 hours.'
+                        else
+                            echo 'WARNING: Docker did not accept the age filter; falling back to the supported unused-builder-cache cleanup.'
+                            docker builder prune -f
+                        fi
+                    '''
+                }
+            }
+        }
     }
 
     post {

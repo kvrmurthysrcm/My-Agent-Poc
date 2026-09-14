@@ -480,16 +480,26 @@ def test_exact_quote_intent_is_passed_to_keyword_search(monkeypatch):
 def test_title_match_orders_early_chunks_first():
     db = SessionLocal()
     try:
-        from app.db.models import RagDocumentChunk, Resource
+        from app.db.models import RagDocumentChunk, RagIngestionJob, Resource
 
-        resource = Resource(resource_id="resource-frankenstein", title="frankenstein", rag_enabled=True, ingestion_status="READY")
-        db.add(resource)
+        resource_id = "00000000-0000-0000-0000-000000000501"
+        job_id = "00000000-0000-0000-0000-000000000502"
+        later_chunk_id = "00000000-0000-0000-0000-000000000503"
+        first_chunk_id = "00000000-0000-0000-0000-000000000504"
+        resource = Resource(resource_id=resource_id, title="frankenstein", rag_enabled=True, ingestion_status="READY")
+        db.add_all(
+            [
+                resource,
+                RagIngestionJob(job_id=job_id, resource_id=resource_id, status="COMPLETED", async_backend="test"),
+            ]
+        )
+        db.flush()
         db.add_all(
             [
                 RagDocumentChunk(
-                    chunk_id="later",
+                    chunk_id=later_chunk_id,
                     resource_id=resource.resource_id,
-                    job_id="job-1",
+                    job_id=job_id,
                     chunk_index=7,
                     chunk_text="Frankenstein Frankenstein Frankenstein later footer.",
                     chunk_hash_sha256="later",
@@ -497,9 +507,9 @@ def test_title_match_orders_early_chunks_first():
                     char_count=45,
                 ),
                 RagDocumentChunk(
-                    chunk_id="first",
+                    chunk_id=first_chunk_id,
                     resource_id=resource.resource_id,
-                    job_id="job-1",
+                    job_id=job_id,
                     chunk_index=0,
                     chunk_text="Frankenstein by Mary Shelley.",
                     chunk_hash_sha256="first",
@@ -515,7 +525,7 @@ def test_title_match_orders_early_chunks_first():
     finally:
         db.close()
 
-    assert [item.chunk_id for item in response.results] == ["first", "later"]
+    assert [item.chunk_id for item in response.results] == [first_chunk_id, later_chunk_id]
 
 
 def test_question_reranking_prefers_direct_evidence_over_title_front_matter():
@@ -573,23 +583,47 @@ def test_question_reranking_prefers_direct_evidence_over_title_front_matter():
 def test_keyword_ignores_stopword_noise_and_promotes_exact_phrase():
     db = SessionLocal()
     try:
-        from app.db.models import RagDocumentChunk, Resource
+        from app.db.models import RagDocumentChunk, RagIngestionJob, Resource
 
+        christmas_resource_id = "00000000-0000-0000-0000-000000000511"
+        ramayan_resource_id = "00000000-0000-0000-0000-000000000512"
+        christmas_job_id = "00000000-0000-0000-0000-000000000513"
+        ramayan_job_id = "00000000-0000-0000-0000-000000000514"
+        christmas_chunk_id = "00000000-0000-0000-0000-000000000515"
+        ramayan_chunk_id = "00000000-0000-0000-0000-000000000516"
         christmas = Resource(
-            resource_id="christmas",
+            resource_id=christmas_resource_id,
             title="A Christmas Carol",
             rag_enabled=True,
             ingestion_status="READY",
             resource_metadata={"author": "Charles Dickens"},
         )
-        ramayan = Resource(resource_id="ramayan", title="Ramayan", rag_enabled=True, ingestion_status="READY")
-        db.add_all([christmas, ramayan])
+        ramayan = Resource(resource_id=ramayan_resource_id, title="Ramayan", rag_enabled=True, ingestion_status="READY")
+        db.add_all(
+            [
+                christmas,
+                ramayan,
+                RagIngestionJob(
+                    job_id=christmas_job_id,
+                    resource_id=christmas_resource_id,
+                    status="COMPLETED",
+                    async_backend="test",
+                ),
+                RagIngestionJob(
+                    job_id=ramayan_job_id,
+                    resource_id=ramayan_resource_id,
+                    status="COMPLETED",
+                    async_backend="test",
+                ),
+            ]
+        )
+        db.flush()
         db.add_all(
             [
                 RagDocumentChunk(
-                    chunk_id="christmas-exact",
+                    chunk_id=christmas_chunk_id,
                     resource_id=christmas.resource_id,
-                    job_id="job-1",
+                    job_id=christmas_job_id,
                     chunk_index=24,
                     chunk_text=(
                         "The very gold and silver fish, set forth among these choice fruits in a bowl, "
@@ -601,9 +635,9 @@ def test_keyword_ignores_stopword_noise_and_promotes_exact_phrase():
                     char_count=190,
                 ),
                 RagDocumentChunk(
-                    chunk_id="ramayan-common-words",
+                    chunk_id=ramayan_chunk_id,
                     resource_id=ramayan.resource_id,
-                    job_id="job-2",
+                    job_id=ramayan_job_id,
                     chunk_index=0,
                     chunk_text=" ".join(["the and of in that there was something"] * 200),
                     chunk_hash_sha256="ramayan-common-words",
@@ -629,8 +663,8 @@ def test_keyword_ignores_stopword_noise_and_promotes_exact_phrase():
     finally:
         db.close()
 
-    assert response.results[0].chunk_id == "christmas-exact"
-    assert all(item.chunk_id != "ramayan-common-words" for item in response.results)
+    assert response.results[0].chunk_id == christmas_chunk_id
+    assert all(item.chunk_id != ramayan_chunk_id for item in response.results)
 
 
 def test_hybrid_does_not_force_high_raw_keyword_score_above_exact_title(monkeypatch):
@@ -697,16 +731,26 @@ def test_hybrid_does_not_force_high_raw_keyword_score_above_exact_title(monkeypa
 def test_search_filters_low_value_result_chunks():
     db = SessionLocal()
     try:
-        from app.db.models import RagDocumentChunk, Resource
+        from app.db.models import RagDocumentChunk, RagIngestionJob, Resource
 
-        resource = Resource(resource_id="gita", title="Bhagawat Gita", rag_enabled=True, ingestion_status="READY")
-        db.add(resource)
+        resource_id = "00000000-0000-0000-0000-000000000521"
+        job_id = "00000000-0000-0000-0000-000000000522"
+        publisher_chunk_id = "00000000-0000-0000-0000-000000000523"
+        content_chunk_id = "00000000-0000-0000-0000-000000000524"
+        resource = Resource(resource_id=resource_id, title="Bhagawat Gita", rag_enabled=True, ingestion_status="READY")
+        db.add_all(
+            [
+                resource,
+                RagIngestionJob(job_id=job_id, resource_id=resource_id, status="COMPLETED", async_backend="test"),
+            ]
+        )
+        db.flush()
         db.add_all(
             [
                 RagDocumentChunk(
-                    chunk_id="publisher",
+                    chunk_id=publisher_chunk_id,
                     resource_id=resource.resource_id,
-                    job_id="job-1",
+                    job_id=job_id,
                     chunk_index=0,
                     chunk_text="Publications Division, T.T.D, Tirupati.",
                     chunk_hash_sha256="publisher",
@@ -714,9 +758,9 @@ def test_search_filters_low_value_result_chunks():
                     char_count=38,
                 ),
                 RagDocumentChunk(
-                    chunk_id="content",
+                    chunk_id=content_chunk_id,
                     resource_id=resource.resource_id,
-                    job_id="job-1",
+                    job_id=job_id,
                     chunk_index=1,
                     chunk_text="The Bhagavad Gita is a conversation between Arjuna and Lord Krishna on duty and spiritual knowledge.",
                     chunk_hash_sha256="content",
@@ -732,7 +776,7 @@ def test_search_filters_low_value_result_chunks():
     finally:
         db.close()
 
-    assert [item.chunk_id for item in response.results] == ["content"]
+    assert [item.chunk_id for item in response.results] == [content_chunk_id]
 
 
 def test_search_filters_chunks_marked_not_searchable():
@@ -820,15 +864,24 @@ def test_search_keeps_numeric_table_heavy_chunks_when_enabled():
 def test_search_response_strips_page_markers_from_display_text():
     db = SessionLocal()
     try:
-        from app.db.models import RagDocumentChunk, Resource
+        from app.db.models import RagDocumentChunk, RagIngestionJob, Resource
 
-        resource = Resource(resource_id="resource-1", title="Policy", rag_enabled=True, ingestion_status="READY")
-        db.add(resource)
+        resource_id = "00000000-0000-0000-0000-000000000531"
+        job_id = "00000000-0000-0000-0000-000000000532"
+        chunk_id = "00000000-0000-0000-0000-000000000533"
+        resource = Resource(resource_id=resource_id, title="Policy", rag_enabled=True, ingestion_status="READY")
+        db.add_all(
+            [
+                resource,
+                RagIngestionJob(job_id=job_id, resource_id=resource_id, status="COMPLETED", async_backend="test"),
+            ]
+        )
+        db.flush()
         db.add(
             RagDocumentChunk(
-                chunk_id="chunk-1",
+                chunk_id=chunk_id,
                 resource_id=resource.resource_id,
-                job_id="job-1",
+                job_id=job_id,
                 chunk_index=0,
                 chunk_text="[Page 12]\nPolicy content has claim submission rules.",
                 chunk_hash_sha256="chunk-1",

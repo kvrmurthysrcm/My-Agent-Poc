@@ -5,6 +5,7 @@ metadata:
   namespace: rag-poc
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app: online-library

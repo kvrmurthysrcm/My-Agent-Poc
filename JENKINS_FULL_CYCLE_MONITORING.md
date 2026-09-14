@@ -40,6 +40,7 @@ Open the new build and use **Console Output** (or Stage View/Pipeline view if in
 7. Online Library: test/build/load/deploy/verify
 8. Secure API: test/build/load/deploy/verify
 9. Verify Complete RAG Stack
+10. Cleanup Old CI Images
 
 The pytest stages are currently intentionally non-blocking and may mark a stage unstable while allowing the first full-cycle CI/CD validation to continue.
 
@@ -184,24 +185,25 @@ Preview only (default):
 .\scripts\cleanup-old-cicd-images.ps1
 ```
 
-Preview while retaining at least the two newest Docker images per service:
+Preview while retaining the deployed image plus three backups (four CI images
+per service):
 
 ```powershell
-.\scripts\cleanup-old-cicd-images.ps1 -Keep 2
+.\scripts\cleanup-old-cicd-images.ps1 -Keep 4
 ```
 
 Actually remove the images shown by the preview:
 
 ```powershell
-.\scripts\cleanup-old-cicd-images.ps1 -Keep 2 -Execute
+.\scripts\cleanup-old-cicd-images.ps1 -Keep 4 -Execute
 ```
 
-The script protects images currently referenced by the five Kubernetes deployments. The Kubernetes/containerd portion is deliberately conservative and only runs deletions when `-Execute` is supplied.
+The script protects images currently referenced by the five Kubernetes deployments. The Kubernetes/containerd image store is deliberately left to runtime garbage collection; the script only manages Docker host image tags.
 
 For generic Docker build cache cleanup, independently and optionally:
 
 ```powershell
-docker builder prune
+docker builder prune -f --filter "until=24h"
 ```
 
-Avoid `docker system prune -a` for this POC unless you have deliberately reviewed what Docker considers unused, because it can remove downloaded development images that are intentionally retained.
+See [CI_CD_IMAGE_CLEANUP.md](CI_CD_IMAGE_CLEANUP.md) for the full retention policy, Docker CLI fallback behavior, and why `docker system prune -a` is intentionally not used.
