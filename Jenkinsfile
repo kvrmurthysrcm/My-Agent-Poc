@@ -9,12 +9,21 @@ pipeline {
         K8S_NAMESPACE = 'rag-poc'
         KIND_NODE = 'desktop-control-plane'
         KUBECONFIG = '/var/jenkins_home/kubeconfig-jenkins'
+        BUILD_INGEST = 'false'
+        BUILD_SEARCH = 'false'
+        BUILD_ANSWER = 'false'
+        BUILD_LIBRARY = 'false'
+        BUILD_SECURE = 'false'
+        ANY_SERVICE_CHANGE = 'false'
     }
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
                 script {
+                    def scmVars = checkout scm
+                    env.GIT_COMMIT = scmVars.GIT_COMMIT ?: sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+                    env.GIT_PREVIOUS_COMMIT = scmVars.GIT_PREVIOUS_COMMIT ?: ''
+                    env.GIT_PREVIOUS_SUCCESSFUL_COMMIT = scmVars.GIT_PREVIOUS_SUCCESSFUL_COMMIT ?: ''
                     env.GIT_SHORT = sh(script: 'git rev-parse --short=7 HEAD', returnStdout: true).trim()
                     env.IMAGE_TAG = "${env.BUILD_NUMBER}-${env.GIT_SHORT}"
                     env.INGEST_IMAGE = "rag-ingest-service:${env.IMAGE_TAG}"
@@ -36,7 +45,120 @@ pipeline {
             }
         }
 
+        stage('Detect Changed Modules') {
+            steps {
+                script {
+                    env.BUILD_INGEST = 'false'
+                    env.BUILD_SEARCH = 'false'
+                    env.BUILD_ANSWER = 'false'
+                    env.BUILD_LIBRARY = 'false'
+                    env.BUILD_SECURE = 'false'
+                    env.ANY_SERVICE_CHANGE = 'false'
+
+                    // Prefer the commit from the previous Jenkins build. Fall back to HEAD^.
+                    // If no usable base exists (for example a brand-new repository), rebuild all
+                    // deployable services because that is the safest first-run behavior.
+                    def baseCommit = (env.GIT_PREVIOUS_SUCCESSFUL_COMMIT ?: env.GIT_PREVIOUS_COMMIT ?: '').trim()
+                    if (!baseCommit) {
+                        baseCommit = sh(script: 'git rev-parse HEAD^ 2>/dev/null || true', returnStdout: true).trim()
+                    }
+
+                    def changedFiles = ''
+                    if (baseCommit) {
+                        changedFiles = sh(
+                            script: "git diff --name-only ${baseCommit} HEAD",
+                            returnStdout: true
+                        ).trim()
+                    }
+
+                    def rebuildAll = false
+                    def sawNonDocChange = false
+                    def sawMappedDeployableChange = false
+                    def ignoredNonDeployable = []
+
+                    if (!baseCommit) {
+                        echo 'No previous commit is available. Rebuilding all deployable services.'
+                        rebuildAll = true
+                    } else if (!changedFiles) {
+                        echo "No file changes detected between ${baseCommit} and HEAD."
+                    } else {
+                        echo "Changed files since ${baseCommit}:\n${changedFiles}"
+
+                        changedFiles.readLines().each { rawPath ->
+                            def path = rawPath.trim().replace('\\', '/')
+                            if (!path) {
+                                // no-op
+                            } else if (path.startsWith('docs/')) {
+                                echo "DOCS ONLY PATH: ${path}"
+                            } else {
+                                sawNonDocChange = true
+
+                                if (path.startsWith('modules/rag-ingest-service/') || path.startsWith('k8s/rag-ingest-service/')) {
+                                    env.BUILD_INGEST = 'true'
+                                    sawMappedDeployableChange = true
+                                } else if (path.startsWith('modules/rag-search-service/') || path.startsWith('k8s/rag-search-service/')) {
+                                    env.BUILD_SEARCH = 'true'
+                                    sawMappedDeployableChange = true
+                                } else if (path.startsWith('modules/rag-answer-service/') || path.startsWith('k8s/rag-answer-service/')) {
+                                    env.BUILD_ANSWER = 'true'
+                                    sawMappedDeployableChange = true
+                                } else if (path.startsWith('modules/online_library/') || path.startsWith('k8s/online-library/')) {
+                                    env.BUILD_LIBRARY = 'true'
+                                    sawMappedDeployableChange = true
+                                } else if (path.startsWith('modules/secure_api/') || path.startsWith('k8s/secure-api/')) {
+                                    env.BUILD_SECURE = 'true'
+                                    sawMappedDeployableChange = true
+                                } else if (
+                                    path.startsWith('modules/angular-ui/') ||
+                                    path.startsWith('modules/online_library_agent/') ||
+                                    path.startsWith('modules/online_library_mcp/') ||
+                                    path.startsWith('modules/weather_agent/') ||
+                                    path.startsWith('modules/weather_ai_agent/')
+                                ) {
+                                    // These modules are present in the monorepo but are not yet part of
+                                    // the current five-service Jenkins/Kubernetes deployment pipeline.
+                                    ignoredNonDeployable.add(path)
+                                } else {
+                                    // Root/shared/pipeline/unknown configuration can affect more than one
+                                    // deployable service. Rebuild all five rather than risk a missed impact.
+                                    echo "SHARED/ROOT CHANGE: ${path} -> rebuild all deployable services"
+                                    rebuildAll = true
+                                }
+                            }
+                        }
+                    }
+
+                    if (rebuildAll) {
+                        env.BUILD_INGEST = 'true'
+                        env.BUILD_SEARCH = 'true'
+                        env.BUILD_ANSWER = 'true'
+                        env.BUILD_LIBRARY = 'true'
+                        env.BUILD_SECURE = 'true'
+                    }
+
+                    env.ANY_SERVICE_CHANGE = (
+                        env.BUILD_INGEST == 'true' ||
+                        env.BUILD_SEARCH == 'true' ||
+                        env.BUILD_ANSWER == 'true' ||
+                        env.BUILD_LIBRARY == 'true' ||
+                        env.BUILD_SECURE == 'true'
+                    ) ? 'true' : 'false'
+
+                    if (!sawNonDocChange && baseCommit) {
+                        echo 'Documentation-only change detected. All build/test/deploy stages will be skipped.'
+                    } else if (ignoredNonDeployable && !sawMappedDeployableChange && !rebuildAll) {
+                        echo "Changes were limited to modules not yet deployed by this pipeline: ${ignoredNonDeployable.join(', ')}"
+                        echo 'No current Kubernetes service will be rebuilt or redeployed.'
+                    }
+
+                    echo "Selective CI/CD decision: ingest=${env.BUILD_INGEST}, search=${env.BUILD_SEARCH}, answer=${env.BUILD_ANSWER}, library=${env.BUILD_LIBRARY}, secure=${env.BUILD_SECURE}"
+                    currentBuild.description = "${env.GIT_SHORT} | I:${env.BUILD_INGEST} S:${env.BUILD_SEARCH} A:${env.BUILD_ANSWER} L:${env.BUILD_LIBRARY} Sec:${env.BUILD_SECURE}"
+                }
+            }
+        }
+
         stage('Verify Jenkins Tooling') {
+            when { expression { env.ANY_SERVICE_CHANGE == 'true' } }
             steps {
                 sh '''
                     set -eux
@@ -51,18 +173,21 @@ pipeline {
         }
 
         stage('Apply Common Kubernetes Resources') {
+            when { expression { env.ANY_SERVICE_CHANGE == 'true' } }
             steps {
                 sh 'kubectl --kubeconfig "$KUBECONFIG" apply -f k8s/namespace.yaml'
             }
         }
 
         stage('RAG Ingest - Build Test Image') {
+            when { expression { env.BUILD_INGEST == 'true' } }
             steps {
                 sh 'docker build --target test -t "$INGEST_TEST_IMAGE" -f modules/rag-ingest-service/Dockerfile modules/rag-ingest-service'
             }
         }
 
         stage('RAG Ingest - Pytest') {
+            when { expression { env.BUILD_INGEST == 'true' } }
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE', message: 'Ingest tests failed; continuing temporarily.') {
                     sh '''
@@ -91,12 +216,14 @@ pipeline {
         }
 
         stage('RAG Ingest - Build Runtime Image') {
+            when { expression { env.BUILD_INGEST == 'true' } }
             steps {
                 sh 'docker build --target runtime -t "$INGEST_IMAGE" -f modules/rag-ingest-service/Dockerfile modules/rag-ingest-service'
             }
         }
 
         stage('RAG Ingest - Load Image Into Kubernetes') {
+            when { expression { env.BUILD_INGEST == 'true' } }
             steps {
                 sh '''
                     set -eux
@@ -107,6 +234,7 @@ pipeline {
         }
 
         stage('RAG Ingest - Deploy') {
+            when { expression { env.BUILD_INGEST == 'true' } }
             steps {
                 sh '''
                     set -eux
@@ -119,6 +247,7 @@ pipeline {
         }
 
         stage('RAG Ingest - Verify') {
+            when { expression { env.BUILD_INGEST == 'true' } }
             steps {
                 sh '''
                     set -eux
@@ -129,12 +258,14 @@ pipeline {
         }
 
         stage('RAG Search - Build Test Image') {
+            when { expression { env.BUILD_SEARCH == 'true' } }
             steps {
                 sh 'docker build --target test -t "$SEARCH_TEST_IMAGE" -f modules/rag-search-service/Dockerfile modules/rag-search-service'
             }
         }
 
         stage('RAG Search - Pytest') {
+            when { expression { env.BUILD_SEARCH == 'true' } }
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE', message: 'Search tests failed; continuing temporarily.') {
                     sh '''
@@ -163,18 +294,21 @@ pipeline {
         }
 
         stage('RAG Search - Build Runtime Image') {
+            when { expression { env.BUILD_SEARCH == 'true' } }
             steps {
                 sh 'docker build --target runtime -t "$SEARCH_IMAGE" -f modules/rag-search-service/Dockerfile modules/rag-search-service'
             }
         }
 
         stage('RAG Search - Load Image Into Kubernetes') {
+            when { expression { env.BUILD_SEARCH == 'true' } }
             steps {
                 sh 'docker save "$SEARCH_IMAGE" | docker exec -i "$KIND_NODE" ctr -n k8s.io images import -'
             }
         }
 
         stage('RAG Search - Deploy') {
+            when { expression { env.BUILD_SEARCH == 'true' } }
             steps {
                 sh '''
                     set -eux
@@ -187,6 +321,7 @@ pipeline {
         }
 
         stage('RAG Search - Verify') {
+            when { expression { env.BUILD_SEARCH == 'true' } }
             steps {
                 sh '''
                     set -eux
@@ -197,12 +332,14 @@ pipeline {
         }
 
         stage('RAG Answer - Build Test Image') {
+            when { expression { env.BUILD_ANSWER == 'true' } }
             steps {
                 sh 'docker build --target test -t "$ANSWER_TEST_IMAGE" -f modules/rag-answer-service/Dockerfile modules/rag-answer-service'
             }
         }
 
         stage('RAG Answer - Pytest') {
+            when { expression { env.BUILD_ANSWER == 'true' } }
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE', message: 'Answer tests failed; continuing temporarily.') {
                     sh '''
@@ -228,18 +365,21 @@ pipeline {
         }
 
         stage('RAG Answer - Build Runtime Image') {
+            when { expression { env.BUILD_ANSWER == 'true' } }
             steps {
                 sh 'docker build --target runtime -t "$ANSWER_IMAGE" -f modules/rag-answer-service/Dockerfile modules/rag-answer-service'
             }
         }
 
         stage('RAG Answer - Load Image Into Kubernetes') {
+            when { expression { env.BUILD_ANSWER == 'true' } }
             steps {
                 sh 'docker save "$ANSWER_IMAGE" | docker exec -i "$KIND_NODE" ctr -n k8s.io images import -'
             }
         }
 
         stage('RAG Answer - Deploy') {
+            when { expression { env.BUILD_ANSWER == 'true' } }
             steps {
                 sh '''
                     set -eux
@@ -252,6 +392,7 @@ pipeline {
         }
 
         stage('RAG Answer - Verify') {
+            when { expression { env.BUILD_ANSWER == 'true' } }
             steps {
                 sh '''
                     set -eux
@@ -263,12 +404,14 @@ pipeline {
 
 
         stage('Online Library - Build Test Image') {
+            when { expression { env.BUILD_LIBRARY == 'true' } }
             steps {
                 sh 'docker build --target test -t "$LIBRARY_TEST_IMAGE" -f modules/online_library/Dockerfile modules/online_library'
             }
         }
 
         stage('Online Library - Pytest') {
+            when { expression { env.BUILD_LIBRARY == 'true' } }
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE', message: 'Online Library tests failed; continuing temporarily.') {
                     sh '''
@@ -294,18 +437,21 @@ pipeline {
         }
 
         stage('Online Library - Build Runtime Image') {
+            when { expression { env.BUILD_LIBRARY == 'true' } }
             steps {
                 sh 'docker build --target runtime -t "$LIBRARY_IMAGE" -f modules/online_library/Dockerfile modules/online_library'
             }
         }
 
         stage('Online Library - Load Image Into Kubernetes') {
+            when { expression { env.BUILD_LIBRARY == 'true' } }
             steps {
                 sh 'docker save "$LIBRARY_IMAGE" | docker exec -i "$KIND_NODE" ctr -n k8s.io images import -'
             }
         }
 
         stage('Online Library - Deploy') {
+            when { expression { env.BUILD_LIBRARY == 'true' } }
             steps {
                 sh '''
                     set -eux
@@ -319,12 +465,14 @@ pipeline {
         }
 
         stage('Secure API - Build Test Image') {
+            when { expression { env.BUILD_SECURE == 'true' } }
             steps {
                 sh 'docker build --target test -t "$SECURE_TEST_IMAGE" -f modules/secure_api/Dockerfile modules/secure_api'
             }
         }
 
         stage('Secure API - Pytest') {
+            when { expression { env.BUILD_SECURE == 'true' } }
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE', message: 'Secure API tests failed; continuing temporarily.') {
                     sh '''
@@ -350,18 +498,21 @@ pipeline {
         }
 
         stage('Secure API - Build Runtime Image') {
+            when { expression { env.BUILD_SECURE == 'true' } }
             steps {
                 sh 'docker build --target runtime -t "$SECURE_IMAGE" -f modules/secure_api/Dockerfile modules/secure_api'
             }
         }
 
         stage('Secure API - Load Image Into Kubernetes') {
+            when { expression { env.BUILD_SECURE == 'true' } }
             steps {
                 sh 'docker save "$SECURE_IMAGE" | docker exec -i "$KIND_NODE" ctr -n k8s.io images import -'
             }
         }
 
         stage('Secure API - Deploy') {
+            when { expression { env.BUILD_SECURE == 'true' } }
             steps {
                 sh '''
                     set -eux
@@ -375,6 +526,7 @@ pipeline {
         }
 
         stage('Secure API - Verify') {
+            when { expression { env.BUILD_SECURE == 'true' } }
             steps {
                 sh '''
                     set -eux
@@ -385,6 +537,7 @@ pipeline {
         }
 
         stage('Verify Complete RAG Stack') {
+            when { expression { env.ANY_SERVICE_CHANGE == 'true' } }
             steps {
                 sh '''
                     set -eux
@@ -395,6 +548,7 @@ pipeline {
         }
 
         stage('Cleanup Old CI Images') {
+            when { expression { env.ANY_SERVICE_CHANGE == 'true' } }
             steps {
                 // Cleanup is deliberately after all deployments and health checks.
                 // It must not turn a healthy deployment into a failed build.
@@ -429,7 +583,13 @@ pipeline {
 
     post {
         success {
-            echo "SUCCESS: ingest=${env.INGEST_IMAGE}, search=${env.SEARCH_IMAGE}, answer=${env.ANSWER_IMAGE}, library=${env.LIBRARY_IMAGE}, secure=${env.SECURE_IMAGE}"
+            script {
+                if (env.ANY_SERVICE_CHANGE == 'true') {
+                    echo "SUCCESS: selective deployment completed. ingest=${env.BUILD_INGEST}, search=${env.BUILD_SEARCH}, answer=${env.BUILD_ANSWER}, library=${env.BUILD_LIBRARY}, secure=${env.BUILD_SECURE}"
+                } else {
+                    echo 'SUCCESS: no currently deployable service changes were detected; build/test/deploy stages were skipped.'
+                }
+            }
         }
         failure {
             sh '''
@@ -441,13 +601,19 @@ pipeline {
             '''
         }
         always {
-            sh '''
-                docker rm -f "$INGEST_TEST_CONTAINER" >/dev/null 2>&1 || true
-                docker rm -f "$SEARCH_TEST_CONTAINER" >/dev/null 2>&1 || true
-                docker rm -f "$ANSWER_TEST_CONTAINER" >/dev/null 2>&1 || true
-                docker rm -f "$LIBRARY_TEST_CONTAINER" >/dev/null 2>&1 || true
-                docker rm -f "$SECURE_TEST_CONTAINER" >/dev/null 2>&1 || true
-            '''
+            script {
+                if (env.ANY_SERVICE_CHANGE == 'true') {
+                    sh '''
+                        docker rm -f "$INGEST_TEST_CONTAINER" >/dev/null 2>&1 || true
+                        docker rm -f "$SEARCH_TEST_CONTAINER" >/dev/null 2>&1 || true
+                        docker rm -f "$ANSWER_TEST_CONTAINER" >/dev/null 2>&1 || true
+                        docker rm -f "$LIBRARY_TEST_CONTAINER" >/dev/null 2>&1 || true
+                        docker rm -f "$SECURE_TEST_CONTAINER" >/dev/null 2>&1 || true
+                    '''
+                } else {
+                    echo 'No deployable service changes; Docker test-container cleanup skipped.'
+                }
+            }
         }
     }
 }
