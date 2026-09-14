@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rag-search-service-config
+  namespace: rag-poc
+data:
+  APP_PROFILE: "kubernetes"
+  AUTO_CREATE_TABLES: "false"
+  DATABASE_URL: "postgresql://library_user:library_pass@host.docker.internal:5432/online_library"
+
+  EMBEDDING_PROVIDER: "ollama"
+  EMBEDDING_MODEL: "nomic-embed-text"
+  EMBEDDING_DIMENSION: "768"
+  EMBEDDING_VERSION: "v1"
+  ALLOW_FAKE_EMBEDDINGS: "false"
+  OLLAMA_BASE_URL: "http://host.docker.internal:11434"
+
+  SEARCH_DEFAULT_MODE: "hybrid"
+  SEARCH_DEFAULT_TOP_K: "10"
+  SEARCH_MAX_TOP_K: "50"
+  SEARCH_MIN_SCORE: "0.0"
+  SEARCH_VECTOR_WEIGHT: "0.70"
+  SEARCH_KEYWORD_WEIGHT: "0.30"
+  HYBRID_OVERSAMPLING_FACTOR: "5"
+  HYBRID_FUSION_STRATEGY: "rrf"
+  RRF_K: "60"
+  RERANK_ENABLED: "true"
+  RERANK_TOP_N: "30"
+  RERANK_STRATEGY: "local"
+  SEARCH_KEEP_NUMERIC_TABLE_CHUNKS: "true"
+  SEARCH_MIN_ALPHA_RATIO: "0.45"
+  SEARCH_ENABLE_METADATA_FILTERS: "true"
+  SEARCH_INCLUDE_CHUNK_TEXT_DEFAULT: "true"
+  SEARCH_ADMIN_ENABLED: "true"
+  SEARCH_OBSERVABILITY_ENABLED: "false"
+
+  RAG_INGEST_BASE_URL: "http://rag-ingest-service:8000"

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: secure-api-config
+  namespace: rag-poc
+data:
+  APP_NAME: secure-api-gateway
+  APP_VERSION: "0.1.0"
+  ENVIRONMENT: dev
+  LOG_LEVEL: INFO
+  HOST: "0.0.0.0"
+  PORT: "8010"
+  CORS_ORIGINS: '["http://localhost:3000","http://localhost:4200","http://localhost:8010"]'
+  KEYCLOAK_URL: http://host.docker.internal:8080
+  KEYCLOAK_REALM: rag-auth-gateway
+  KEYCLOAK_CLIENT_ID: fastapi-auth-gateway
+  KEYCLOAK_ADMIN_CLIENT_ID: secure-gateway-admin
+  KEYCLOAK_TIMEOUT_SECONDS: "10"
+  TOKEN_AUDIENCE_VALIDATION_ENABLED: "false"
+  RAG_INGEST_BASE_URL: http://rag-ingest-service:8000
+  RAG_SEARCH_BASE_URL: http://rag-search-service:8001
+  RAG_ANSWER_BASE_URL: http://rag-answer-service:8002
+  ONLINE_LIBRARY_DB_HOST: host.docker.internal
+  ONLINE_LIBRARY_DB_PORT: "5432"
+  ONLINE_LIBRARY_DB_NAME: online_library
+  ONLINE_LIBRARY_DB_USER: library_user
+  ONLINE_LIBRARY_AGENT_BASE_URL: http://host.docker.internal:8005
+  ONLINE_LIBRARY_API_BASE_URL: http://host.docker.internal:8003
+  ONLINE_LIBRARY_MCP_URL: http://host.docker.internal:8004/mcp
+  DOWNSTREAM_TIMEOUT_SECONDS: "600"

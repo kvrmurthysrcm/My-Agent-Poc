@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rag-answer-service-config
+  namespace: rag-poc
+data:
+  APP_PROFILE: "kubernetes"
+  RAG_SEARCH_BASE_URL: "http://rag-search-service:8001"
+  RAG_SEARCH_TIMEOUT_SECONDS: "90"
+  ANSWER_DEFAULT_TOP_K: "10"
+  ANSWER_CONTEXT_TOP_K: "10"
+  ANSWER_MAX_CONTEXT_CHARS: "12000"
+  ANSWER_MAX_CHARS_PER_SOURCE: "1800"
+  ANSWER_INCLUDE_SOURCES: "true"
+  ANSWER_REQUIRE_CONTEXT: "true"
+  ANSWER_OBSERVABILITY_ENABLED: "false"
+  LLM_PROVIDER: "ollama"
+  LLM_MODEL: "mistral:latest"
+  LLM_TEMPERATURE: "0.1"
+  LLM_TIMEOUT_SECONDS: "180"
+  OLLAMA_BASE_URL: "http://host.docker.internal:11434"

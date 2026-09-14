@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-search-service
+  namespace: rag-poc
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: rag-search-service
+  template:
+    metadata:
+      labels:
+        app: rag-search-service
+    spec:
+      containers:
+        - name: rag-search-service
+          image: __IMAGE__
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8001
+          envFrom:
+            - configMapRef:
+                name: rag-search-service-config
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "750m"
+              memory: "768Mi"

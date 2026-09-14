@@ -4,7 +4,35 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="phase 4 changes, postman collection, readme.md changes included" />
+    <list default="true" id="dd72589c-7286-4dae-ab3d-e661952dd12a" name="Changes" comment="Add missing files to GIT">
+      <change afterPath="$PROJECT_DIR$/CICD_RAG_ANSWER_SERVICE.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/COMMON_FILES.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/CUMULATIVE_CICD_README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Jenkinsfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Jenkinsfile-fail-with-tests" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Jenkinsfile.rag-search" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/RAG_SEARCH_CICD_README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/docs/My-Agent-Poc_CICD_Kubernetes_Structure_Guide.docx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/k8s/rag-answer-service/configmap.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/k8s/rag-answer-service/deployment.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/k8s/rag-answer-service/namespace.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/k8s/rag-answer-service/service.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/k8s/rag-ingest-service/deployment.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/modules/online_library/.dockerignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/modules/rag-answer-service/.dockerignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/modules/rag-answer-service/Dockerfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/prepare-jenkins-kubeconfig.ps1" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/start-port-forwards.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/stop-port-forwards.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/test-all-cicd.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/test-rag-search-cicd.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/start-port-forwards.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/stop-port-forwards.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/test-rag-answer-cicd-ignore-tests.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/test-rag-answer-cicd-v4.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/test-rag-answer-cicd.bat" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -372,11 +400,18 @@
       <option name="project" value="LOCAL" />
       <updated>1789316754923</updated>
     </task>
-    <option name="localTasksCounter" value="38" />
+    <task id="LOCAL-00038" summary="Add missing files to GIT">
+      <option name="closed" value="true" />
+      <created>1789317046037</created>
+      <option name="number" value="00038" />
+      <option name="presentableId" value="LOCAL-00038" />
+      <option name="project" value="LOCAL" />
+      <updated>1789317046037</updated>
+    </task>
+    <option name="localTasksCounter" value="39" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="added rag-answer-service module related files:&#10;OVERSAMPLED_HYBRID_RRF_RERANKING.md added with feature implimented to tighten the production readiness." />
     <MESSAGE value="added rag-answer-service module related files:&#10;OVERSAMPLED_HYBRID_RRF_RERANKING.md added with feature implimented to tighten the production readiness.&#10;add missing file" />
     <MESSAGE value="update the search chunk quality, removed references to SQLite DB." />
     <MESSAGE value="Added lexical.py search now uses lexical map/dictionary to handle input query.&#10;added the documentation file also." />
@@ -401,6 +436,7 @@
     <MESSAGE value="Implemented&#10;Added dedicated metadata persistence service:&#10;modules/rag-ingest-service/app/services/library_metadata_persistence_service.py&#10;Added first-class ingest metadata fields:&#10;genre&#10;isbn&#10;page_count&#10;Updated resource persistence so searchable catalog data lands in columns and join tables:&#10;resources.title&#10;resources.description&#10;resources.publisher&#10;resources.published_date&#10;resources.language&#10;resources.isbn&#10;resources.page_count&#10;categories&#10;authors&#10;tags&#10;resource_authors&#10;resource_tags&#10;Preserved full request metadata in resources.metadata_json." />
     <MESSAGE value="Phase 4: Online Library Catalog Search API&#10;Goal: search the online library catalog by structured fields such as author, genre/category, tag, publisher, language, tier, and status.&#10;&#10;Implementation status: completed for the online_library API module.&#10;&#10;Recommendation:&#10;&#10;Implement catalog search in online_library first because it owns library/catalog data.&#10;Keep RAG search focused on content/chunk search.&#10;New endpoints:&#10;&#10;GET /catalog/resources&#10;GET /catalog/resources/{resource_id}&#10;GET /catalog/facets&#10;Optional later: POST /catalog/search for richer filter payloads.&#10;Implemented notes:&#10;&#10;Added explicit catalog search functions in modules/online_library/repository.py.&#10;Added /catalog/* routes in modules/online_library/api.py.&#10;Search is metadata/catalog search only; it does not search RAG chunks.&#10;Responses exclude binary content and include joined authors and tags arrays.&#10;genre is treated as an alias for category.&#10;Optional RAG-enriched columns such as ingestion_status, rag_enabled, metadata_json, and storage_path are returned when the database has them and returned as null/defaults when it does not.&#10;Added route tests in modules/online_library/tests/test_catalog_api.py.&#10;Live local SQL smoke test passed against online_library.&#10;Supported filters:&#10;&#10;q&#10;author&#10;category&#10;genre&#10;tag&#10;publisher&#10;language&#10;tier&#10;status&#10;published_from&#10;published_to&#10;limit&#10;offset&#10;sort" />
     <MESSAGE value="phase 4 changes, postman collection, readme.md changes included" />
-    <option name="LAST_COMMIT_MESSAGE" value="phase 4 changes, postman collection, readme.md changes included" />
+    <MESSAGE value="Add missing files to GIT" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add missing files to GIT" />
   </component>
 </project>

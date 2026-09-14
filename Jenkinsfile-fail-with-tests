@@ -1,0 +1,171 @@
+pipeline {
+    agent any
+
+    options {
+        skipDefaultCheckout(true)
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
+    environment {
+        APP_NAME       = 'rag-answer-service'
+        SERVICE_DIR    = 'modules/rag-answer-service'
+        K8S_DIR        = 'k8s/rag-answer-service'
+        K8S_NAMESPACE  = 'rag-poc'
+        K8S_DEPLOYMENT = 'rag-answer-service'
+        K8S_CONTAINER  = 'rag-answer-service'
+        KIND_NODE      = 'desktop-control-plane'
+        KUBECONFIG     = '/var/jenkins_home/.kube/config'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_SHORT = sh(
+                        script: 'git rev-parse --short=7 HEAD',
+                        returnStdout: true
+                    ).trim()
+                    env.IMAGE_TAG = "${env.BUILD_NUMBER}-${env.GIT_SHORT}"
+                    env.IMAGE_NAME = "${env.APP_NAME}:${env.IMAGE_TAG}"
+                    env.TEST_IMAGE = "${env.APP_NAME}:test-${env.BUILD_NUMBER}-${env.GIT_SHORT}"
+                    env.TEST_CONTAINER = "${env.APP_NAME}-tests-${env.BUILD_NUMBER}"
+                }
+            }
+        }
+
+        stage('Verify Jenkins Tooling') {
+            steps {
+                sh '''
+                    set -eux
+                    git --version
+                    docker --version
+                    kubectl version --client
+                    python3 --version || true
+                '''
+            }
+        }
+
+        stage('Build Test Image') {
+            steps {
+                sh '''
+                    set -eux
+                    docker build \
+                      --target test \
+                      -t "$TEST_IMAGE" \
+                      -f "$SERVICE_DIR/Dockerfile" \
+                      "$SERVICE_DIR"
+                '''
+            }
+        }
+
+        stage('Pytest') {
+            steps {
+                sh '''
+                    set -u
+                    rm -rf test-results
+                    mkdir -p test-results
+                    docker rm -f "$TEST_CONTAINER" >/dev/null 2>&1 || true
+
+                    set +e
+                    docker run --name "$TEST_CONTAINER" "$TEST_IMAGE"
+                    TEST_EXIT=$?
+                    set -e
+
+                    docker cp "$TEST_CONTAINER:/tmp/test-results/pytest.xml" test-results/pytest.xml || true
+                    docker rm -f "$TEST_CONTAINER" >/dev/null 2>&1 || true
+
+                    exit $TEST_EXIT
+                '''
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'test-results/pytest.xml'
+                }
+            }
+        }
+
+        stage('Build Runtime Image') {
+            steps {
+                sh '''
+                    set -eux
+                    docker build \
+                      --target runtime \
+                      -t "$IMAGE_NAME" \
+                      -f "$SERVICE_DIR/Dockerfile" \
+                      "$SERVICE_DIR"
+                    docker image inspect "$IMAGE_NAME" >/dev/null
+                '''
+            }
+        }
+
+        stage('Kubernetes Preflight') {
+            steps {
+                sh '''
+                    set -eux
+                    test -f "$KUBECONFIG"
+                    kubectl get nodes
+                    docker inspect "$KIND_NODE" >/dev/null
+                '''
+            }
+        }
+
+        stage('Load Image Into Docker Desktop Kubernetes') {
+            steps {
+                sh '''
+                    set -eux
+                    docker save "$IMAGE_NAME" | \
+                      docker exec -i "$KIND_NODE" ctr -n k8s.io images import -
+
+                    docker exec "$KIND_NODE" ctr -n k8s.io images list | grep "$APP_NAME" || true
+                '''
+            }
+        }
+
+        stage('Deploy To Kubernetes') {
+            steps {
+                sh '''
+                    set -eux
+                    kubectl apply -f "$K8S_DIR/namespace.yaml"
+                    kubectl apply -f "$K8S_DIR/configmap.yaml"
+                    kubectl apply -f "$K8S_DIR/service.yaml"
+
+                    sed "s|__IMAGE__|$IMAGE_NAME|g" "$K8S_DIR/deployment.yaml" | kubectl apply -f -
+
+                    kubectl -n "$K8S_NAMESPACE" rollout status \
+                      deployment/"$K8S_DEPLOYMENT" \
+                      --timeout=120s
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh '''
+                    set -eux
+                    kubectl -n "$K8S_NAMESPACE" get deployment "$K8S_DEPLOYMENT"
+                    kubectl -n "$K8S_NAMESPACE" get pods -l app="$APP_NAME" -o wide
+                    kubectl -n "$K8S_NAMESPACE" get service "$APP_NAME"
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "SUCCESS: deployed ${env.IMAGE_NAME}"
+        }
+        failure {
+            sh '''
+                kubectl -n "$K8S_NAMESPACE" get pods -l app="$APP_NAME" -o wide || true
+                kubectl -n "$K8S_NAMESPACE" describe deployment "$K8S_DEPLOYMENT" || true
+            '''
+        }
+        always {
+            sh '''
+                docker rm -f "$TEST_CONTAINER" >/dev/null 2>&1 || true
+            '''
+        }
+    }
+}

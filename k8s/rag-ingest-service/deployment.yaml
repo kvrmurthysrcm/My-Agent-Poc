@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-ingest-service
+  namespace: rag-poc
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: rag-ingest-service
+  template:
+    metadata:
+      labels:
+        app: rag-ingest-service
+    spec:
+      containers:
+        - name: rag-ingest-service
+          image: __IMAGE__
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: rag-ingest-service-config
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 18
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          volumeMounts:
+            - name: ingest-storage
+              mountPath: /app/storage
+          resources:
+            requests:
+              cpu: "150m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+      volumes:
+        - name: ingest-storage
+          emptyDir: {}

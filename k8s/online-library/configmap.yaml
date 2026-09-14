@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: online-library-config
+  namespace: rag-poc
+data:
+  ONLINE_LIBRARY_DB_HOST: host.docker.internal
+  ONLINE_LIBRARY_DB_PORT: "5432"
+  ONLINE_LIBRARY_DB_NAME: online_library
+  ONLINE_LIBRARY_DB_USER: library_user
+  ONLINE_LIBRARY_DB_PASSWORD: library_pass

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rag-ingest-service-config
+  namespace: rag-poc
+data:
+  APP_PROFILE: "kubernetes"
+  DATABASE_URL: "postgresql://library_user:library_pass@host.docker.internal:5432/online_library"
+  AUTO_CREATE_TABLES: "false"
+  STORAGE_ROOT: "/app/storage"
+  ENABLE_DEV_DELETE_ENDPOINT: "true"
+  DELETE_ORIGINAL_FILE_AFTER_INGESTION: "true"
+  DUPLICATE_DOCUMENT_POLICY: "version"
+  MAX_UPLOAD_MB: "25"
+  EMBEDDING_PROVIDER: "ollama"
+  EMBEDDING_MODEL: "nomic-embed-text"
+  EMBEDDING_DIMENSION: "768"
+  EMBEDDING_VERSION: "v1"
+  ALLOW_FAKE_EMBEDDINGS: "false"
+  OLLAMA_BASE_URL: "http://host.docker.internal:11434"
+  OLLAMA_EMBEDDING_TIMEOUT_SECONDS: "60"
+  LLM_PROVIDER: "ollama"
+  LLM_MODEL: "mistral:latest"
+  LLM_BASE_URL: "http://host.docker.internal:11434"
+  LLM_GENERATE_PATH: "/api/generate"
+  LLM_TIMEOUT_SECONDS: "240"
+  ASYNC_BACKEND: "fastapi_background_tasks"
+  RECOVER_PROCESSING_JOBS_ON_STARTUP: "true"
+  STARTUP_RECOVERY_STALE_AFTER_SECONDS: "0"
+  PROCESS_QUEUED_JOBS_ON_STARTUP: "true"

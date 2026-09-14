@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secure-api
+  namespace: rag-poc
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: secure-api
+  template:
+    metadata:
+      labels:
+        app: secure-api
+    spec:
+      containers:
+        - name: secure-api
+          image: __IMAGE__
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8010
+          envFrom:
+            - configMapRef:
+                name: secure-api-config
+            - secretRef:
+                name: secure-api-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

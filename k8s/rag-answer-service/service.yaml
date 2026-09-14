@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rag-answer-service
+  namespace: rag-poc
+spec:
+  type: ClusterIP
+  selector:
+    app: rag-answer-service
+  ports:
+    - name: http
+      port: 8002
+      targetPort: 8002

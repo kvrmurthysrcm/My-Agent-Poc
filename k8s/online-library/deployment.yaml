@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: online-library
+  namespace: rag-poc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: online-library
+  template:
+    metadata:
+      labels:
+        app: online-library
+    spec:
+      containers:
+        - name: online-library
+          image: __IMAGE__
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8003
+          envFrom:
+            - configMapRef:
+                name: online-library-config
+          readinessProbe:
+            httpGet:
+              path: /health/db
+              port: 8003
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            tcpSocket:
+              port: 8003
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
