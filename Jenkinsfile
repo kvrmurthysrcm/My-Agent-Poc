@@ -104,31 +104,18 @@ pipeline {
             }
         }
 
-        stage('Cleanup') {
-            when { expression { env.ANY_SERVICE_CHANGE == 'true' } }
-            steps {
-                catchError(
-                    buildResult: 'SUCCESS',
-                    stageResult: 'UNSTABLE',
-                    message: 'Image retention cleanup failed; deployments are unchanged.'
-                ) {
-                    sh 'KEEP_CI_IMAGES=3 bash scripts/cleanup-old-cicd-images.sh'
-                }
-                catchError(
-                    buildResult: 'SUCCESS',
-                    stageResult: 'UNSTABLE',
-                    message: 'Docker builder-cache cleanup failed.'
-                ) {
-                    sh '''
-                        docker builder prune -f --filter "until=24h" || \
-                          docker builder prune -f
-                    '''
-                }
-            }
-        }
     }
 
     post {
+        always {
+            sh '''
+                if [ "$ANY_SERVICE_CHANGE" = "true" ]; then
+                  KEEP_CI_IMAGES=3 bash scripts/cleanup-old-cicd-images.sh || true
+                  docker builder prune -f --filter "until=24h" || \
+                    docker builder prune -f || true
+                fi
+            '''
+        }
         success {
             echo 'Selective CI/CD pipeline completed successfully.'
         }
