@@ -15,6 +15,7 @@ RUN python -m pip install --upgrade pip \
 
 FROM base AS test
 ENV PYTHONPATH=/app
+RUN python -m pip install "pytest>=9.0.2"
 COPY app ./app
 COPY tests ./tests
 CMD ["python", "-m", "pytest", "-q", "--junitxml=/tmp/test-results/pytest.xml"]

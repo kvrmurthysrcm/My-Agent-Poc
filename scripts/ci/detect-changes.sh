@@ -30,7 +30,7 @@ for raw_path in "${changed_files[@]}"; do
   echo "Changed: $path" >&2
 
   case "$path" in
-    docs/*) ;;
+    docs/*|release/*.md) ;;
     modules/rag-ingest-service/*|k8s/rag-ingest-service/*) selected[ingest]=1 ;;
     modules/rag-search-service/*|k8s/rag-search-service/*) selected[search]=1 ;;
     modules/rag-answer-service/*|k8s/rag-answer-service/*) selected[answer]=1 ;;
