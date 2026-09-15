@@ -4,6 +4,7 @@ metadata:
   name: secure-api-config
   namespace: rag-poc
 data:
+  TZ: "America/New_York"
   APP_NAME: secure-api-gateway
   APP_VERSION: "0.1.0"
   ENVIRONMENT: dev

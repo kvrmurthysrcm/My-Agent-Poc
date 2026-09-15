@@ -4,6 +4,7 @@ metadata:
   name: online-library-config
   namespace: rag-poc
 data:
+  TZ: "America/New_York"
   ONLINE_LIBRARY_DB_HOST: host.docker.internal
   ONLINE_LIBRARY_DB_PORT: "5432"
   ONLINE_LIBRARY_DB_NAME: online_library

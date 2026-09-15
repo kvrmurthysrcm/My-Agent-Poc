@@ -4,6 +4,7 @@ metadata:
   name: rag-search-service-config
   namespace: rag-poc
 data:
+  TZ: "America/New_York"
   APP_PROFILE: "kubernetes"
   AUTO_CREATE_TABLES: "false"
   DATABASE_URL: "postgresql://library_user:library_pass@host.docker.internal:5432/online_library"

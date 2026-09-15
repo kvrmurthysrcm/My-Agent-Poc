@@ -4,6 +4,7 @@ metadata:
   name: rag-answer-service-config
   namespace: rag-poc
 data:
+  TZ: "America/New_York"
   APP_PROFILE: "kubernetes"
   RAG_SEARCH_BASE_URL: "http://rag-search-service:8001"
   RAG_SEARCH_TIMEOUT_SECONDS: "90"
