@@ -14,12 +14,6 @@ pipeline {
         K8S_NAMESPACE = 'rag-poc'
         KIND_NODE = 'desktop-control-plane'
         KUBECONFIG = '/var/jenkins_home/kubeconfig-jenkins'
-        BUILD_INGEST = 'false'
-        BUILD_SEARCH = 'false'
-        BUILD_ANSWER = 'false'
-        BUILD_LIBRARY = 'false'
-        BUILD_SECURE = 'false'
-        ANY_SERVICE_CHANGE = 'false'
         DEBUG_PIPELINE = 'true'
     }
     stages {
