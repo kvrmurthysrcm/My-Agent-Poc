@@ -467,3 +467,4 @@ Open choices before implementation:
 - Keep all proposed endpoints or start with a smaller subset?
 - Keep port `8003`?
 - Return user email fields in user-specific responses, or omit emails for privacy even in the POC?
+-- test change in online-library
