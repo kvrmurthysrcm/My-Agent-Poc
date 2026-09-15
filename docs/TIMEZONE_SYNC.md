@@ -165,7 +165,7 @@ Then recreate:
   -p 50000:50000 `
   -e TZ=America/New_York `
   -e JAVA_OPTS="-Duser.timezone=America/New_York" `
-  --group-add <SOCKET_GID> `
+  --group-add 0 `
   -v jenkins_home:/var/jenkins_home `
   -v /run/host-services/docker.proxy.sock:/var/run/docker.sock `
   -v /run/desktop/mnt/host/d/common:/workspace `
