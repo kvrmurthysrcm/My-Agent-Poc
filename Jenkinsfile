@@ -7,6 +7,14 @@ pipeline {
         disableConcurrentBuilds()
     }
 
+    parameters {
+        choice(
+            name: 'MAX_PARALLEL_SERVICES',
+            choices: ['2', '1', '3', '4'],
+            description: 'Maximum service build/test or deployment workers on the shared Docker/Kubernetes host.'
+        )
+    }
+
     environment {
         K8S_NAMESPACE = 'rag-poc'
         KIND_NODE = 'desktop-control-plane'
@@ -66,7 +74,10 @@ pipeline {
                     kubectl version --client
                     test -f "$KUBECONFIG"
                     test -f scripts/ci/build-test-deploy.sh
+                    test -f scripts/ci/service-worker.sh
                     test -f scripts/cleanup-old-cicd-images.sh
+                    command -v xargs
+                    command -v flock
                     docker inspect "$KIND_NODE" >/dev/null
                     kubectl --kubeconfig "$KUBECONFIG" get nodes -o wide
                     kubectl --kubeconfig "$KUBECONFIG" apply -f k8s/namespace.yaml
@@ -78,6 +89,7 @@ pipeline {
             when { expression { env.ANY_SERVICE_CHANGE == 'true' } }
             steps {
                 sh '''
+                    echo "Using up to $MAX_PARALLEL_SERVICES parallel service workers."
                     bash scripts/ci/build-test-deploy.sh \
                       "$CI_SERVICES" "$IMAGE_TAG" "$K8S_NAMESPACE" \
                       "$KUBECONFIG" "$KIND_NODE"
