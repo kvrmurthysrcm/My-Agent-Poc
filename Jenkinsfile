@@ -11,7 +11,7 @@ pipeline {
         choice(
             name: 'MAX_PARALLEL_SERVICES',
             choices: ['2', '1', '3', '4'],
-            description: 'Maximum service build/test or deployment workers on the shared Docker/Kubernetes host.'
+            description: 'Maximum service build/test or deployment workers on the shared Docker/Kubernetes host Build 30 for testing.'
         )
     }
 
