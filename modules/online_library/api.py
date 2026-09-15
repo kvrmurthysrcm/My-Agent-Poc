@@ -97,7 +97,7 @@ def catalog_resources(
 
 @app.get("/catalog/resources/{resource_id}")
 def catalog_resource_detail(resource_id: str) -> dict[str, Any]:
-    """Return one online library catalog resource with authors and tags. Test change in online library 13"""
+    """Return one online library catalog resource with authors and tags. Test change in online library 14"""
 
     resource = get_catalog_resource_detail(resource_id)
     if resource is None:
