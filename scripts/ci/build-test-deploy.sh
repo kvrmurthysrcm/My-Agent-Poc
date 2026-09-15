@@ -31,6 +31,15 @@ for service in "${selected_services[@]}"; do
   esac
 done
 
+report_root="${WORKSPACE:-$PWD}/build-reports"
+report_parts="$report_root/image-sizes"
+report_summary="$report_root/image-sizes.tsv"
+export CI_IMAGE_SIZE_DIR="$report_parts"
+mkdir -p "$report_parts"
+for service in "${selected_services[@]}"; do
+  rm -f "$report_parts/$service.tsv"
+done
+
 run_parallel() {
   local action="$1"
   shift
@@ -49,6 +58,34 @@ run_parallel() {
 # Build and test everything first. If any worker fails, xargs returns non-zero
 # and no service is deployed by this run.
 run_parallel build-test "${selected_services[@]}"
+
+total_bytes=0
+{
+  printf 'service\timage\tsize_bytes\tsize_mib\n'
+  for service in "${selected_services[@]}"; do
+    part="$report_parts/$service.tsv"
+    if [[ ! -s "$part" ]]; then
+      echo "Missing image-size result for service: $service" >&2
+      exit 1
+    fi
+    IFS=$'\t' read -r report_service report_image report_bytes report_mib <"$part"
+    if ! [[ "$report_bytes" =~ ^[0-9]+$ ]]; then
+      echo "Invalid image-size result for service: $service" >&2
+      exit 1
+    fi
+    total_bytes=$((total_bytes + report_bytes))
+    printf '%s\t%s\t%s\t%s\n' \
+      "$report_service" "$report_image" "$report_bytes" "$report_mib"
+  done
+  total_mib="$(awk -v bytes="$total_bytes" 'BEGIN { printf "%.2f", bytes / 1048576 }')"
+  printf 'TOTAL\tselected-runtime-images\t%s\t%s\n' "$total_bytes" "$total_mib"
+} >"$report_summary"
+
+echo "============================================================"
+echo "RUNTIME IMAGE SIZE SUMMARY"
+echo "============================================================"
+awk -F '\t' 'NR == 1 { printf "%-18s %-48s %12s %12s\n", "SERVICE", "IMAGE", "BYTES", "MiB"; next }
+  { printf "%-18s %-48s %12s %12s\n", $1, $2, $3, $4 }' "$report_summary"
 
 # Deploy in dependency-aware waves. Services inside a wave may run together,
 # but every rollout in a wave must finish before the next wave starts.

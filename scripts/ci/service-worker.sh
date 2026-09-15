@@ -162,6 +162,23 @@ build_and_test() {
 
   echo "BUILD/RUNTIME: $runtime_image"
   docker build --target runtime -t "$runtime_image" -f "$dockerfile" "$context"
+
+  local size_bytes
+  local size_mib
+  size_bytes="$(docker image inspect --format '{{.Size}}' "$runtime_image")"
+  if ! [[ "$size_bytes" =~ ^[0-9]+$ ]]; then
+    echo "Docker returned an invalid image size for $runtime_image: $size_bytes" >&2
+    return 1
+  fi
+  size_mib="$(awk -v bytes="$size_bytes" 'BEGIN { printf "%.2f", bytes / 1048576 }')"
+  echo "IMAGE/SIZE: $runtime_image = $size_mib MiB ($size_bytes bytes)"
+
+  if [[ -n "${CI_IMAGE_SIZE_DIR:-}" ]]; then
+    mkdir -p "$CI_IMAGE_SIZE_DIR"
+    printf '%s\t%s\t%s\t%s\n' \
+      "$service" "$runtime_image" "$size_bytes" "$size_mib" \
+      >"$CI_IMAGE_SIZE_DIR/$service.tsv"
+  fi
 }
 
 deploy() {
