@@ -11,6 +11,11 @@ from .weather_service import Location
 app = FastAPI(title="Weather Agent POC")
 
 
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 def render_page(result_html: str = "") -> HTMLResponse:
     html = f"""
 <!doctype html>

@@ -41,6 +41,16 @@ pipeline {
                     env.SECURE_IMAGE = "secure-api:${env.IMAGE_TAG}"
                     env.SECURE_TEST_IMAGE = "secure-api:test-${env.IMAGE_TAG}"
                     env.SECURE_TEST_CONTAINER = "secure-api-tests-${env.BUILD_NUMBER}"
+                    env.MCP_IMAGE = "online-library-mcp:${env.IMAGE_TAG}"
+                    env.MCP_TEST_IMAGE = "online-library-mcp:test-${env.IMAGE_TAG}"
+                    env.LIBRARY_AGENT_IMAGE = "online-library-agent:${env.IMAGE_TAG}"
+                    env.LIBRARY_AGENT_TEST_IMAGE = "online-library-agent:test-${env.IMAGE_TAG}"
+                    env.WEATHER_IMAGE = "weather-agent:${env.IMAGE_TAG}"
+                    env.WEATHER_TEST_IMAGE = "weather-agent:test-${env.IMAGE_TAG}"
+                    env.WEATHER_AI_IMAGE = "weather-ai-agent:${env.IMAGE_TAG}"
+                    env.WEATHER_AI_TEST_IMAGE = "weather-ai-agent:test-${env.IMAGE_TAG}"
+                    env.ANGULAR_IMAGE = "angular-ui:${env.IMAGE_TAG}"
+                    env.ANGULAR_TEST_IMAGE = "angular-ui:test-${env.IMAGE_TAG}"
 
                     echo '================ DEBUG: CHECKOUT ================='
                     echo "DEBUG build number              : ${env.BUILD_NUMBER}"
@@ -72,6 +82,11 @@ pipeline {
                     env.BUILD_ANSWER = 'false'
                     env.BUILD_LIBRARY = 'false'
                     env.BUILD_SECURE = 'false'
+                    env.BUILD_MCP = 'false'
+                    env.BUILD_LIBRARY_AGENT = 'false'
+                    env.BUILD_WEATHER = 'false'
+                    env.BUILD_WEATHER_AI = 'false'
+                    env.BUILD_ANGULAR = 'false'
                     env.ANY_SERVICE_CHANGE = 'false'
 
                     // Prefer the commit from the previous Jenkins build. Fall back to HEAD^.
@@ -103,7 +118,6 @@ pipeline {
                     def rebuildAll = false
                     def sawNonDocChange = false
                     def sawMappedDeployableChange = false
-                    def ignoredNonDeployable = []
 
                     if (!baseCommit) {
                         echo 'No previous commit is available. Rebuilding all deployable services.'
@@ -122,13 +136,11 @@ pipeline {
                             def isAnswer = path.startsWith('modules/rag-answer-service/') || path.startsWith('k8s/rag-answer-service/')
                             def isLibrary = path.startsWith('modules/online_library/') || path.startsWith('k8s/online-library/')
                             def isSecure = path.startsWith('modules/secure_api/') || path.startsWith('k8s/secure-api/')
-                            def isKnownNonDeployable = (
-                                path.startsWith('modules/angular-ui/') ||
-                                path.startsWith('modules/online_library_agent/') ||
-                                path.startsWith('modules/online_library_mcp/') ||
-                                path.startsWith('modules/weather_agent/') ||
-                                path.startsWith('modules/weather_ai_agent/')
-                            )
+                            def isMcp = path.startsWith('modules/online_library_mcp/') || path.startsWith('k8s/online-library-mcp/')
+                            def isLibraryAgent = path.startsWith('modules/online_library_agent/') || path.startsWith('k8s/online-library-agent/')
+                            def isWeather = path.startsWith('modules/weather_agent/') || path.startsWith('k8s/weather-agent/')
+                            def isWeatherAi = path.startsWith('modules/weather_ai_agent/') || path.startsWith('k8s/weather-ai-agent/')
+                            def isAngular = path.startsWith('modules/angular-ui/') || path.startsWith('k8s/angular-ui/')
 
                             echo '---------------- DEBUG: CHANGED PATH ----------------'
                             echo "DEBUG index                     : ${index}"
@@ -141,7 +153,7 @@ pipeline {
                             echo "DEBUG answer match              : ${isAnswer}"
                             echo "DEBUG online-library match      : ${isLibrary}"
                             echo "DEBUG secure-api match          : ${isSecure}"
-                            echo "DEBUG non-deployable match      : ${isKnownNonDeployable}"
+                            echo "DEBUG additional modules        : MCP=${isMcp} Agent=${isLibraryAgent} Weather=${isWeather} WeatherAI=${isWeatherAi} Angular=${isAngular}"
 
                             if (!path) {
                                 echo 'DEBUG routing decision          : EMPTY PATH / NO-OP'
@@ -169,9 +181,27 @@ pipeline {
                                     env.BUILD_SECURE = 'true'
                                     sawMappedDeployableChange = true
                                     echo 'DEBUG routing decision          : SECURE API'
-                                } else if (isKnownNonDeployable) {
-                                    ignoredNonDeployable.add(path)
-                                    echo 'DEBUG routing decision          : KNOWN NON-DEPLOYABLE MODULE'
+                                } else if (isMcp) {
+                                    env.BUILD_MCP = 'true'
+                                    sawMappedDeployableChange = true
+                                    echo 'DEBUG routing decision          : ONLINE LIBRARY MCP'
+                                } else if (isLibraryAgent) {
+                                    env.BUILD_LIBRARY_AGENT = 'true'
+                                    sawMappedDeployableChange = true
+                                    echo 'DEBUG routing decision          : ONLINE LIBRARY AGENT'
+                                } else if (isWeather) {
+                                    env.BUILD_WEATHER = 'true'
+                                    env.BUILD_WEATHER_AI = 'true'
+                                    sawMappedDeployableChange = true
+                                    echo 'DEBUG routing decision          : WEATHER + DEPENDENT WEATHER AI AGENT'
+                                } else if (isWeatherAi) {
+                                    env.BUILD_WEATHER_AI = 'true'
+                                    sawMappedDeployableChange = true
+                                    echo 'DEBUG routing decision          : WEATHER AI AGENT'
+                                } else if (isAngular) {
+                                    env.BUILD_ANGULAR = 'true'
+                                    sawMappedDeployableChange = true
+                                    echo 'DEBUG routing decision          : ANGULAR UI'
                                 } else {
                                     echo "DEBUG routing decision          : SHARED/ROOT/UNKNOWN -> rebuild all (${path})"
                                     rebuildAll = true
@@ -188,6 +218,11 @@ pipeline {
                         env.BUILD_ANSWER = 'true'
                         env.BUILD_LIBRARY = 'true'
                         env.BUILD_SECURE = 'true'
+                        env.BUILD_MCP = 'true'
+                        env.BUILD_LIBRARY_AGENT = 'true'
+                        env.BUILD_WEATHER = 'true'
+                        env.BUILD_WEATHER_AI = 'true'
+                        env.BUILD_ANGULAR = 'true'
                     }
 
                     env.ANY_SERVICE_CHANGE = (
@@ -196,29 +231,35 @@ pipeline {
                         env.BUILD_ANSWER == 'true' ||
                         env.BUILD_LIBRARY == 'true' ||
                         env.BUILD_SECURE == 'true'
+                        || env.BUILD_MCP == 'true'
+                        || env.BUILD_LIBRARY_AGENT == 'true'
+                        || env.BUILD_WEATHER == 'true'
+                        || env.BUILD_WEATHER_AI == 'true'
+                        || env.BUILD_ANGULAR == 'true'
                     ) ? 'true' : 'false'
 
                     if (!sawNonDocChange && baseCommit) {
                         echo 'Documentation-only change detected. All build/test/deploy stages will be skipped.'
-                    } else if (ignoredNonDeployable && !sawMappedDeployableChange && !rebuildAll) {
-                        echo "Changes were limited to modules not yet deployed by this pipeline: ${ignoredNonDeployable.join(', ')}"
-                        echo 'No current Kubernetes service will be rebuilt or redeployed.'
                     }
 
-                    echo "Selective CI/CD decision: ingest=${env.BUILD_INGEST}, search=${env.BUILD_SEARCH}, answer=${env.BUILD_ANSWER}, library=${env.BUILD_LIBRARY}, secure=${env.BUILD_SECURE}"
+                    echo "Selective CI/CD decision: ingest=${env.BUILD_INGEST}, search=${env.BUILD_SEARCH}, answer=${env.BUILD_ANSWER}, library=${env.BUILD_LIBRARY}, secure=${env.BUILD_SECURE}, mcp=${env.BUILD_MCP}, library-agent=${env.BUILD_LIBRARY_AGENT}, weather=${env.BUILD_WEATHER}, weather-ai=${env.BUILD_WEATHER_AI}, angular=${env.BUILD_ANGULAR}"
                     echo '================ DEBUG: FINAL ROUTING ================'
                     echo "DEBUG rebuildAll                : ${rebuildAll}"
                     echo "DEBUG sawNonDocChange           : ${sawNonDocChange}"
                     echo "DEBUG sawMappedDeployableChange : ${sawMappedDeployableChange}"
-                    echo "DEBUG ignoredNonDeployable      : ${ignoredNonDeployable}"
                     echo "DEBUG ANY_SERVICE_CHANGE        : ${env.ANY_SERVICE_CHANGE}"
                     echo "DEBUG planned ingest            : ${env.BUILD_INGEST}"
                     echo "DEBUG planned search            : ${env.BUILD_SEARCH}"
                     echo "DEBUG planned answer            : ${env.BUILD_ANSWER}"
                     echo "DEBUG planned online-library    : ${env.BUILD_LIBRARY}"
                     echo "DEBUG planned secure-api        : ${env.BUILD_SECURE}"
+                    echo "DEBUG planned mcp               : ${env.BUILD_MCP}"
+                    echo "DEBUG planned library-agent     : ${env.BUILD_LIBRARY_AGENT}"
+                    echo "DEBUG planned weather           : ${env.BUILD_WEATHER}"
+                    echo "DEBUG planned weather-ai        : ${env.BUILD_WEATHER_AI}"
+                    echo "DEBUG planned angular           : ${env.BUILD_ANGULAR}"
                     echo '======================================================'
-                    currentBuild.description = "${env.GIT_SHORT} | I:${env.BUILD_INGEST} S:${env.BUILD_SEARCH} A:${env.BUILD_ANSWER} L:${env.BUILD_LIBRARY} Sec:${env.BUILD_SECURE}"
+                    currentBuild.description = "${env.GIT_SHORT} | I:${env.BUILD_INGEST} S:${env.BUILD_SEARCH} A:${env.BUILD_ANSWER} L:${env.BUILD_LIBRARY} Sec:${env.BUILD_SECURE} MCP:${env.BUILD_MCP} LA:${env.BUILD_LIBRARY_AGENT} W:${env.BUILD_WEATHER} WAI:${env.BUILD_WEATHER_AI} UI:${env.BUILD_ANGULAR}"
                 }
             }
         }
@@ -233,12 +274,22 @@ pipeline {
                     echo "DEBUG ANSWER_IMAGE       : ${env.ANSWER_IMAGE}"
                     echo "DEBUG LIBRARY_IMAGE      : ${env.LIBRARY_IMAGE}"
                     echo "DEBUG SECURE_IMAGE       : ${env.SECURE_IMAGE}"
+                    echo "DEBUG MCP_IMAGE          : ${env.MCP_IMAGE}"
+                    echo "DEBUG LIBRARY_AGENT_IMAGE: ${env.LIBRARY_AGENT_IMAGE}"
+                    echo "DEBUG WEATHER_IMAGE      : ${env.WEATHER_IMAGE}"
+                    echo "DEBUG WEATHER_AI_IMAGE   : ${env.WEATHER_AI_IMAGE}"
+                    echo "DEBUG ANGULAR_IMAGE      : ${env.ANGULAR_IMAGE}"
                     echo 'DEBUG Stage gating:'
                     echo "  RAG Ingest      -> ${env.BUILD_INGEST}"
                     echo "  RAG Search      -> ${env.BUILD_SEARCH}"
                     echo "  RAG Answer      -> ${env.BUILD_ANSWER}"
                     echo "  Online Library  -> ${env.BUILD_LIBRARY}"
                     echo "  Secure API      -> ${env.BUILD_SECURE}"
+                    echo "  Library MCP     -> ${env.BUILD_MCP}"
+                    echo "  Library Agent   -> ${env.BUILD_LIBRARY_AGENT}"
+                    echo "  Weather Agent   -> ${env.BUILD_WEATHER}"
+                    echo "  Weather AI      -> ${env.BUILD_WEATHER_AI}"
+                    echo "  Angular UI      -> ${env.BUILD_ANGULAR}"
                     echo '======================================================'
                 }
             }
@@ -256,6 +307,16 @@ pipeline {
                     test -f "$KUBECONFIG"
                     kubectl --kubeconfig "$KUBECONFIG" get nodes -o wide
                     docker inspect "$KIND_NODE" >/dev/null
+                    test -f scripts/cleanup-old-cicd-images.sh
+                    for module in online_library_mcp online_library_agent weather_agent weather_ai_agent angular-ui; do
+                        test -f "modules/$module/Dockerfile"
+                    done
+                    for manifests in online-library-mcp online-library-agent weather-agent weather-ai-agent angular-ui; do
+                        test -f "k8s/$manifests/deployment.yaml"
+                        test -f "k8s/$manifests/service.yaml"
+                        grep -q '__IMAGE__' "k8s/$manifests/deployment.yaml"
+                        grep -q 'revisionHistoryLimit: 3' "k8s/$manifests/deployment.yaml"
+                    done
                 '''
             }
         }
@@ -654,6 +715,74 @@ pipeline {
             }
         }
 
+        stage('Remaining Modules - Build Test Deploy') {
+            when {
+                expression {
+                    env.BUILD_MCP == 'true' ||
+                    env.BUILD_LIBRARY_AGENT == 'true' ||
+                    env.BUILD_WEATHER == 'true' ||
+                    env.BUILD_WEATHER_AI == 'true' ||
+                    env.BUILD_ANGULAR == 'true'
+                }
+            }
+            steps {
+                script {
+                    // These modules share the same proven flow: build a test target,
+                    // build the runtime target, import it into the local Kubernetes
+                    // node, apply manifests, and wait for both rollout and readiness.
+                    def additionalServices = [
+                        [label: 'Online Library MCP', flag: 'BUILD_MCP', image: 'MCP_IMAGE', testImage: 'MCP_TEST_IMAGE', dockerfile: 'modules/online_library_mcp/Dockerfile', context: '.', manifests: 'k8s/online-library-mcp', deployment: 'online-library-mcp', timeout: '180s'],
+                        [label: 'Online Library Agent', flag: 'BUILD_LIBRARY_AGENT', image: 'LIBRARY_AGENT_IMAGE', testImage: 'LIBRARY_AGENT_TEST_IMAGE', dockerfile: 'modules/online_library_agent/Dockerfile', context: '.', manifests: 'k8s/online-library-agent', deployment: 'online-library-agent', timeout: '240s'],
+                        [label: 'Weather Agent', flag: 'BUILD_WEATHER', image: 'WEATHER_IMAGE', testImage: 'WEATHER_TEST_IMAGE', dockerfile: 'modules/weather_agent/Dockerfile', context: '.', manifests: 'k8s/weather-agent', deployment: 'weather-agent', timeout: '180s'],
+                        [label: 'Weather AI Agent', flag: 'BUILD_WEATHER_AI', image: 'WEATHER_AI_IMAGE', testImage: 'WEATHER_AI_TEST_IMAGE', dockerfile: 'modules/weather_ai_agent/Dockerfile', context: '.', manifests: 'k8s/weather-ai-agent', deployment: 'weather-ai-agent', timeout: '300s'],
+                        [label: 'Angular UI', flag: 'BUILD_ANGULAR', image: 'ANGULAR_IMAGE', testImage: 'ANGULAR_TEST_IMAGE', dockerfile: 'modules/angular-ui/Dockerfile', context: '.', manifests: 'k8s/angular-ui', deployment: 'angular-ui', timeout: '180s']
+                    ]
+
+                    additionalServices.findAll { env[it.flag] == 'true' }.each { service ->
+                        withEnv([
+                            "SERVICE_IMAGE=${env[service.image]}",
+                            "SERVICE_TEST_IMAGE=${env[service.testImage]}",
+                            "SERVICE_DOCKERFILE=${service.dockerfile}",
+                            "SERVICE_CONTEXT=${service.context}",
+                            "SERVICE_MANIFESTS=${service.manifests}",
+                            "SERVICE_DEPLOYMENT=${service.deployment}",
+                            "SERVICE_TIMEOUT=${service.timeout}"
+                        ]) {
+                            stage("${service.label} - Test Image") {
+                                sh '''
+                                    set -eux
+                                    docker build --target test -t "$SERVICE_TEST_IMAGE" -f "$SERVICE_DOCKERFILE" "$SERVICE_CONTEXT"
+                                '''
+                            }
+                            stage("${service.label} - Runtime Image") {
+                                sh '''
+                                    set -eux
+                                    docker build --target runtime -t "$SERVICE_IMAGE" -f "$SERVICE_DOCKERFILE" "$SERVICE_CONTEXT"
+                                    docker save "$SERVICE_IMAGE" | docker exec -i "$KIND_NODE" ctr -n k8s.io images import -
+                                '''
+                            }
+                            stage("${service.label} - Deploy and Verify") {
+                                sh '''
+                                    set -eux
+                                    if [ -f "$SERVICE_MANIFESTS/configmap.yaml" ]; then
+                                        kubectl --kubeconfig "$KUBECONFIG" apply -f "$SERVICE_MANIFESTS/configmap.yaml"
+                                    fi
+                                    if [ -f "$SERVICE_MANIFESTS/secret.yaml" ]; then
+                                        kubectl --kubeconfig "$KUBECONFIG" apply -f "$SERVICE_MANIFESTS/secret.yaml"
+                                    fi
+                                    kubectl --kubeconfig "$KUBECONFIG" apply -f "$SERVICE_MANIFESTS/service.yaml"
+                                    sed "s|__IMAGE__|$SERVICE_IMAGE|g" "$SERVICE_MANIFESTS/deployment.yaml" | kubectl --kubeconfig "$KUBECONFIG" apply -f -
+                                    kubectl --kubeconfig "$KUBECONFIG" -n "$K8S_NAMESPACE" rollout status "deployment/$SERVICE_DEPLOYMENT" --timeout="$SERVICE_TIMEOUT"
+                                    kubectl --kubeconfig "$KUBECONFIG" -n "$K8S_NAMESPACE" wait --for=condition=Ready pod -l "app=$SERVICE_DEPLOYMENT" --timeout="$SERVICE_TIMEOUT"
+                                    kubectl --kubeconfig "$KUBECONFIG" -n "$K8S_NAMESPACE" get pod -l "app=$SERVICE_DEPLOYMENT" -o wide
+                                '''
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         stage('Verify Complete RAG Stack') {
             when { expression { env.ANY_SERVICE_CHANGE == 'true' } }
             steps {
@@ -679,14 +808,7 @@ pipeline {
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE', message: 'CI image retention cleanup did not complete; deployed services remain unchanged.') {
                     sh '''
                         set -eu
-                        if command -v pwsh >/dev/null 2>&1; then
-                            pwsh -NoProfile -File scripts/cleanup-old-cicd-images.ps1 -Keep 4 -Execute -Namespace "$K8S_NAMESPACE" -Kubeconfig "$KUBECONFIG"
-                        elif command -v powershell >/dev/null 2>&1; then
-                            powershell -NoProfile -File scripts/cleanup-old-cicd-images.ps1 -Keep 4 -Execute -Namespace "$K8S_NAMESPACE" -Kubeconfig "$KUBECONFIG"
-                        else
-                            echo 'WARNING: PowerShell (pwsh) is not installed on the Jenkins agent; skipping Docker CI image retention cleanup.'
-                            exit 1
-                        fi
+                        KEEP_CI_IMAGES=3 bash scripts/cleanup-old-cicd-images.sh
                     '''
                 }
 
@@ -722,7 +844,7 @@ pipeline {
         failure {
             sh '''
                 kubectl --kubeconfig "$KUBECONFIG" -n "$K8S_NAMESPACE" get all || true
-                for d in rag-ingest-service rag-search-service rag-answer-service online-library secure-api; do
+                for d in rag-ingest-service rag-search-service rag-answer-service online-library secure-api online-library-mcp online-library-agent weather-agent weather-ai-agent angular-ui; do
                     kubectl --kubeconfig "$KUBECONFIG" -n "$K8S_NAMESPACE" describe deployment "$d" || true
                     kubectl --kubeconfig "$KUBECONFIG" -n "$K8S_NAMESPACE" logs deployment/"$d" --tail=100 || true
                 done
@@ -737,6 +859,7 @@ pipeline {
                         docker rm -f "$ANSWER_TEST_CONTAINER" >/dev/null 2>&1 || true
                         docker rm -f "$LIBRARY_TEST_CONTAINER" >/dev/null 2>&1 || true
                         docker rm -f "$SECURE_TEST_CONTAINER" >/dev/null 2>&1 || true
+                        docker image rm "$INGEST_TEST_IMAGE" "$SEARCH_TEST_IMAGE" "$ANSWER_TEST_IMAGE" "$LIBRARY_TEST_IMAGE" "$SECURE_TEST_IMAGE" "$MCP_TEST_IMAGE" "$LIBRARY_AGENT_TEST_IMAGE" "$WEATHER_TEST_IMAGE" "$WEATHER_AI_TEST_IMAGE" "$ANGULAR_TEST_IMAGE" >/dev/null 2>&1 || true
                     '''
                 } else {
                     echo 'No deployable service changes; Docker test-container cleanup skipped.'

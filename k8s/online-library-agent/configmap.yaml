@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: online-library-agent-config
+  namespace: rag-poc
+data:
+  TZ: "America/New_York"
+  OLLAMA_BASE_URL: http://host.docker.internal:11434
+  OLLAMA_MODEL: mistral:latest
+  ONLINE_LIBRARY_MCP_URL: http://online-library-mcp:8004/mcp
+  ONLINE_LIBRARY_AGENT_HOST: "0.0.0.0"
+  ONLINE_LIBRARY_AGENT_PORT: "8005"
+  ONLINE_LIBRARY_AGENT_TIMEOUT_SECONDS: "120"
+

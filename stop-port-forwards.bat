@@ -20,6 +20,12 @@ call :stop_forward "secure-api"
 call :stop_forward "rag-ingest-service"
 call :stop_forward "rag-search-service"
 call :stop_forward "rag-answer-service"
+call :stop_forward "online-library"
+call :stop_forward "online-library-mcp"
+call :stop_forward "online-library-agent"
+call :stop_forward "weather-agent"
+call :stop_forward "weather-ai-agent"
+call :stop_forward "angular-ui"
 
 echo.
 echo ============================================================

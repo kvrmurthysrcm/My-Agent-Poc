@@ -23,10 +23,16 @@ echo Namespace: %NAMESPACE%
 echo ============================================================
 echo.
 
-call :start_forward "secure-api" 8003 8003
+call :start_forward "secure-api" 8010 8010
 call :start_forward "rag-ingest-service" 8000 8000
 call :start_forward "rag-search-service" 8001 8001
 call :start_forward "rag-answer-service" 8002 8002
+call :start_forward "online-library" 8003 8003
+call :start_forward "online-library-mcp" 8004 8004
+call :start_forward "online-library-agent" 8005 8005
+call :start_forward "weather-agent" 8006 8006
+call :start_forward "weather-ai-agent" 8007 8007
+call :start_forward "angular-ui" 4200 8080
 
 echo.
 echo ============================================================
@@ -34,10 +40,16 @@ echo PORT-FORWARD START REQUESTS COMPLETE
 echo ============================================================
 echo.
 echo Expected local URLs:
-echo   Secure API:          http://localhost:8003
+echo   Secure API:          http://localhost:8010
 echo   RAG Ingest Service:  http://localhost:8000
 echo   RAG Search Service:  http://localhost:8001
 echo   RAG Answer Service:  http://localhost:8002
+echo   Online Library:      http://localhost:8003
+echo   Library MCP:         http://localhost:8004/mcp
+echo   Library Agent:       http://localhost:8005
+echo   Weather Agent:       http://localhost:8006
+echo   Weather AI Agent:    http://localhost:8007
+echo   Angular UI:          http://localhost:4200
 echo.
 echo Verification:
 echo   kubectl -n %NAMESPACE% get svc

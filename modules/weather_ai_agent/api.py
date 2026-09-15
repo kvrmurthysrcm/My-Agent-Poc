@@ -11,6 +11,11 @@ from .models import WeatherAIRequest
 app = FastAPI(title="Weather AI Agent POC")
 
 
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 def render_page(result_html: str = "") -> HTMLResponse:
     html = f"""
 <!doctype html>

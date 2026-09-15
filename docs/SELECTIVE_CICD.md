@@ -11,8 +11,12 @@ The root `Jenkinsfile` remains the only deployment pipeline.
 - `modules/online_library/**` or `k8s/online-library/**`: Online Library only.
 - `modules/secure_api/**` or `k8s/secure-api/**`: Secure API only.
 - Changes in more than one mapped service: only those services are processed.
-- Root/shared/pipeline/unknown changes (for example `Jenkinsfile`, `pyproject.toml`, or `k8s/namespace.yaml`): all five deployable services are rebuilt as the conservative safe default.
-- Source changes in modules not yet deployed by this pipeline (Angular UI, library agent/MCP, weather agents): no current Kubernetes service is redeployed.
+- `modules/online_library_mcp/**` or `k8s/online-library-mcp/**`: Online Library MCP only.
+- `modules/online_library_agent/**` or `k8s/online-library-agent/**`: Online Library Agent only.
+- `modules/weather_agent/**` or `k8s/weather-agent/**`: Weather Agent and its dependent Weather AI Agent.
+- `modules/weather_ai_agent/**` or `k8s/weather-ai-agent/**`: Weather AI Agent only.
+- `modules/angular-ui/**` or `k8s/angular-ui/**`: Angular UI only.
+- Root/shared/pipeline/unknown changes (for example `Jenkinsfile`, `pyproject.toml`, or `k8s/namespace.yaml`): all ten deployable services are rebuilt as the conservative safe default.
 
 ## Important limitation
 

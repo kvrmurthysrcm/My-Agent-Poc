@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: online-library-agent
+  namespace: rag-poc
+spec:
+  selector:
+    app: online-library-agent
+  ports:
+    - name: http
+      port: 8005
+      targetPort: 8005
+

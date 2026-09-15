@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: online-library-mcp-config
+  namespace: rag-poc
+data:
+  TZ: "America/New_York"
+  ONLINE_LIBRARY_API_BASE_URL: http://online-library:8003
+  ONLINE_LIBRARY_MCP_HOST: "0.0.0.0"
+  ONLINE_LIBRARY_MCP_PORT: "8004"
+  ONLINE_LIBRARY_MCP_TIMEOUT_SECONDS: "10"
+

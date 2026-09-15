@@ -122,7 +122,7 @@ kubectl -n rag-poc get pods
 kubectl -n rag-poc get services
 ```
 
-All five application deployments should show their desired replicas available and their pods should be `Running`/Ready.
+All ten application deployments should show their desired replicas available and their pods should be `Running`/Ready.
 
 ## 8. Start local port-forwards
 
@@ -189,13 +189,13 @@ Preview while retaining the deployed image plus three backups (four CI images
 per service):
 
 ```powershell
-.\scripts\cleanup-old-cicd-images.ps1 -Keep 4
+.\scripts\cleanup-old-cicd-images.ps1 -Keep 3
 ```
 
 Actually remove the images shown by the preview:
 
 ```powershell
-.\scripts\cleanup-old-cicd-images.ps1 -Keep 4 -Execute
+.\scripts\cleanup-old-cicd-images.ps1 -Keep 3 -Execute
 ```
 
 The script protects images currently referenced by the five Kubernetes deployments. The Kubernetes/containerd image store is deliberately left to runtime garbage collection; the script only manages Docker host image tags.

@@ -25,7 +25,7 @@ data:
   ONLINE_LIBRARY_DB_PORT: "5432"
   ONLINE_LIBRARY_DB_NAME: online_library
   ONLINE_LIBRARY_DB_USER: library_user
-  ONLINE_LIBRARY_AGENT_BASE_URL: http://host.docker.internal:8005
+  ONLINE_LIBRARY_AGENT_BASE_URL: http://online-library-agent:8005
   ONLINE_LIBRARY_API_BASE_URL: http://online-library:8003
-  ONLINE_LIBRARY_MCP_URL: http://host.docker.internal:8004/mcp
+  ONLINE_LIBRARY_MCP_URL: http://online-library-mcp:8004/mcp
   DOWNSTREAM_TIMEOUT_SECONDS: "600"
