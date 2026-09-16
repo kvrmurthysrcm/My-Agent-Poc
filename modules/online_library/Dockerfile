@@ -13,10 +13,11 @@ RUN python -m pip install --upgrade pip \
     && pip install -r /tmp/requirements-cicd.txt
 
 FROM base AS test
-RUN pip install "pytest>=9.0.0" "httpx>=0.28.1"
+RUN pip install "pytest>=9.0.0" "pytest-cov>=7.0.0" "httpx>=0.28.1"
 RUN mkdir -p /app/modules/online_library /tmp/test-results
 COPY . /app/modules/online_library
-CMD ["python", "-m", "pytest", "-q", "/app/modules/online_library/tests", "--junitxml=/tmp/test-results/pytest.xml"]
+WORKDIR /app/modules/online_library
+CMD ["python", "-m", "pytest", "-q", "tests", "--junitxml=/tmp/test-results/pytest.xml", "--cov=.", "--cov-config=.coveragerc", "--cov-report=term-missing", "--cov-report=xml:/tmp/test-results/coverage.xml"]
 
 FROM base AS runtime
 RUN mkdir -p /app/modules/online_library

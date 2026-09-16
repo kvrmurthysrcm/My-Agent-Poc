@@ -24,6 +24,7 @@ pipeline {
         SONAR_TOKEN_CREDENTIALS_ID = 'sonarqube-token'
         SONAR_PROJECT_KEY = 'my-agent-poc-online-library'
         SONAR_SCANNER_IMAGE = 'sonarsource/sonar-scanner-cli:12.1.0.3233_8.0.1'
+        SONAR_PUBLIC_URL = 'http://localhost:9000'
     }
 
     stages {
@@ -80,6 +81,8 @@ pipeline {
                     test -f "$KUBECONFIG"
                     test -f scripts/ci/build-test-deploy.sh
                     test -f scripts/ci/service-worker.sh
+                    test -f scripts/ci/init-sonar-summary.sh
+                    test -f scripts/ci/sonar-export-summary.py
                     test -f scripts/cleanup-old-cicd-images.sh
                     command -v xargs
                     command -v flock
@@ -87,6 +90,34 @@ pipeline {
                     kubectl --kubeconfig "$KUBECONFIG" get nodes -o wide
                     kubectl --kubeconfig "$KUBECONFIG" apply -f k8s/namespace.yaml
                 '''
+            }
+        }
+
+        stage('Initialize Sonar Report') {
+            when { expression { env.ANY_SERVICE_CHANGE == 'true' } }
+            steps {
+                sh 'bash scripts/ci/init-sonar-summary.sh "$CI_SERVICES"'
+            }
+        }
+
+        stage('Build and Test') {
+            when { expression { env.ANY_SERVICE_CHANGE == 'true' } }
+            steps {
+                sh '''
+                    echo "Using up to $MAX_PARALLEL_SERVICES parallel build/test workers."
+                    bash scripts/ci/build-test-deploy.sh \
+                      "$CI_SERVICES" "$IMAGE_TAG" "$K8S_NAMESPACE" \
+                      "$KUBECONFIG" "$KIND_NODE" build-test
+                '''
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true,
+                          testResults: 'test-results/**/pytest.xml'
+                    archiveArtifacts allowEmptyArchive: true,
+                                     artifacts: 'build-reports/image-sizes.tsv,test-results/**/coverage.xml',
+                                     fingerprint: true
+                }
             }
         }
 
@@ -119,33 +150,17 @@ EOF
                     }
                 }
             }
-            post {
-                always {
-                    archiveArtifacts allowEmptyArchive: true,
-                                     artifacts: 'build-reports/sonar/**',
-                                     fingerprint: true
-                }
-            }
         }
 
-        stage('Build Test Deploy') {
+        stage('Deploy') {
             when { expression { env.ANY_SERVICE_CHANGE == 'true' } }
             steps {
                 sh '''
-                    echo "Using up to $MAX_PARALLEL_SERVICES parallel service workers."
+                    echo "Using up to $MAX_PARALLEL_SERVICES parallel deployment workers."
                     bash scripts/ci/build-test-deploy.sh \
                       "$CI_SERVICES" "$IMAGE_TAG" "$K8S_NAMESPACE" \
-                      "$KUBECONFIG" "$KIND_NODE"
+                      "$KUBECONFIG" "$KIND_NODE" deploy
                 '''
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true,
-                          testResults: 'test-results/**/*.xml'
-                    archiveArtifacts allowEmptyArchive: true,
-                                     artifacts: 'build-reports/image-sizes.tsv',
-                                     fingerprint: true
-                }
             }
         }
 
@@ -166,6 +181,9 @@ EOF
 
     post {
         always {
+            archiveArtifacts allowEmptyArchive: true,
+                             artifacts: 'build-reports/sonar/**',
+                             fingerprint: true
             sh '''
                 if [ "$ANY_SERVICE_CHANGE" = "true" ]; then
                   KEEP_CI_IMAGES=3 bash scripts/cleanup-old-cicd-images.sh || true

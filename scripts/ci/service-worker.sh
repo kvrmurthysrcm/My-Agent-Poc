@@ -142,8 +142,10 @@ run_container_tests() {
   fi
   set -e
 
-  docker cp "$current_test_container:/tmp/test-results/pytest.xml" \
-    "$result_dir/pytest.xml" >/dev/null 2>&1 || true
+  for report_name in pytest.xml coverage.xml; do
+    docker cp "$current_test_container:/tmp/test-results/$report_name" \
+      "$result_dir/$report_name" >/dev/null 2>&1 || true
+  done
   docker rm -f "$current_test_container" >/dev/null 2>&1 || true
   current_test_container=""
   return "$test_rc"
