@@ -21,9 +21,12 @@ pipeline {
         KUBECONFIG = '/var/jenkins_home/kubeconfig-jenkins'
         SONAR_HOST_URL = 'http://sonarqube:9000'
         SONAR_DOCKER_NETWORK = 'keycloak_keycloak-network'
-        SONAR_TOKEN_CREDENTIALS_ID = 'sonarqube-token'
+        SONAR_INGEST_TOKEN_CREDENTIALS_ID = 'sonarqube-token-rag-ingest'
+        SONAR_SEARCH_TOKEN_CREDENTIALS_ID = 'sonarqube-token-rag-search'
+        SONAR_ANSWER_TOKEN_CREDENTIALS_ID = 'sonarqube-token-rag-answer'
+        SONAR_LIBRARY_TOKEN_CREDENTIALS_ID = 'sonarqube-token'
+        SONAR_SECURE_TOKEN_CREDENTIALS_ID = 'sonarqube-token-secure-api'
         SONAR_REPORT_TOKEN_CREDENTIALS_ID = 'sonarqube-report-token'
-        SONAR_PROJECT_KEY = 'my-agent-poc-online-library'
         SONAR_SCANNER_IMAGE = 'sonarsource/sonar-scanner-cli:12.1.0.3233_8.0.1'
         SONAR_PUBLIC_URL = 'http://localhost:9000'
     }
@@ -84,6 +87,8 @@ pipeline {
                     test -f scripts/ci/service-worker.sh
                     test -f scripts/ci/init-sonar-summary.sh
                     test -f scripts/ci/sonar-export-summary.py
+                    test -f scripts/ci/sonar-service.sh
+                    test -f scripts/ci/sonar-export-report.sh
                     test -f scripts/cleanup-old-cicd-images.sh
                     command -v xargs
                     command -v flock
@@ -122,36 +127,56 @@ pipeline {
             }
         }
 
-        stage('Sonar - Online Library (Advisory)') {
+        stage('Sonar - Five Python Services (Advisory)') {
             when {
                 expression {
-                    ",${env.CI_SERVICES ?: ''},".contains(',library,')
+                    def selected = ",${env.CI_SERVICES ?: ''},"
+                    ['ingest', 'search', 'answer', 'library', 'secure'].any {
+                        selected.contains(",${it},")
+                    }
                 }
             }
             steps {
-                sh '''
-                    mkdir -p build-reports/sonar
-                    cat > build-reports/sonar/online-library-summary.txt <<EOF
-status=NOT_RUN
-recommendation=Check the Jenkins stage log; analysis did not start or credentials were unavailable.
-EOF
-                '''
+                script {
+                    def selected = ",${env.CI_SERVICES ?: ''},"
+                    def targets = [
+                        [id: 'ingest', credential: env.SONAR_INGEST_TOKEN_CREDENTIALS_ID],
+                        [id: 'search', credential: env.SONAR_SEARCH_TOKEN_CREDENTIALS_ID],
+                        [id: 'answer', credential: env.SONAR_ANSWER_TOKEN_CREDENTIALS_ID],
+                        [id: 'library', credential: env.SONAR_LIBRARY_TOKEN_CREDENTIALS_ID],
+                        [id: 'secure', credential: env.SONAR_SECURE_TOKEN_CREDENTIALS_ID]
+                    ]
+                    targets.each { target ->
+                        if (selected.contains(",${target.id},")) {
+                            catchError(
+                                buildResult: 'SUCCESS',
+                                stageResult: 'UNSTABLE',
+                                message: "${target.id} Sonar analysis is advisory."
+                            ) {
+                                withCredentials([
+                                    string(
+                                        credentialsId: target.credential,
+                                        variable: 'SONAR_TOKEN'
+                                    )
+                                ]) {
+                                    sh "bash scripts/ci/sonar-service.sh ${target.id}"
+                                }
+                            }
+                        }
+                    }
+                }
                 catchError(
                     buildResult: 'SUCCESS',
                     stageResult: 'UNSTABLE',
-                    message: 'Online Library Sonar analysis is advisory; review the archived report.'
+                    message: 'Sonar metrics export is advisory.'
                 ) {
                     withCredentials([
-                        string(
-                            credentialsId: env.SONAR_TOKEN_CREDENTIALS_ID,
-                            variable: 'SONAR_TOKEN'
-                        ),
                         string(
                             credentialsId: env.SONAR_REPORT_TOKEN_CREDENTIALS_ID,
                             variable: 'SONAR_REPORT_TOKEN'
                         )
                     ]) {
-                        sh 'bash scripts/ci/sonar-online-library.sh'
+                        sh 'bash scripts/ci/sonar-export-report.sh "$CI_SERVICES"'
                     }
                 }
             }

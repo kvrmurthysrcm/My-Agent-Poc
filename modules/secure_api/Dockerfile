@@ -3,7 +3,8 @@ FROM python:3.13-slim AS base
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PIP_ROOT_USER_ACTION=ignore
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata \
@@ -15,10 +16,12 @@ RUN python -m pip install --upgrade pip \
 
 FROM base AS test
 ENV PYTHONPATH=/app
-RUN python -m pip install "pytest>=9.0.2"
+RUN python -m pip install "pytest>=9.0.2" "pytest-cov>=7.0.0" "httpx2>=0.1.0"
+COPY .coveragerc pytest.ini ./
 COPY app ./app
 COPY tests ./tests
-CMD ["python", "-m", "pytest", "-q", "--junitxml=/tmp/test-results/pytest.xml"]
+RUN mkdir -p /tmp/test-results
+CMD ["python", "-m", "pytest", "-q", "--junitxml=/tmp/test-results/pytest.xml", "--cov=app", "--cov-config=.coveragerc", "--cov-report=term-missing", "--cov-report=xml:/tmp/test-results/coverage.xml"]
 
 FROM base AS runtime
 COPY app ./app

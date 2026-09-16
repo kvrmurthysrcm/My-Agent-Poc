@@ -39,11 +39,13 @@ for service in ingest search answer library mcp library-agent weather weather-ai
   sonar_enabled="false"
   analysis_status="NOT_CONFIGURED"
   recommendation="Create the SonarQube project and onboard this module in a future release."
-  if [[ "$service" == "library" ]]; then
+  if [[ "$service" == "ingest" || "$service" == "search" || \
+        "$service" == "answer" || "$service" == "library" || \
+        "$service" == "secure" ]]; then
     sonar_enabled="true"
     if [[ "$selected" == "true" ]]; then
       analysis_status="PENDING"
-      recommendation="Online Library analysis has not completed yet."
+      recommendation="The selected service analysis has not completed yet."
     else
       analysis_status="NOT_SELECTED"
       recommendation="The module was unchanged, so this build did not analyze it."

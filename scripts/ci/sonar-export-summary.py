@@ -20,6 +20,16 @@ MODULES = [
     ("angular", "my-agent-poc-angular-ui"),
 ]
 
+SONAR_SERVICES = {"ingest", "search", "answer", "library", "secure"}
+
+REPORT_DIRECTORIES = {
+    "ingest": "rag-ingest-service",
+    "search": "rag-search-service",
+    "answer": "rag-answer-service",
+    "library": "online-library",
+    "secure": "secure-api",
+}
+
 FIELDS = [
     "build_number", "git_commit", "service", "project_key",
     "selected_for_build", "sonar_enabled", "analyzed_this_build",
@@ -77,23 +87,26 @@ def base_row(service, project_key, selected):
         service=service,
         project_key=project_key,
         selected_for_build=str(selected).lower(),
-        sonar_enabled=str(service == "library").lower(),
+        sonar_enabled=str(service in SONAR_SERVICES).lower(),
         analyzed_this_build="false",
-        analysis_status="NOT_CONFIGURED" if service != "library" else "NOT_SELECTED",
+        analysis_status="NOT_CONFIGURED" if service not in SONAR_SERVICES else "NOT_SELECTED",
         build_reference=f"jenkins-{env('BUILD_NUMBER', 'local')}",
         dashboard_url=f"{public_url}/dashboard?id={project_key}",
         history_url=f"{public_url}/project/activity?id={project_key}",
         recommendation=(
             "Create the SonarQube project and onboard this module in a future release."
-            if service != "library"
+            if service not in SONAR_SERVICES
             else "The module was unchanged, so this build did not analyze it."
         ),
     )
     return row
 
 
-def add_local_test_metrics(row):
-    report_dir = "/usr/src/modules/online_library/.ci-reports"
+def add_local_test_metrics(row, service):
+    report_name = REPORT_DIRECTORIES.get(service)
+    if not report_name:
+        return row
+    report_dir = f"/workspace/test-results/{report_name}"
     sources = []
     try:
         coverage_root = ET.parse(f"{report_dir}/coverage.xml").getroot()
@@ -132,14 +145,20 @@ def add_local_test_metrics(row):
     return row
 
 
-def enrich_library(row):
+def scanner_statuses():
+    statuses = {}
+    for item in env("SONAR_SCANNER_STATUSES").split(","):
+        service, separator, status = item.partition("=")
+        if separator and service:
+            statuses[service] = status
+    return statuses
+
+
+def enrich_service(row, service, statuses):
     project_key = row["project_key"]
-    scanner_status = env("SONAR_SCANNER_STATUS", "ATTENTION_REQUIRED")
+    scanner_status = statuses.get(service, "ATTENTION_REQUIRED")
     row["analysis_status"] = scanner_status
-    row["recommendation"] = env(
-        "SONAR_RECOMMENDATION",
-        "Review the scanner log and SonarQube dashboard.",
-    )
+    row["recommendation"] = "Review the scanner log and SonarQube dashboard."
     api_warnings = []
     try:
         measure_data = api_get(
@@ -206,7 +225,7 @@ def enrich_library(row):
         if not row["quality_gate"]:
             row["quality_gate"] = "PASSED"
 
-    row = add_local_test_metrics(row)
+    row = add_local_test_metrics(row, service)
     if api_warnings:
         warning = "; ".join(api_warnings).replace("\t", " ").replace("\n", " ")
         row["recommendation"] = f"{row['recommendation']} Metrics note: {warning}"
@@ -215,11 +234,12 @@ def enrich_library(row):
 
 def main():
     selected = {item for item in env("CI_SERVICES").split(",") if item}
+    statuses = scanner_statuses()
     rows = []
     for service, project_key in MODULES:
         row = base_row(service, project_key, service in selected)
-        if service == "library" and service in selected:
-            row = enrich_library(row)
+        if service in SONAR_SERVICES and service in selected:
+            row = enrich_service(row, service, statuses)
         rows.append(row)
 
     writer = csv.DictWriter(
