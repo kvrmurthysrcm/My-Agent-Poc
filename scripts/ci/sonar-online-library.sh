@@ -62,7 +62,7 @@ export_summary() {
       --network "$sonar_network" \
       -e SONAR_HOST_URL="$sonar_host_url" \
       -e SONAR_PUBLIC_URL="${SONAR_PUBLIC_URL:-http://localhost:9000}" \
-      -e SONAR_TOKEN \
+      -e SONAR_REPORT_TOKEN \
       -e SONAR_SCANNER_STATUS="$scanner_status" \
       -e SONAR_RECOMMENDATION="$recommendation" \
       -e CI_SERVICES="${CI_SERVICES:-library}" \

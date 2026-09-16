@@ -22,6 +22,7 @@ pipeline {
         SONAR_HOST_URL = 'http://sonarqube:9000'
         SONAR_DOCKER_NETWORK = 'keycloak_keycloak-network'
         SONAR_TOKEN_CREDENTIALS_ID = 'sonarqube-token'
+        SONAR_REPORT_TOKEN_CREDENTIALS_ID = 'sonarqube-report-token'
         SONAR_PROJECT_KEY = 'my-agent-poc-online-library'
         SONAR_SCANNER_IMAGE = 'sonarsource/sonar-scanner-cli:12.1.0.3233_8.0.1'
         SONAR_PUBLIC_URL = 'http://localhost:9000'
@@ -144,6 +145,10 @@ EOF
                         string(
                             credentialsId: env.SONAR_TOKEN_CREDENTIALS_ID,
                             variable: 'SONAR_TOKEN'
+                        ),
+                        string(
+                            credentialsId: env.SONAR_REPORT_TOKEN_CREDENTIALS_ID,
+                            variable: 'SONAR_REPORT_TOKEN'
                         )
                     ]) {
                         sh 'bash scripts/ci/sonar-online-library.sh'

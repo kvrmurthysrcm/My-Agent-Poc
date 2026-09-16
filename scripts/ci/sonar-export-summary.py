@@ -50,7 +50,11 @@ def api_get(path, params):
     url = f"{base}{path}?{urllib.parse.urlencode(params)}"
     request = urllib.request.Request(
         url,
-        headers={"Authorization": f"Bearer {env('SONAR_TOKEN')}"},
+        headers={
+            "Authorization": (
+                f"Bearer {env('SONAR_REPORT_TOKEN') or env('SONAR_TOKEN')}"
+            )
+        },
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.load(response)
