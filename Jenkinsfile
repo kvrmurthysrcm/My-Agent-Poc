@@ -19,6 +19,11 @@ pipeline {
         K8S_NAMESPACE = 'rag-poc'
         KIND_NODE = 'desktop-control-plane'
         KUBECONFIG = '/var/jenkins_home/kubeconfig-jenkins'
+        SONAR_HOST_URL = 'http://sonarqube:9000'
+        SONAR_DOCKER_NETWORK = 'keycloak_keycloak-network'
+        SONAR_TOKEN_CREDENTIALS_ID = 'sonarqube-token'
+        SONAR_PROJECT_KEY = 'my-agent-poc-online-library'
+        SONAR_SCANNER_IMAGE = 'sonarsource/sonar-scanner-cli:12.1.0.3233_8.0.1'
     }
 
     stages {
@@ -82,6 +87,44 @@ pipeline {
                     kubectl --kubeconfig "$KUBECONFIG" get nodes -o wide
                     kubectl --kubeconfig "$KUBECONFIG" apply -f k8s/namespace.yaml
                 '''
+            }
+        }
+
+        stage('Sonar - Online Library (Advisory)') {
+            when {
+                expression {
+                    ",${env.CI_SERVICES ?: ''},".contains(',library,')
+                }
+            }
+            steps {
+                sh '''
+                    mkdir -p build-reports/sonar
+                    cat > build-reports/sonar/online-library-summary.txt <<EOF
+status=NOT_RUN
+recommendation=Check the Jenkins stage log; analysis did not start or credentials were unavailable.
+EOF
+                '''
+                catchError(
+                    buildResult: 'SUCCESS',
+                    stageResult: 'UNSTABLE',
+                    message: 'Online Library Sonar analysis is advisory; review the archived report.'
+                ) {
+                    withCredentials([
+                        string(
+                            credentialsId: env.SONAR_TOKEN_CREDENTIALS_ID,
+                            variable: 'SONAR_TOKEN'
+                        )
+                    ]) {
+                        sh 'bash scripts/ci/sonar-online-library.sh'
+                    }
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts allowEmptyArchive: true,
+                                     artifacts: 'build-reports/sonar/**',
+                                     fingerprint: true
+                }
             }
         }
 
