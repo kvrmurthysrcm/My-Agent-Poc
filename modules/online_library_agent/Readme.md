@@ -95,3 +95,8 @@ The POC shows internal details in the result:
 - timing values
 
 These details are useful for development and can be hidden later in a real app.
+
+## Helpful Tutorials for CrewAi
+https://youtu.be/TAkowxQ5Jxs?si=vcUf4PciHhgi3rNW
+
+

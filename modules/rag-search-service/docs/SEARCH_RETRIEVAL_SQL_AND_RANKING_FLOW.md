@@ -278,6 +278,183 @@ search_vector tsvector GENERATED ALWAYS AS (
 
 This is defined in `modules/rag-ingest-service/sql/schema.sql:309` and represented in `app/db/models.py:197`. A GIN index is defined at `modules/rag-ingest-service/sql/schema.sql:452`. PostgreSQL can use that index for the full-text match `c.search_vector @@ sq.tsq`.
 
+### `tsvector` versus an embedding `vector`
+
+The two columns below are different data types, created by different components, searched with different operators, and used for different kinds of retrieval:
+
+| Property | `rag_document_chunks.search_vector` | `rag_chunk_embeddings.vector` |
+|---|---|---|
+| PostgreSQL type | `tsvector` | pgvector `vector(768)` in the current schema |
+| Purpose | Lexical/full-text search | Semantic similarity search |
+| Derived from | The row's raw `chunk_text` | Retrieval-oriented text containing chunk text plus resource/section context |
+| Created by | PostgreSQL generated-column expression | Configured embedding model through the ingest service |
+| Created when | Automatically during chunk `INSERT`, and recomputed on a `chunk_text` update | After chunks are stored, during the embedding stage of ingestion |
+| Contents | Normalized lexemes, positions, and optional weights | Dense floating-point coordinates |
+| Example shape | `'cover':4 'product':2 'warranti':6` | `[0.018, -0.227, 0.091, ...]` |
+| Search query type | `tsquery` | Query embedding produced by the same model family |
+| Match operation | `search_vector @@ tsquery` | Cosine distance: `stored_vector <=> query_vector` |
+| Ranking | `ts_rank` / `ts_rank_cd` plus application boosts | `1 - cosine_distance`, followed by fusion/reranking |
+| Main index | GIN inverted index | HNSW pgvector index |
+| Model/provider dependency | None; depends on text-search language dictionaries | Must match embedding provider, model, version, and dimension |
+| Link back to text | Already resides on the same chunk row | Foreign-key `chunk_id` joins to the chunk row |
+
+Despite its name, a `tsvector` is not an AI embedding. It is PostgreSQL's structured full-text-search representation. It is closer to a searchable index document containing normalized words and their locations than to a mathematical semantic vector.
+
+For example, the following is illustrative:
+
+```sql
+SELECT to_tsvector(
+    'english',
+    'The products are covered under warranties'
+);
+
+-- Illustrative result:
+-- 'cover':4 'product':2 'warranti':6
+```
+
+PostgreSQL has tokenized the text, discarded configured English stop words, stemmed word forms into lexemes, and retained positional information used by phrase and cover-density ranking. The values such as `:2`, `:4`, and `:6` are token positions, not semantic coordinates.
+
+By contrast, an embedding is an ordered numeric array whose individual dimensions are learned by the embedding model and generally have no independently readable meaning:
+
+```text
+[0.018, -0.227, 0.091, ... 768 total values]
+```
+
+Two embedding vectors can be close even if the source texts have few or no words in common. Two `tsvector` documents match only through compatible lexemes/phrases described by a `tsquery`.
+
+### When `search_vector` is created
+
+The schema declares:
+
+```sql
+search_vector tsvector GENERATED ALWAYS AS (
+    to_tsvector('english', coalesce(chunk_text, ''))
+) STORED
+```
+
+This is at `modules/rag-ingest-service/sql/schema.sql:309`. Both ingest and search ORM mappings describe the same database-computed column; the ingest mapping is at `modules/rag-ingest-service/app/db/models.py:207-210`, using SQLAlchemy `Computed(..., persisted=True)`.
+
+The ingestion application does not calculate or explicitly insert `search_vector`. It supplies `chunk_text` while constructing chunk rows at `modules/rag-ingest-service/app/workers/rag_ingestion_worker.py:180-186`, and `RagChunkRepository.create_chunks()` inserts those rows at `modules/rag-ingest-service/app/repositories/rag_chunk_repository.py:24-28`. PostgreSQL evaluates the generated expression as part of the row write and stores the result because the column is `STORED`.
+
+The lifecycle is:
+
+```text
+ingest service INSERTs chunk_text
+  -> PostgreSQL evaluates to_tsvector('english', chunk_text)
+  -> PostgreSQL stores search_vector on that chunk row
+  -> GIN index receives entries for its lexemes
+```
+
+If `chunk_text` is updated later, PostgreSQL automatically recalculates the generated `search_vector` and updates its index entries. Application code should not attempt to edit `search_vector` directly.
+
+### Does text search really use `chunk_text`?
+
+Yes—primarily **indirectly**, through the stored generated column:
+
+```text
+chunk_text
+  -> to_tsvector('english', chunk_text)
+  -> stored search_vector
+  -> GIN index
+  -> search_vector @@ tsquery
+  -> matching chunk row
+  -> return the original chunk_text
+```
+
+The runtime full-text predicate does not repeatedly parse every `chunk_text` value. It queries the precomputed `search_vector` and its GIN index. That is the optimization: the expensive document-side tokenization is done when the row is written, rather than for every search request.
+
+The original `chunk_text` remains essential for:
+
+- creating `search_vector`;
+- exact-quote and raw-substring checks (`app/repositories/rag_search_repository.py:140-151`);
+- quality controls and reranking;
+- snippet generation; and
+- returning the readable match to the caller.
+
+#### Direct versus indirect use of `chunk_text`
+
+Both forms exist in the current implementation.
+
+**Indirect, primary full-text path:**
+
+```sql
+c.search_vector @@ sq.tsq
+```
+
+Here PostgreSQL searches the generated `tsvector` and its GIN index. `chunk_text` was used earlier to generate `search_vector`, but the runtime predicate does not compare directly against the raw text. This is the normal lexical candidate-selection path (`app/repositories/rag_search_repository.py:150`).
+
+**Direct raw-text path:**
+
+The repository also contains SQL expressions that reference `c.chunk_text` itself:
+
+```sql
+-- Score bonus when the complete normalized query is a literal substring
++ CASE
+    WHEN lower(c.chunk_text) LIKE '%' || lower(:query) || '%'
+    THEN 1.0
+    ELSE 0.0
+  END
+```
+
+This scoring expression is at `app/repositories/rag_search_repository.py:140`. It adds `1.0` to `keyword_score` when the complete normalized query appears literally in the chunk. It is only a bonus; for an ordinary non-quote query, this expression by itself does not make the row eligible.
+
+The second direct expression is a candidate-selection condition for exact-quote intent:
+
+```sql
+OR (
+    :query_intent = 'exact_quote'
+    AND lower(c.chunk_text) LIKE '%' || lower(:query) || '%'
+)
+```
+
+This is at `app/repositories/rag_search_repository.py:151`. When the query was classified as `exact_quote`, a literal case-insensitive substring match can admit the chunk even if the `tsvector @@ tsquery` condition does not.
+
+The distinction is:
+
+| Query behavior | Reads raw `chunk_text` directly? | Can select a candidate? | Can change score? |
+|---|---:|---:|---:|
+| Normal full-text match: `search_vector @@ tsquery` | No, indirect through generated `search_vector` | Yes | Yes, through `ts_rank_cd` |
+| Complete-query substring bonus | Yes | No, not by itself for ordinary queries | Yes, `+1.0` |
+| Exact-quote substring condition | Yes | Yes, for `exact_quote` intent | Also receives the substring bonus |
+| Returning text/snippet after retrieval | Yes, selected as `c.chunk_text` | Not applicable | Later reranking can use the text |
+
+The keyword SQL also selects `c.chunk_text` in its result columns at `app/repositories/rag_search_repository.py:120`. After the database returns candidates, application code directly reads that value for quality filtering, local reranking, page-marker cleanup, snippet construction, and optional full-text output. These are post-retrieval uses; they are separate from database candidate selection.
+
+Therefore, the precise summary is:
+
+```text
+Normal lexical retrieval:
+chunk_text -> generated search_vector -> GIN full-text match
+
+Exact phrase and scoring supplement:
+chunk_text -> direct case-insensitive LIKE comparison
+
+After retrieval:
+chunk_text -> quality checks -> reranking -> snippet/response
+```
+
+The direct `LIKE` check does not replace the indexed full-text search. It supplements it for literal phrase precision and a small score boost. Since the pattern begins with `%`, a normal B-tree index cannot support it; the schema's `pg_trgm` GIN index on `chunk_text` (`modules/rag-ingest-service/sql/schema.sql:451`) is the relevant index for PostgreSQL to consider for this kind of substring condition.
+
+At query time, PostgreSQL converts the NLQ into a `tsquery` and compares two lexical structures:
+
+```sql
+c.search_vector @@ websearch_to_tsquery('english', :query)
+```
+
+It is therefore not comparing the NLQ string directly with the stored text. It compares normalized query lexemes with the normalized lexemes previously derived from that text. When a row matches, the same SQL `SELECT` returns `c.chunk_text` from that chunk row (`app/repositories/rag_search_repository.py:117-120`).
+
+### When the embedding vector is created
+
+Embedding creation happens later in the ingestion workflow, after chunk rows exist. The worker:
+
+1. Selects chunks that do not yet have the configured embedding version (`modules/rag-ingest-service/app/workers/rag_ingestion_worker.py:297-336`).
+2. Builds enriched embedding input from resource context, section/heading/page information, and cleaned chunk text (`modules/rag-ingest-service/app/services/embedding_input_service.py:11-57`).
+3. Calls the configured embedding provider (`modules/rag-ingest-service/app/workers/rag_ingestion_worker.py:347-367`).
+4. Validates vector count and dimension (`modules/rag-ingest-service/app/services/embedding_service.py:137-145`).
+5. Stores each vector with the corresponding `chunk_id`, provider, model, version, and dimension (`modules/rag-ingest-service/app/workers/rag_ingestion_worker.py:383-395`).
+
+Unlike the generated `tsvector`, an embedding is not automatically recomputed by PostgreSQL when `chunk_text` changes. If source text or embedding context changes, the ingestion/indexing workflow must generate a new compatible embedding. The versioned uniqueness constraint supports controlled re-embedding and prevents duplicate rows for the same chunk/provider/model/version (`modules/rag-ingest-service/sql/schema.sql:328`).
+
 ### Keyword ranking and explicit field boosts
 
 The base lexical score is:
@@ -306,6 +483,135 @@ The query matches a row when any of these conditions holds (`app/repositories/ra
 The query separately computes `resource_match_score`: exact title match is `2`, title substring match is `1`, otherwise `0` (`app/repositories/rag_search_repository.py:119-122`). This value helps ordering and later reranking.
 
 Keyword results are ordered first by resource-title relevance. For a title match, earlier chunks are favored; then keyword score and resource creation time are used (`app/repositories/rag_search_repository.py:163-171`).
+
+### How natural-language questions become text-search queries
+
+Text search does not normally search for the complete NLQ as one literal substring. For example, this is a poor primary retrieval query:
+
+```sql
+WHERE chunk_text ILIKE '%can you please tell me how long the product is covered under warranty%'
+```
+
+It succeeds only when almost the same sentence occurs in a chunk. It also provides weak relevance ranking and, without a specialized trigram index, usually scales poorly because a leading wildcard prevents ordinary B-tree lookup.
+
+A production lexical-search flow usually looks like this:
+
+```text
+NLQ
+ -> normalize whitespace/case and obvious spelling aliases
+ -> identify phrases and operators
+ -> tokenize with the configured language
+ -> remove language stop words
+ -> stem/normalize words into lexemes
+ -> look up lexemes in an inverted index
+ -> rank matching chunks
+```
+
+For example, an English-language query such as:
+
+```text
+Can you please tell me how long the products are covered under warranty?
+```
+
+is not expected to exist verbatim in a chunk. The application can remove the conversational prefix, while the database text-search parser can discard common stop words and normalize inflections such as `products`/`product` and `covered`/`cover`. The resulting lexical concepts are closer to:
+
+```text
+long & product & cover & warranti
+```
+
+The exact lexemes depend on PostgreSQL's installed text-search configuration and dictionaries. Semantic retrieval runs alongside this lexical path in hybrid mode, so a chunk can still be found when it expresses the answer using different vocabulary, such as “protection expires after twenty-four months,” with no occurrence of `warranty` or `covered`.
+
+#### What this project preprocesses before PostgreSQL
+
+`QueryPreprocessor.understand()` at `app/search/query_preprocessor.py:36-60` currently:
+
+- collapses whitespace;
+- extracts a quoted phrase;
+- removes a limited list of prefixes such as `please`, `can you`, `tell me about`, `what is`, `show me`, `find`, and `search for` (`app/search/query_preprocessor.py:8-11`);
+- removes a prefix such as `book:` or `document:` (`:12`);
+- replaces configured spelling/domain aliases (`:61-74`); and
+- creates meaningful tokens and classifies intent.
+
+Default aliases are stored in `app/search/default_query_aliases.json`. Application stop words and tokenization are defined in `app/search/lexical.py:7-84`.
+
+An important code-level distinction is that the application-generated `normalized_terms` are primarily used for intent detection, quality/reranking, and related scoring. The SQL query receives the normalized query string. PostgreSQL performs its own language-aware parsing when `websearch_to_tsquery('english', :query)` or `phraseto_tsquery('english', :query)` is called at `app/repositories/rag_search_repository.py:104-108`.
+
+Current limitation: the prefix regular expression covers only specific word orders and phrases, and `normalized_terms` are not used to construct the SQL `tsquery`. A filler phrase that does not match that expression can therefore reach `websearch_to_tsquery`; PostgreSQL will discard it only if its configured dictionary treats it as a stop word. Because unquoted words passed to `websearch_to_tsquery` are generally combined as required terms, an unremoved content-like filler can unnecessarily reduce lexical recall. A safe improvement is to expand tested prefix normalization and/or construct the lexical query from conservatively selected content terms, while retaining the original normalized query for phrase handling, vector embedding, and diagnostics. Any such change should be evaluated against a labeled query set because aggressive word removal can also discard intent-bearing terms.
+
+#### PostgreSQL configuration required for text search
+
+PostgreSQL full-text search is built in; no separate search server is required. For practical scale, the database schema should provide:
+
+1. A document representation created with `to_tsvector` and an explicit language configuration.
+2. A query representation created with `websearch_to_tsquery`, `plainto_tsquery`, `phraseto_tsquery`, or carefully constructed `to_tsquery`.
+3. The match operator `@@`.
+4. A GIN index on the `tsvector` expression or stored/generated column.
+5. A relevance function such as `ts_rank` or `ts_rank_cd`.
+
+This project has that setup:
+
+```sql
+search_vector tsvector GENERATED ALWAYS AS (
+    to_tsvector('english', coalesce(chunk_text, ''))
+) STORED;
+
+CREATE INDEX ix_rag_document_chunks_search_vector
+ON public.rag_document_chunks USING gin (search_vector);
+```
+
+The column is defined at `modules/rag-ingest-service/sql/schema.sql:309`, and the GIN index at `:452`. Search uses `c.search_vector @@ sq.tsq` at `app/repositories/rag_search_repository.py:150` and ranks with `ts_rank_cd` at `:134`.
+
+The GIN index is an inverted index: conceptually it maps each normalized lexeme to the chunk rows containing that lexeme. Consequently, PostgreSQL looks up a small group of posting lists rather than scanning every chunk. PostgreSQL documentation identifies GIN as the preferred index type for full-text search. The index is not required for correctness, but it is normally required for repeated search at meaningful scale.
+
+Language configuration matters. The current schema is fixed to `'english'`, so its tokenizer, stop-word dictionary, and stemming rules are appropriate only for English content. A multilingual corpus should store/select the appropriate `regconfig` per document or language group and build indexes that match the query configuration. The expression used by the query must be compatible with the expression used by the index.
+
+#### What `LIKE` is still good for
+
+`LIKE`/`ILIKE` remains useful for:
+
+- exact substrings and identifiers;
+- title/author/category fallback matches;
+- quoted phrase verification;
+- small tables; and
+- fuzzy substring search when backed by PostgreSQL `pg_trgm` GIN/GiST indexes.
+
+It should not be the sole NLQ retrieval mechanism. This repository correctly uses full-text search as the chunk-level lexical path and uses `LIKE` only as additional exact/resource-field matching (`app/repositories/rag_search_repository.py:135-154`). The schema enables `pg_trgm` and creates a chunk-text trigram GIN index at `modules/rag-ingest-service/sql/schema.sql:6` and `:451`.
+
+#### SQL Server comparison
+
+SQL Server follows the same broad industry pattern. Its Full-Text Search feature is a separately installable database component with full-text catalogs/indexes. Applications use `FREETEXT`/`FREETEXTTABLE` for natural-language input and `CONTAINS`/`CONTAINSTABLE` for more controlled word, phrase, prefix, proximity, inflectional, or weighted queries. It is not best practice to implement document search only as `LIKE '%NLQ%'`.
+
+Rough conceptual equivalents are:
+
+| Need | PostgreSQL | SQL Server |
+|---|---|---|
+| Indexed document form | `tsvector` + GIN | Full-text index/catalog |
+| Natural-language query | `websearch_to_tsquery` or `plainto_tsquery` | `FREETEXT` / `FREETEXTTABLE` |
+| Controlled query syntax | `to_tsquery`, `phraseto_tsquery` | `CONTAINS` / `CONTAINSTABLE` |
+| Ranking | `ts_rank`, `ts_rank_cd` | Rank from `...TABLE` functions |
+| Fuzzy substring/typos | `pg_trgm` | Usually separate fuzzy/search logic or a search platform |
+
+#### Recommended RAG lexical-search practice
+
+1. Keep preprocessing conservative. Remove conversational framing and normalize known aliases, but do not drop potentially meaningful content words blindly.
+2. Use the database/search engine's language analyzer for tokenization, stop words, and stemming so indexing and querying use identical rules.
+3. Treat quoted phrases differently from ordinary NLQ.
+4. Index title/headings/body with different weights when corpus structure matters; PostgreSQL supports weighted `tsvector` values with `setweight`.
+5. Add a maintained synonym/domain-alias layer for organization-specific vocabulary, abbreviations, and common misspellings.
+6. Use lexical search and vector search as complementary candidate generators. Lexical search provides precision for names, codes, quotations, and rare terms; vectors provide recall for paraphrases and vocabulary mismatch.
+7. Oversample both paths, fuse by rank (RRF is a strong default), rerank, and apply quality filters before the final `top_k`.
+8. Tune using a labeled query-to-relevant-chunk evaluation set. Measure recall@k, MRR/nDCG, latency, and no-result rate instead of choosing stop words or fusion weights by intuition alone.
+9. Inspect representative queries with `EXPLAIN (ANALYZE, BUFFERS)` to confirm GIN/trigram indexes are actually selected.
+
+Primary references:
+
+- [PostgreSQL: controlling text search and parsing queries](https://www.postgresql.org/docs/current/textsearch-controls.html)
+- [PostgreSQL: tables and indexes for full-text search](https://www.postgresql.org/docs/current/textsearch-tables.html)
+- [PostgreSQL: preferred full-text index types](https://www.postgresql.org/docs/current/textsearch-indexes.html)
+- [PostgreSQL: trigram similarity and indexed `LIKE`/`ILIKE`](https://www.postgresql.org/docs/current/pgtrgm.html)
+- [Microsoft: SQL Server Full-Text Search](https://learn.microsoft.com/en-us/sql/relational-databases/search/full-text-search)
+- [Microsoft: `FREETEXT`](https://learn.microsoft.com/en-us/sql/t-sql/queries/freetext-transact-sql)
+- [Microsoft: `CONTAINS`](https://learn.microsoft.com/en-us/sql/t-sql/queries/contains-transact-sql)
 
 ## 5. SQL filters
 
