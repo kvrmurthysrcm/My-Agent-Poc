@@ -5,7 +5,7 @@ action="${1:?action is required}"
 image_tag="${2:?image tag is required}"
 namespace="${3:?namespace is required}"
 kubeconfig="${4:?kubeconfig is required}"
-service=${5:?service id is required}"
+service="${5:?service id is required}"
 
 exec > >(sed -u "s/^/[$action][$service] /") 2>&1
 
