@@ -4,3 +4,17 @@ __pycache__/
 modules/rag-ingest-service/storage/
 artifacts/
 /.idea/workspace.xml
+# Local Jenkins / Kubernetes credentials
+kubeconfig-jenkins
+
+# Local Jenkins/K8s recovery backups
+_jenkins_fix_backup_*/
+
+# Local diagnostic collectors / generated diagnostics
+collect-my-agent-poc-jenkins.bat
+My-Agent-Poc-Jenkins-Diagnostics/
+
+# Python test/runtime caches
+**/.pytest_cache/
+**/__pycache__/
+*.pyc

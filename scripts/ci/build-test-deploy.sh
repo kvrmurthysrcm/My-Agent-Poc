@@ -5,8 +5,7 @@ service_csv="${1:?service list is required}"
 image_tag="${2:?image tag is required}"
 namespace="${3:?namespace is required}"
 kubeconfig="${4:?kubeconfig is required}"
-kind_node="${5:?Kubernetes node container is required}"
-pipeline_action="${6:-all}"
+pipeline_action="${5:-all}"
 max_workers="${MAX_PARALLEL_SERVICES:-2}"
 
 if ! [[ "$max_workers" =~ ^[1-4]$ ]]; then
@@ -48,7 +47,7 @@ run_parallel() {
   printf '%s\0' "${services[@]}" |
     xargs -0 -r -n1 -P "$max_workers" \
       "$BASH" "$worker" "$action" "$image_tag" "$namespace" \
-        "$kubeconfig" "$kind_node"
+        "$kubeconfig"
 }
 
 if [[ "$pipeline_action" == "build-test" || "$pipeline_action" == "all" ]]; then

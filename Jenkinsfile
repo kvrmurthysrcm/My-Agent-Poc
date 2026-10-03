@@ -11,13 +11,12 @@ pipeline {
         choice(
             name: 'MAX_PARALLEL_SERVICES',
             choices: ['2', '1', '3', '4'],
-            description: 'Maximum service build/test or deployment workers on the shared Docker/Kubernetes host. Force deployment 1'
+            description: 'Maximum service build/test or deployment workers on the shared Docker/Kubernetes host. Force deployment 2'
         )
     }
 
     environment {
         K8S_NAMESPACE = 'rag-poc'
-        KIND_NODE = 'desktop-control-plane'
         KUBECONFIG = '/var/jenkins_home/kubeconfig-jenkins'
         SONAR_HOST_URL = 'http://sonarqube:9000'
         SONAR_DOCKER_NETWORK = 'keycloak_keycloak-network'
@@ -92,7 +91,7 @@ pipeline {
                     test -f scripts/cleanup-old-cicd-images.sh
                     command -v xargs
                     command -v flock
-                    docker inspect "$KIND_NODE" >/dev/null
+                    kubectl --kubeconfig "$KUBECONFIG" wait --for=condition=Ready nodes --all --timeout=60s
                     kubectl --kubeconfig "$KUBECONFIG" get nodes -o wide
                     kubectl --kubeconfig "$KUBECONFIG" apply -f k8s/namespace.yaml
                 '''
@@ -113,7 +112,7 @@ pipeline {
                     echo "Using up to $MAX_PARALLEL_SERVICES parallel build/test workers."
                     bash scripts/ci/build-test-deploy.sh \
                       "$CI_SERVICES" "$IMAGE_TAG" "$K8S_NAMESPACE" \
-                      "$KUBECONFIG" "$KIND_NODE" build-test
+                      "$KUBECONFIG" build-test
                 '''
             }
             post {
@@ -189,7 +188,7 @@ pipeline {
                     echo "Using up to $MAX_PARALLEL_SERVICES parallel deployment workers."
                     bash scripts/ci/build-test-deploy.sh \
                       "$CI_SERVICES" "$IMAGE_TAG" "$K8S_NAMESPACE" \
-                      "$KUBECONFIG" "$KIND_NODE" deploy
+                      "$KUBECONFIG" deploy
                 '''
             }
         }

@@ -5,8 +5,7 @@ action="${1:?action is required}"
 image_tag="${2:?image tag is required}"
 namespace="${3:?namespace is required}"
 kubeconfig="${4:?kubeconfig is required}"
-kind_node="${5:?Kubernetes node container is required}"
-service="${6:?service id is required}"
+service=${5:?service id is required}"
 
 exec > >(sed -u "s/^/[$action][$service] /") 2>&1
 
@@ -187,7 +186,7 @@ deploy() {
   local runtime_image="${repository}:${image_tag}"
   echo "DEPLOY: $runtime_image"
   docker image inspect "$runtime_image" >/dev/null
-  docker save "$runtime_image" | docker exec -i "$kind_node" ctr -n k8s.io images import -
+  # Docker Desktop kubeadm uses the local Docker Desktop image store.
 
   [[ ! -f "$manifests/configmap.yaml" ]] || kubectl --kubeconfig "$kubeconfig" apply -f "$manifests/configmap.yaml"
   [[ ! -f "$manifests/secret.yaml" ]] || kubectl --kubeconfig "$kubeconfig" apply -f "$manifests/secret.yaml"
