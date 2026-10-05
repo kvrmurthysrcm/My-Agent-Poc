@@ -10,7 +10,8 @@ RUN apt-get update \
 
 COPY requirements.txt ./requirements.txt
 RUN python -m pip install --upgrade pip \
-    && pip install -r requirements.txt
+    && pip install -r requirements.txt \
+    && opentelemetry-bootstrap -a install
 
 FROM base AS test
 ENV PYTHONPATH=/app
@@ -25,4 +26,4 @@ FROM base AS runtime
 COPY app ./app
 RUN mkdir -p /app/storage
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["opentelemetry-instrument", "python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
