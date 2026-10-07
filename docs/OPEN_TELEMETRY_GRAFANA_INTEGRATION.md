@@ -18,7 +18,7 @@ configuration when its pod starts.
 
 | Change | Affected files | What it does |
 | --- | --- | --- |
-| Add OpenTelemetry Python packages | `modules/rag-answer-service/requirements.txt`<br>`modules/rag-search-service/requirements.txt`<br>`modules/rag-ingest-service/requirements.txt` | Adds the OpenTelemetry distribution and OTLP exporter to each service image. |
+| Add OpenTelemetry Python packages | `modules/rag-answer-service/requirements.txt`<br>`modules/rag-search-service/requirements.txt`<br>`modules/rag-ingest-service/requirements.txt` | Adds the OpenTelemetry distribution and OTLP exporter to each service image. For example, `modules/rag-answer-service/requirements.txt` contains:<br><br><pre>opentelemetry-distro<br>opentelemetry-exporter-otlp</pre> These packages provide the OpenTelemetry SDK, automatic instrumentation, and the OTLP exporter used to send traces, metrics, and logs to the Collector. |
 | Instrument the service image | `modules/rag-answer-service/Dockerfile`<br>`modules/rag-search-service/Dockerfile`<br>`modules/rag-ingest-service/Dockerfile` | Runs `opentelemetry-bootstrap -a install` during the image build, then starts Uvicorn through `opentelemetry-instrument`. This automatically instruments supported FastAPI/ASGI, HTTP client, logging, and database libraries. |
 | Configure telemetry in Kubernetes | `k8s/rag-answer-service/deployment.yaml`<br>`k8s/rag-search-service/deployment.yaml`<br>`k8s/rag-ingest-service/deployment.yaml` | Stores the nine `OTEL_*` environment variables in the Deployment template. Kubernetes passes them to every replacement pod. These manifests are the source of truth. |
 | Keep a manual recovery helper | `scripts/configure-otel-k8s.bat` | Can apply the same variables to a live Deployment when needed, but normal Jenkins deployments use the version-controlled Deployment YAML files. |
@@ -27,12 +27,153 @@ The existing Jenkins pipeline builds each service's runtime Docker image and
 renders its Deployment YAML with the selected image tag. Therefore, future
 deployments retain the OpenTelemetry startup command and environment variables.
 
+### How the service image change works
+
+The dependency entries are installed when the Docker image is built. Then
+`opentelemetry-bootstrap -a install` detects supported libraries already
+installed in the image and installs their OpenTelemetry instrumentors. At
+runtime, the Dockerfile starts the service with `opentelemetry-instrument`
+instead of calling Uvicorn directly. This wrapper initializes OpenTelemetry,
+applies the installed instrumentors, and starts the same FastAPI application.
+The Kubernetes `OTEL_*` environment variables then tell the running wrapper
+where to send the collected telemetry.
+
+### Role of `requirements.txt` during the image build
+
+`requirements.txt` is the dependency input for the service image; it is not
+executed as a Python program. For the answer service, the Dockerfile performs
+these steps during the `base` build stage:
+
+1. `COPY requirements.txt ./requirements.txt` copies the file from the service
+   directory into `/app` inside the temporary image build environment.
+2. `pip install -r requirements.txt` reads each line and installs the listed
+   packages, including `opentelemetry-distro` and
+   `opentelemetry-exporter-otlp`, into the Python environment in the image.
+3. `opentelemetry-bootstrap -a install` uses those installed packages to add
+   the matching automatic instrumentors for libraries such as FastAPI and
+   HTTP clients.
+4. The completed `base` stage is reused by the `test` and `runtime` stages, so
+   the runtime image already contains these dependencies when it starts.
+
+The Docker build process calls the Dockerfile, and the Dockerfile calls `pip`
+with `requirements.txt` as its input. In this project, Jenkins starts the
+Docker build for each service; Jenkins does not install the Python packages
+itself. Package installation happens once while the image is being built, not
+when a Kubernetes pod starts. At runtime, the container uses the already
+installed packages and starts the application with `opentelemetry-instrument`.
+
 Only the client-side integration lives in this repository. Grafana, Loki,
 Tempo, Prometheus, and the Collector are supplied by the separate local
 `grafana-lgtm` Docker container, not by the FastAPI service images or Kubernetes
 manifests in this project.
 
 ## Kubernetes configuration
+
+### How deployment works in this setup
+
+This project uses Docker Desktop's local Kubernetes cluster. It does not use a
+container registry for the local deployment. Jenkins builds each selected
+service image directly into the local Docker image store, for example:
+
+```text
+docker build --target runtime -t rag-answer-service:<image-tag> \
+  -f modules/rag-answer-service/Dockerfile modules/rag-answer-service
+```
+
+The deployment manifest initially contains `image: __IMAGE__`. The CI worker
+replaces that placeholder with the locally built image name and pipes the
+result to `kubectl apply`. Because the image is already in Docker Desktop's
+image store, the manifest uses `imagePullPolicy: Never`; Kubernetes does not
+try to download it from Docker Hub or another registry. Jenkins then waits for
+the Deployment rollout to complete.
+
+In a cluster that cannot access the Jenkins or Docker Desktop image store, a
+registry is required. The build would then be:
+
+```text
+docker build -t registry.example.com/rag/rag-answer-service:<image-tag> ...
+docker push registry.example.com/rag/rag-answer-service:<image-tag>
+```
+
+The Deployment would reference that pushed image, use an appropriate pull
+policy such as `IfNotPresent` or `Always`, and may need an
+`imagePullSecrets` entry for a private registry. The current local setup does
+not perform the `docker push` step.
+
+#### Manifest files and their responsibilities
+
+Each service directory normally contains these Kubernetes YAML files:
+
+| File | Purpose in this setup |
+| --- | --- |
+| `deployment.yaml` | Defines the desired Pods, container image, exposed container port, environment variables, health probes, resource limits, and replica count. Applying it creates or updates the service's Pods. |
+| `configmap.yaml` | Stores non-sensitive application configuration such as URLs, timeouts, feature flags, and model names. The Deployment loads these values with `envFrom.configMapRef`. |
+| `service.yaml` | Creates a stable internal network name and port, such as `http://rag-search-service:8001`. Its selector sends traffic to Pods with the matching `app` label. `ClusterIP` means it is reachable inside the cluster, not directly from the public internet. |
+| `secret.yaml` | Stores sensitive values as Kubernetes Secret data. The existing `k8s/secure-api/secret.yaml` is loaded by `secure-api` through `envFrom.secretRef`. The checked-in local file uses `stringData`, so production deployments should use protected secret management rather than committing real credentials. |
+| `namespace.yaml` | Creates the `rag-poc` namespace. It provides an isolated naming and management boundary for the application resources. |
+
+The Jenkins pipeline first applies the root `k8s/namespace.yaml`. For each
+selected service, the deployment worker applies `configmap.yaml` and, when
+present, `secret.yaml`, then applies `service.yaml` and `deployment.yaml`.
+The repository also contains `k8s/rag-answer-service/namespace.yaml`, but the
+pipeline uses the root namespace manifest as the common source for `rag-poc`.
+The existing secret file is named `secret.yaml` (singular), although it serves
+the same purpose commonly described as a `secrets.yaml` file.
+Applying the files is idempotent: Kubernetes creates a resource if it does
+not exist or updates the existing resource to match the manifest.
+
+For production, do not commit real credentials, API keys, database passwords,
+or signing keys in `secret.yaml`, ConfigMaps, Helm values, Dockerfiles, or
+Jenkins logs. Kubernetes Secret values are only base64-encoded by default, not
+automatically encrypted in every storage configuration, so a checked-in
+Secret is not safe simply because it uses `stringData` or `data`.
+
+A production deployment should keep secrets in an approved secret manager
+such as Azure Key Vault, AWS Secrets Manager, Google Secret Manager, or
+HashiCorp Vault. The cluster can load them at deploy or pod startup through an
+integration such as External Secrets Operator or the Secrets Store CSI
+Driver. Another acceptable GitOps approach is to commit only an encrypted
+manifest, using a tool such as Sealed Secrets or SOPS; the decryption key must
+remain outside the repository.
+
+The production flow is therefore:
+
+1. An administrator or secret-management process stores the value in the
+   external secret manager.
+2. A controlled Kubernetes integration syncs the value into a namespaced
+   Kubernetes Secret, or mounts it into the Pod as a secret volume.
+3. `deployment.yaml` references the Secret with `secretRef` or `secretKeyRef`;
+   the application receives the value as an environment variable or mounted
+   file without the value appearing in the Deployment manifest.
+4. Access is restricted with least-privilege RBAC, and the secret manager
+   provides audit records, expiration, and rotation. Rotated values should
+   trigger a controlled Pod restart or rollout so applications reload them.
+
+For local development, use an untracked local file or environment variables
+and add that file to `.gitignore`. If a real secret is ever committed, remove
+it from the repository history and rotate or revoke it immediately; deleting
+the latest copy alone does not make the old credential safe.
+
+#### Manifest environment values versus Kubernetes environment variables
+
+There are two related but different concepts:
+
+- A value in `configmap.yaml` or `secret.yaml` is stored as Kubernetes
+  configuration data. It does not enter a container until a Pod references
+  that ConfigMap or Secret.
+- An entry under `spec.template.spec.containers[].env` in `deployment.yaml`
+  is an environment variable definition for the container. A direct `value`
+  is written into the Pod specification, while `envFrom` imports many values
+  from a referenced ConfigMap or Secret.
+
+For example, `RAG_SEARCH_BASE_URL` is defined in the answer service's
+ConfigMap and becomes a container environment variable through
+`envFrom.configMapRef`. The OpenTelemetry settings such as
+`OTEL_EXPORTER_OTLP_ENDPOINT` are defined directly in `deployment.yaml`, so
+Kubernetes places them into the Pod environment when it creates the
+container. The application then reads both types through its normal process
+environment; the source is different, but the application-facing result is
+the same.
 
 Each RAG Deployment contains the following settings. The service name changes
 per service; the remaining settings are shared.
@@ -140,3 +281,15 @@ For another cluster, deploy or use a Prometheus-compatible metrics backend and
 configure that environment's OpenTelemetry Collector to forward OTLP metrics to
 it. Keep the service images unchanged; change the Collector endpoint and the
 Kubernetes `OTEL_EXPORTER_OTLP_ENDPOINT` value for that environment.
+
+## LGTM Docker image
+
+This local setup uses the `grafana/otel-lgtm:latest` Docker image. LGTM groups
+four observability components: Loki for logs, Grafana for dashboards and
+alerting, Tempo for distributed traces, and Prometheus-compatible metrics
+storage (Prometheus in this image; Mimir can be used as an alternative in a
+larger deployment). The image also includes the OpenTelemetry Collector, which
+receives OTLP traffic from the services and routes each signal to the matching
+backend. Start the container with ports `3000` (Grafana) and `4318` (OTLP over
+HTTP) available; `host.docker.internal` is used by the local Kubernetes pods to
+reach the Collector.
